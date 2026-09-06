@@ -11,10 +11,10 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 - [x] 1.6 Define `WaveCategory` ORM model
 - [x] 1.7 Define `Transaction` ORM model with unique constraint on `(source, external_id)`
 - [x] 1.8 Define `Allocation` ORM model with `sync_status` enum
-- [ ] 1.9 Set up Alembic and apply initial migrations
-- [ ] 1.10 Ensure receipt storage directory creation on startup
-- [ ] 1.11 Implement SQLite health check endpoint (`GET /api/health`)
-- [ ] 1.12 Verify database schema setup and health check endpoint
+- [x] 1.9 Set up Alembic and apply initial migrations
+- [x] 1.10 Ensure receipt storage directory creation on startup
+- [x] 1.11 Implement SQLite health check endpoint (`GET /api/health`)
+- [x] 1.12 Verify database schema setup and health check endpoint
 
 ## Phase 2: Authentication & Security (Backend)
 - [ ] 2.1 Implement JWT utilities (create and verify tokens)

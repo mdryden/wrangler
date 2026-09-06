@@ -12,7 +12,9 @@
     "format:api": "uv run --directory api ruff format",
     "format:api:check": "uv run --directory api ruff format --check",
     "test": "pnpm run test:api",
-    "test:api": "uv run --directory api pytest"
+    "test:api": "uv run --directory api pytest",
+    "db:migrate": "pnpm run db:migrate:api",
+    "db:migrate:api": "uv run --directory api alembic upgrade head"
   },
   "packageManager": "pnpm@12.3.4"
 }

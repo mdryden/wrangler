@@ -35,6 +35,6 @@
 			"api/**": true,
 			"web/**": true,
 			"specs/**": true,
-		}
+		},
 	}
 }
