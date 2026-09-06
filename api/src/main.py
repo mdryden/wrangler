@@ -8,7 +8,9 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from core.config import settings
+from core.security import AuthenticationMiddleware
 from database import get_db
+from routers.auth import router as auth_router
 
 
 @asynccontextmanager
@@ -25,6 +27,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(AuthenticationMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -32,6 +35,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(auth_router)
 
 
 @app.get("/api/health")

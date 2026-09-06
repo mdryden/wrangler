@@ -119,11 +119,14 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
 ### 2.3 Create `POST /api/login` endpoint
 - Accepts credentials payload, validates against admin settings, and returns `{ "access_token": "...", "token_type": "bearer" }`.
 
-### 2.4 Create authentication dependency (`get_current_user`)
-- Implement FastAPI dependency to parse and validate `Authorization: Bearer <token>` header, returning 401 Unauthorized on invalid or missing tokens.
+ ### 2.4 Implement automatic authentication middleware & route protection
+- Implement `AuthenticationMiddleware` intercepting all incoming requests to ensure all endpoints are secure by default regardless of router.
+- Support opt-in anonymous routes (`/api/health`, `/api/login`, and API docs), rejecting all other unauthenticated requests with HTTP `401 Unauthorized`.
+- Implement `get_current_user` dependency to extract `request.state.current_user` for endpoints requiring the caller's identity.
 
 ### 2.5 Verify authentication and route protection
-- Use a REST client to verify `POST /api/login` succeeds with valid credentials, fails with invalid credentials, and protected routes reject requests without a valid token.
+- Verify that unadorned endpoints (those without explicit user parameters) reject unauthenticated requests by default and succeed with valid tokens.
+- Verify that opt-in anonymous routes (`/api/health`, `/api/login`) remain accessible without credentials.
 
 ---
 

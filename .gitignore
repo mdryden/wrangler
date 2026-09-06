@@ -6,6 +6,7 @@
 *.sqlite
 *.sqlite3
 *.db
+*.db-*
 .pytest_cache/
 **/*.egg-info
 

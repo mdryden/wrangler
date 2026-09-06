@@ -17,11 +17,11 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 - [x] 1.12 Verify database schema setup and health check endpoint
 
 ## Phase 2: Authentication & Security (Backend)
-- [ ] 2.1 Implement JWT utilities (create and verify tokens)
-- [ ] 2.2 Implement admin credential verification against environment variables
-- [ ] 2.3 Create `POST /api/login` endpoint
-- [ ] 2.4 Create authentication dependency (`get_current_user`) to protect routes
-- [ ] 2.5 Verify authentication and route protection using a REST client
+- [x] 2.1 Implement JWT utilities (create and verify tokens)
+- [x] 2.2 Implement admin credential verification against environment variables
+- [x] 2.3 Create `POST /api/login` endpoint
+- [x] 2.4 Implement secure-by-default authentication middleware (opt-in anonymous routes for health & login) and `get_current_user` dependency
+- [x] 2.5 Verify authentication and route protection using a REST client
 
 ## Phase 3: Company Management & Wave OAuth (Backend)
 - [ ] 3.1 Create Company CRUD endpoints (`GET`, `POST`, `PUT`, `DELETE` at `/api/companies`)

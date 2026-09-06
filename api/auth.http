@@ -1,0 +1,37 @@
+### 1. Health Check (Opt-in Anonymous)
+GET http://localhost:8000/api/health
+
+### 2. Login with valid credentials (Opt-in Anonymous)
+# @name login
+POST http://localhost:8000/api/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "admin"
+}
+
+### 3. Login with invalid credentials (Fails with 401)
+POST http://localhost:8000/api/login
+Content-Type: application/json
+
+{
+  "username": "wrong_user",
+  "password": "wrong_password"
+}
+
+### 4. General endpoint without token (Secure by default, fails with 401)
+GET http://localhost:8000/api/protected
+
+### 5. General endpoint with invalid token (Fails with 401)
+GET http://localhost:8000/api/protected
+Authorization: Bearer invalid-garbage-token
+
+### 6. General endpoint with valid token from login (Succeeds with 200)
+@authToken = {{login.response.body.access_token}}
+GET http://localhost:8000/api/protected
+Authorization: Bearer {{authToken}}
+
+### 7. Endpoint requesting user identity with valid token (Succeeds with 200)
+GET http://localhost:8000/api/auth/me
+Authorization: Bearer {{authToken}}

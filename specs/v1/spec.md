@@ -26,6 +26,14 @@ This application is a private, internal web tool used to review, allocate, and p
 ## 3. Security & Authentication
 - **Admin Credentials:** A single username and password must be configured via environment variables (e.g., `ADMIN_USERNAME`, `ADMIN_PASSWORD`).
 - **Session Management:** The frontend will authenticate via a login screen, receiving a JWT (JSON Web Token) from the FastAPI backend.
+- **Secure-by-Default Architecture:** All endpoints across the backend are protected by default regardless of router. Authentication is
+  automatically enforced at the middleware layer (`AuthenticationMiddleware`). Unauthenticated requests to any non-exempt route are rejected with HTTP
+  `401 Unauthorized`.
+    - **Opt-in Anonymous Routes:** Public/unauthenticated access is strictly opt-in. Only `GET /api/health`, `POST /api/login`, and OpenAPI
+  documentation endpoints (`/docs`, `/redoc`, `/openapi.json`) are permitted without credentials. Any newly added endpoint or router is secured
+  automatically without requiring manual per-route annotations.
+    - **User Identity Extraction:** Upon successful Bearer token verification, the middleware populates `request.state.current_user`. Routes that need
+  the authenticated admin identity can inject it via the `get_current_user` dependency.
 - **Global Configuration:** The application requires the following environment variables:
   - `JWT_SECRET_KEY` and `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` for session management.
   - `WAVE_CLIENT_ID`, `WAVE_CLIENT_SECRET`, and `WAVE_REDIRECT_URI` for OAuth.
