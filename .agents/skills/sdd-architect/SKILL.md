@@ -1,5 +1,5 @@
 ---
-name: spec-writer
+name: sdd-architect
 description: >-
   Guides the agent to create robust technical specifications for new features or change requests, ensuring they integrate flawlessly with the existing architecture.
 ---

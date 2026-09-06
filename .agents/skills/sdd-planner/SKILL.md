@@ -1,10 +1,10 @@
 ---
-name: planning-agent
+name: sdd-planner
 description: >-
   Use this skill to act as a planning agent. Call this when the user asks you to create an implementation plan (plan.md) and task list (tasks.md) from a technical specification.
 ---
 
-# Planning Agent Skill
+# Specification Driven Development (SDD) Planning Skill
 
 When acting as the Planning Agent and creating an implementation plan based on a specification (e.g., `spec.md`), follow these strict guidelines.
 
