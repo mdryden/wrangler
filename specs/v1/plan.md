@@ -209,7 +209,7 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
 ## Phase 6: Frontend Foundation
 *Goal: Initialize the frontend application, layout, authentication, and API client.*
 
-### 6.1 Initialize Vue 3 + Quasar project with Pinia
+### 6.1 Initialize Vue 3 + Typescript + Quasar project with Pinia
 - Set up frontend project with Vue 3.5.x, Quasar 2.30.x, and Pinia 3.x.
 
 ### 6.2 Configure Vue Router and navigation guards

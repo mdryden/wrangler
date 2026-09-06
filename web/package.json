@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "lint": "prettier --check .",
+    "typecheck": "vue-tsc --noEmit",
+    "lint": "vue-tsc --noEmit && prettier --check .",
     "lint:fix": "prettier --write .",
     "format": "prettier --check .",
     "format:fix": "prettier --write .",
@@ -22,9 +23,12 @@
   },
   "devDependencies": {
     "@quasar/vite-plugin": "^2.0.2",
+    "@types/node": "^26.4.1",
     "@vitejs/plugin-vue": "^6.0.8",
     "prettier": "^3.9.6",
+    "typescript": "^5.7.3",
     "vite": "^8.2.2",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.0",
+    "vue-tsc": "^3.3.11"
   }
 }

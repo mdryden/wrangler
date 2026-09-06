@@ -64,24 +64,24 @@
   </q-layout>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from "vue"
 import { useRoute, useRouter } from "vue-router"
 import { useQuasar } from "quasar"
-import { useAuthStore } from "../stores/auth.js"
+import { useAuthStore } from "../stores/auth"
 
 const route = useRoute()
 const router = useRouter()
 const $q = useQuasar()
 const authStore = useAuthStore()
 
-const username = ref("")
-const password = ref("")
-const showPassword = ref(false)
-const loading = ref(false)
-const errorMessage = ref("")
+const username = ref<string>("")
+const password = ref<string>("")
+const showPassword = ref<boolean>(false)
+const loading = ref<boolean>(false)
+const errorMessage = ref<string>("")
 
-async function onSubmit() {
+async function onSubmit(): Promise<void> {
   errorMessage.value = ""
   loading.value = true
 
@@ -98,10 +98,10 @@ async function onSubmit() {
       timeout: 2000,
     })
 
-    const redirectPath = route.query.redirect || { name: "ledger" }
+    const redirectPath = (route.query.redirect as string) || { name: "ledger" }
     await router.push(redirectPath)
   } catch (err) {
-    errorMessage.value = err.message || "Failed to sign in"
+    errorMessage.value = err instanceof Error ? err.message : "Failed to sign in"
     $q.notify({
       type: "negative",
       message: errorMessage.value,

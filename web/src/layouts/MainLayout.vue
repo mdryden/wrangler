@@ -22,14 +22,14 @@
   </q-layout>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { useRouter } from "vue-router"
-import { useAuthStore } from "../stores/auth.js"
+import { useAuthStore } from "../stores/auth"
 
 const router = useRouter()
 const authStore = useAuthStore()
 
-function onLogout() {
+function onLogout(): void {
   authStore.logout()
   router.push({ name: "login" })
 }
