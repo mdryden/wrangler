@@ -9,8 +9,8 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 - [x] 1.4 Initialize SQLite database connection and ORM setup
 - [x] 1.5 Define `Company` ORM model
 - [x] 1.6 Define `WaveCategory` ORM model
-- [ ] 1.7 Define `Transaction` ORM model with unique constraint on `(source, external_id)`
-- [ ] 1.8 Define `Allocation` ORM model with `sync_status` enum
+- [x] 1.7 Define `Transaction` ORM model with unique constraint on `(source, external_id)`
+- [x] 1.8 Define `Allocation` ORM model with `sync_status` enum
 - [ ] 1.9 Set up Alembic and apply initial migrations
 - [ ] 1.10 Ensure receipt storage directory creation on startup
 - [ ] 1.11 Implement SQLite health check endpoint (`GET /api/health`)
