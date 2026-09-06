@@ -51,9 +51,9 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 - [x] 6.1 Initialize Vue 3 + Quasar project with Pinia
 - [x] 6.2 Configure Vue Router and authentication navigation guards
 - [x] 6.3 Implement Login View and integrate with `POST /api/login`
-- [ ] 6.4 Implement persistent Navigation Drawer layout (Ledger, Manual Entry, Sync Manager, Settings)
-- [ ] 6.5 Implement Fetch API client wrapper with automatic JWT authorization header
-- [ ] 6.6 Verify frontend foundation in browser
+- [x] 6.4 Implement persistent Navigation Drawer layout (Ledger, Manual Entry, Sync Manager, Settings)
+- [x] 6.5 Implement Fetch API client wrapper with automatic JWT authorization header
+- [x] 6.6 Verify frontend foundation in browser
 
 ## Phase 7: Frontend Company & Settings Management
 - [ ] 7.1 Create Company Management & Settings View
