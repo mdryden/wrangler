@@ -38,7 +38,7 @@ Always run commands from the repository root. Base commands (`lint`, `format`) a
 
 ## 3. Implementation Rules for Agents
 
-1. **Format and Lint Verification**: After writing or modifying backend code, run `pnpm format` and `pnpm lint` to ensure no formatting or lint regressions. Use `pnpm format:fix` or `pnpm lint:fix` to automatically apply fixes.
+1. **Format and Lint Verification**: After writing or modifying  code, run `pnpm format` and `pnpm lint` to ensure no formatting or lint regressions. Use `pnpm format:fix` or `pnpm lint:fix` to automatically apply fixes.
 2. **Import Conventions**: Use relative imports when referencing internal modules (e.g., `from .config import settings` or `from ..database import Base`). Do not use `src.` prefixes.
 3. **No Unnecessary `__init__.py`**: Subdirectories under `api/src/` (such as `routers/`, `models/`, `schemas/`, `services/`, `core/`) do not require `__init__.py` files.
 4. **No Inline Python Execution**: Do not run ad-hoc inline Python snippets (`python -c "..."` or `uv run python -c "..."`) or multi-line shell commands. All testing and verification must occur through dedicated test files in `api/tests/` run via `pnpm test`.

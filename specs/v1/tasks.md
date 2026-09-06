@@ -49,8 +49,8 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 
 ## Phase 6: Frontend Foundation
 - [x] 6.1 Initialize Vue 3 + Quasar project with Pinia
-- [ ] 6.2 Configure Vue Router and authentication navigation guards
-- [ ] 6.3 Implement Login View and integrate with `POST /api/login`
+- [x] 6.2 Configure Vue Router and authentication navigation guards
+- [x] 6.3 Implement Login View and integrate with `POST /api/login`
 - [ ] 6.4 Implement persistent Navigation Drawer layout (Ledger, Manual Entry, Sync Manager, Settings)
 - [ ] 6.5 Implement Fetch API client wrapper with automatic JWT authorization header
 - [ ] 6.6 Verify frontend foundation in browser
