@@ -73,13 +73,21 @@ The backend environment is configured via `api/.env`:
 
 Use `pnpm` from the root workspace directory to run services:
 
-### Start the API in Hot-Reload Mode
+### Start Development Servers
 
 ```bash
-pnpm dev:api
-```
+# Start all workspace services in parallel (API on :8000, Web on :3000)
+pnpm dev
 
-*(or simply `pnpm dev`, which executes `uv run --directory api uvicorn main:app --reload`)*
+# Or start backend only (runs `uv run python src/main.py`)
+pnpm dev:api
+# or
+pnpm --filter api dev
+
+# Or start backend directly from api/ directory
+cd api
+uv run python src/main.py
+```
 
 The server will launch with auto-reload enabled:
 - **API Base URL**: `http://localhost:8000`

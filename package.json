@@ -3,18 +3,18 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "pnpm run dev:api",
-    "dev:api": "uv run --directory api uvicorn main:app --reload",
-    "lint": "pnpm run lint:api",
-    "lint:api": "uv run --directory api ruff check",
-    "lint:api:fix": "uv run --directory api ruff check --fix",
-    "format": "pnpm run format:api",
-    "format:api": "uv run --directory api ruff format",
-    "format:api:check": "uv run --directory api ruff format --check",
-    "test": "pnpm run test:api",
-    "test:api": "uv run --directory api pytest",
-    "db:migrate": "pnpm run db:migrate:api",
-    "db:migrate:api": "uv run --directory api alembic upgrade head"
+    "dev": "concurrently -k -n \"api,web\" -c \"blue,green\" \"uv run --directory api python src/main.py\" \"pnpm --filter ./web dev\"",
+    "dev:api": "uv run --directory api python src/main.py",
+    "dev:web": "pnpm --filter \"./web\" dev",
+    "build": "pnpm --filter \"./*\" build",
+    "lint": "pnpm --filter \"./*\" lint",
+    "lint:fix": "pnpm --filter \"./*\" lint:fix",
+    "format": "pnpm --filter \"./*\" format",
+    "format:fix": "pnpm --filter \"./*\" format:fix",
+    "test": "pnpm --filter \"./*\" test"
   },
-  "packageManager": "pnpm@12.3.4"
+  "packageManager": "pnpm@12.3.4",
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
 }

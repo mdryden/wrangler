@@ -1,0 +1,14 @@
+{
+  "name": "api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "uv run python src/main.py",
+    "lint": "uv run ruff check",
+    "lint:fix": "uv run ruff check --fix",
+    "format": "uv run ruff format --check",
+    "format:fix": "uv run ruff format",
+    "test": "uv run pytest",
+    "db:migrate": "uv run alembic upgrade head"
+  }
+}

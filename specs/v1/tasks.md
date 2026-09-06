@@ -48,7 +48,7 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 - [ ] 5.8 Verify transaction and allocation endpoints via REST client
 
 ## Phase 6: Frontend Foundation
-- [ ] 6.1 Initialize Vue 3 + Quasar project with Pinia
+- [x] 6.1 Initialize Vue 3 + Quasar project with Pinia
 - [ ] 6.2 Configure Vue Router and authentication navigation guards
 - [ ] 6.3 Implement Login View and integrate with `POST /api/login`
 - [ ] 6.4 Implement persistent Navigation Drawer layout (Ledger, Manual Entry, Sync Manager, Settings)
