@@ -9,8 +9,8 @@ This application is a private, internal web tool used to review, allocate, and p
 - Access requires a single-user login mechanism.
 
 ## 2. Technical Stack
-- **Frontend:** Vue 3.5.x, Quasar 2.30.x, Pinia 3.x
-- **Backend:** Python 3.14.x, FastAPI, Pydantic
+- **Frontend:** Vue 3.5.x, Vue Router, Quasar 2.30.x, Pinia 3.x, Fetch API
+- **Backend:** Python 3.14.x, FastAPI, Uvicorn, Pydantic, Alembic
 - **Database:** SQLite
 - **Wave API:** Wave GraphQL API
 
