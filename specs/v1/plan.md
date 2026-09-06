@@ -7,7 +7,7 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
 ---
 
 ## Phase 1: Backend Foundation and Database Setup
-*Goal: Initialize the FastAPI project, set up configuration, and create the database schema.*
+*Goal: Initialize the FastAPI project, set up configuration, create the database schema, and implement the health check endpoint.*
 
 ### 1.1 Initialize Python environment and dependencies
 - Set up Python 3.14.x compatible virtual environment.
@@ -75,8 +75,35 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
 ### 1.10 Ensure receipt storage directory creation
 - Add an application startup event or utility ensuring the path defined in `RECEIPT_STORAGE_DIR` exists on the filesystem.
 
-### 1.11 Verify database schema setup
+### 1.11 Implement SQLite health check endpoint
+- Update `GET /api/health` as an unauthenticated, public probe for uptime and container monitoring.
+- Inject the SQLAlchemy database session dependency (`get_db`) and execute a lightweight `SELECT 1` query against SQLite.
+- On success, return HTTP `200 OK` with payload:
+  ```json
+  {
+    "status": "ok",
+    "database": "healthy",
+    "meta": {
+      "database_path": "wrangler.db"
+    }
+  }
+  ```
+- If SQLite is unreachable, locked, or query execution raises an exception, return HTTP `503 Service Unavailable` with payload:
+  ```json
+  {
+    "status": "unhealthy",
+    "database": "unhealthy",
+    "meta": {
+      "database_path": "wrangler.db",
+      "error": "<error message>"
+    }
+  }
+  ```
+
+### 1.12 Verify database schema setup and health check endpoint
 - Run migration script and verify table creation, columns, relationships, and unique constraints in SQLite.
+- Send a request to `GET /api/health` using a REST client to verify HTTP `200 OK` and healthy response payload with metadata.
+- Verify HTTP `503 Service Unavailable` error handling when SQLite is unreachable or query execution fails.
 
 ---
 

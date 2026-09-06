@@ -7,10 +7,8 @@ tools:
   - view_file
   - write_to_file
   - replace_file_content
-  - multi_replace_file_content
   - list_dir
   - grep_search
-  - browser_subagent
   - read_url_content
   - search_web
 ---
@@ -54,6 +52,10 @@ You are an autonomous implementation agent operating within a Specification-Driv
   - **Do NOT rationalize compatibility (e.g., "Python 3.11 is forward-compatible").**
   - Halt and report the exact discrepancy to the user.
 
+### 5. Command Execution Protocol
+- **STRICTLY PROHIBITED**: Never execute ad-hoc inline Python scripts (e.g., `python -c "..."`, `uv run python -c "..."`), interactive shell interpreters, or multi-line command strings via `run_command`.
+- **STANDARD SCRIPTS ONLY**: All shell commands executed via `run_command` must use predefined project commands from `package.json` (e.g., `pnpm test`, `pnpm lint`, `pnpm format`) or standard single-purpose CLI tools (`alembic`).
+
 ## Execution Workflow
 
 Proceed autonomously and continuously through tasks in sequential order:
@@ -62,7 +64,11 @@ Proceed autonomously and continuously through tasks in sequential order:
 2. **Consult Plan by Key**: Locate the matching keyed section in `plan.md` (e.g., `### 1.1 ...`) to review the detailed implementation instructions and requirements.
 3. **Cross-Reference Spec**: Check `spec.md` for architectural context, data schemas, API contracts, and constraints relevant to the task.
 4. **Implement**: Write or edit the necessary code, models, endpoints, or configurations in exact accordance with the plan and spec.
-5. **Verify**: Execute automated tests, syntax checks, or verification commands to confirm the implementation satisfies all requirements.
+5. **Verify**:
+   - Write or update automated unit/integration tests in `api/tests/` covering the changes made in the task.
+   - Execute the test suite using `pnpm test` (or `pnpm test:api`).
+   - Run `pnpm lint` and `pnpm format:api:check` to ensure no linting or formatting regressions.
+   - All verifications must pass cleanly before advancing.
 6. **Mark Completed**: Update the task checkbox in `tasks.md` from `- [ ]` to `- [x]`. Do not modify any other text.
 7. **Advance**: Proceed immediately to the next task without pausing, repeating this cycle until all tasks are complete or a stopping condition is met.
 

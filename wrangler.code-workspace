@@ -1,0 +1,40 @@
+{
+	"folders": [
+		{
+			"path": ".agents",
+			"name": "agents"
+		},
+		{
+			"path": "specs",
+		},
+		{
+			"path": "api"
+		},
+		{
+			"path": "web",
+		},
+		{
+			"path": ".",
+			"name": "root"
+		},
+	],
+	"settings": {
+		"files.exclude": {
+			"**/.git": true,
+			"**/.svn": true,
+			"**/.hg": true,
+			"**/.DS_Store": true,
+			"**/Thumbs.db": true,
+			"**/flutter/ephemeral": true,
+			"**/Flutter/ephemeral": true,
+			"**/.symlinks": true,
+			"**/.plugin_symlinks": true,
+			"**/CVS": true,
+			"**/.ruby-lsp": true,
+			".agents/**": true,
+			"api/**": true,
+			"web/**": true,
+			"specs/**": true,
+		}
+	}
+}

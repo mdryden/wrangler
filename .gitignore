@@ -1,0 +1,19 @@
+.venv/
+**/.venv/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.sqlite
+*.sqlite3
+*.db
+.pytest_cache/
+**/*.egg-info
+
+# Node
+node_modules/
+dist/
+.quasar/
+
+# Environment / local configs
+.env
+.env.local

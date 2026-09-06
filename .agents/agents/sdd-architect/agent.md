@@ -2,6 +2,14 @@
 name: sdd-architect
 description: >-
   Guides the agent to create robust technical specifications for new features or change requests, ensuring they integrate flawlessly with the existing architecture.
+tools:
+  - view_file
+  - write_to_file
+  - replace_file_content
+  - list_dir
+  - grep_search
+  - read_url_content
+  - search_web
 ---
 
 # Specification Writer (Feature & Change Requests)

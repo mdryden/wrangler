@@ -3,17 +3,18 @@
 This file tracks the execution progress of the tasks defined in [plan.md](plan.md). The implementation agent will check off tasks as they are completed.
 
 ## Phase 1: Backend Foundation and Database Setup
-- [ ] 1.1 Initialize Python environment and dependencies (FastAPI, Uvicorn, SQLAlchemy/SQLModel, Pydantic, Alembic)
-- [ ] 1.2 Set up project structure (`routers/`, `models/`, `schemas/`, `services/`, `core/`, `database.py`)
-- [ ] 1.3 Create configuration module for environment variables (`ADMIN_USERNAME`, `ADMIN_PASSWORD`, JWT secrets, Wave OAuth config, `RECEIPT_STORAGE_DIR`)
-- [ ] 1.4 Initialize SQLite database connection and ORM setup
-- [ ] 1.5 Define `Company` ORM model
-- [ ] 1.6 Define `WaveCategory` ORM model
+- [x] 1.1 Initialize Python environment and dependencies (FastAPI, Uvicorn, SQLAlchemy/SQLModel, Pydantic, Alembic)
+- [x] 1.2 Set up project structure (`routers/`, `models/`, `schemas/`, `services/`, `core/`, `database.py`)
+- [x] 1.3 Create configuration module for environment variables (`ADMIN_USERNAME`, `ADMIN_PASSWORD`, JWT secrets, Wave OAuth config, `RECEIPT_STORAGE_DIR`)
+- [x] 1.4 Initialize SQLite database connection and ORM setup
+- [x] 1.5 Define `Company` ORM model
+- [x] 1.6 Define `WaveCategory` ORM model
 - [ ] 1.7 Define `Transaction` ORM model with unique constraint on `(source, external_id)`
 - [ ] 1.8 Define `Allocation` ORM model with `sync_status` enum
 - [ ] 1.9 Set up Alembic and apply initial migrations
 - [ ] 1.10 Ensure receipt storage directory creation on startup
-- [ ] 1.11 Verify database schema setup
+- [ ] 1.11 Implement SQLite health check endpoint (`GET /api/health`)
+- [ ] 1.12 Verify database schema setup and health check endpoint
 
 ## Phase 2: Authentication & Security (Backend)
 - [ ] 2.1 Implement JWT utilities (create and verify tokens)

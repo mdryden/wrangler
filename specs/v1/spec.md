@@ -14,6 +14,15 @@ This application is a private, internal web tool used to review, allocate, and p
 - **Database:** SQLite
 - **Wave API:** Wave GraphQL API
 
+### 3.1 Tooling
+
+- uv for managing python and dependencies, along with formatting and linting
+- nvm for managing nodejs and dependencies
+- prettier for formatting and linting the frontend
+- pnpm for frontend package management
+- pytest and httpx for backend testing
+
+
 ## 3. Security & Authentication
 - **Admin Credentials:** A single username and password must be configured via environment variables (e.g., `ADMIN_USERNAME`, `ADMIN_PASSWORD`).
 - **Session Management:** The frontend will authenticate via a login screen, receiving a JWT (JSON Web Token) from the FastAPI backend.
@@ -70,6 +79,29 @@ A transaction must be able to be split.
 ## 5. Backend Architecture (FastAPI)
 
 ### 5.1 Endpoints
+- **Health Check:** `GET /api/health` (Unauthenticated, public probe for uptime/container monitoring).
+  - Executes a lightweight `SELECT 1` query using the SQLAlchemy database session.
+  - **Success (`200 OK`):**
+    ```json
+    {
+      "status": "ok",
+      "database": "healthy",
+      "meta": {
+        "database_path": "wrangler.db"
+      }
+    }
+    ```
+  - **Failure (`503 Service Unavailable`):** Triggered if SQLite is unreachable, locked, or query execution raises an exception:
+    ```json
+    {
+      "status": "unhealthy",
+      "database": "unhealthy",
+      "meta": {
+        "database_path": "wrangler.db",
+        "error": "<error message>"
+      }
+    }
+    ```
 - **Auth:** `POST /api/login` (Returns JWT)
 - **Companies:** CRUD operations for businesses and their configuration.
 - **Wave OAuth:**

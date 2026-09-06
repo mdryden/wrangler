@@ -1,7 +1,15 @@
 ---
 name: sdd-planner
 description: >-
-  Use this skill to act as a planning agent. Call this when the user asks you to create an implementation plan (plan.md) and task list (tasks.md) from a technical specification.
+  Use this skill to act as a planning agent. Call this when the user asks you to create or update an implementation plan (plan.md) and task list (tasks.md) from a technical specification.
+tools:
+  - view_file
+  - write_to_file
+  - replace_file_content
+  - list_dir
+  - grep_search
+  - read_url_content
+  - search_web
 ---
 
 # Specification Driven Development (SDD) Planning Skill
@@ -12,6 +20,7 @@ When acting as the Planning Agent and creating an implementation plan based on a
 - **No Guessing**: If there are gaps in the spec, do not attempt to guess them. Ask the user to address them in the spec before continuing.
 - **Spec is the Source of Truth**: The plan specifies the *how*, not the *what* or *why*. The spec defines what we're building. 
 - **No Extraneous Technical Details**: Do not add dependencies, frameworks, architectural patterns, or other technical details to the plan that are not explicitly stated in the spec.
+- **Completed tasks are immutable**: Once a task is marked as completed in `tasks.md`, it cannot be modified or removed. If the spec is updated, new tasks can be added, but existing completed tasks must remain unchanged.
 
 ## 2. Output Files
 You will produce two files, typically co-located in the same directory as the specification file (e.g., `specs/v1/`):
