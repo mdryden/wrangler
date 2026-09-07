@@ -71,7 +71,6 @@ def test_transaction_creation_defaults(db_session):
     assert tx.total_amount == Decimal("45.50")
     assert tx.currency_code == "USD"
     assert tx.receipt_file_path is None
-    assert tx.is_approved is False
     assert tx.allocations == []
 
 
@@ -86,7 +85,6 @@ def test_transaction_creation_with_all_fields(db_session):
         total_amount=Decimal("-89.99"),  # Test refund / negative amount
         currency_code="CAD",
         receipt_file_path="/receipts/2026/09/amz_123.pdf",
-        is_approved=True,
     )
     db_session.add(tx)
     db_session.commit()
@@ -100,7 +98,6 @@ def test_transaction_creation_with_all_fields(db_session):
     assert tx.total_amount == Decimal("-89.99")
     assert tx.currency_code == "CAD"
     assert tx.receipt_file_path == "/receipts/2026/09/amz_123.pdf"
-    assert tx.is_approved is True
 
 
 def test_transaction_missing_required_fields(db_session):

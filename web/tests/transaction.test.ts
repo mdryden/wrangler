@@ -35,7 +35,6 @@ describe("useTransactionStore & Ledger Integration", () => {
       total_amount: "45.99",
       currency_code: "USD",
       receipt_file_path: "receipts/tx-1.pdf",
-      is_approved: true,
       allocations: [
         {
           id: "alloc-1",
@@ -56,7 +55,6 @@ describe("useTransactionStore & Ledger Integration", () => {
       total_amount: "120.00",
       currency_code: "USD",
       receipt_file_path: null,
-      is_approved: false,
       allocations: [],
     },
   ]
@@ -140,7 +138,7 @@ describe("useTransactionStore & Ledger Integration", () => {
     expect(calledUrl).toContain("descending=false")
   })
 
-  it("passes filter parameters (source, is_approved, start_date, end_date)", async () => {
+  it("passes filter parameters (source, start_date, end_date)", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -151,7 +149,6 @@ describe("useTransactionStore & Ledger Integration", () => {
     const store = useTransactionStore()
     await store.fetchTransactions({
       source: "amazon",
-      is_approved: true,
       start_date: "2026-09-01",
       end_date: "2026-09-07",
     })
@@ -159,7 +156,6 @@ describe("useTransactionStore & Ledger Integration", () => {
     expect(mockFetch).toHaveBeenCalledTimes(1)
     const calledUrl = mockFetch.mock.calls[0][0] as string
     expect(calledUrl).toContain("source=amazon")
-    expect(calledUrl).toContain("is_approved=true")
     expect(calledUrl).toContain("start_date=2026-09-01")
     expect(calledUrl).toContain("end_date=2026-09-07")
   })
@@ -177,7 +173,6 @@ describe("useTransactionStore & Ledger Integration", () => {
       page: 1,
       rowsPerPage: 20,
       source: "",
-      is_approved: null,
       start_date: "",
       end_date: "",
     })
@@ -187,7 +182,6 @@ describe("useTransactionStore & Ledger Integration", () => {
     expect(calledUrl).toContain("page=1")
     expect(calledUrl).toContain("rowsPerPage=20")
     expect(calledUrl).not.toContain("source=")
-    expect(calledUrl).not.toContain("is_approved=")
     expect(calledUrl).not.toContain("start_date=")
     expect(calledUrl).not.toContain("end_date=")
   })
@@ -205,31 +199,6 @@ describe("useTransactionStore & Ledger Integration", () => {
     await expect(store.fetchTransactions()).rejects.toThrow("Database connection failed")
     expect(store.loading).toBe(false)
     expect(store.error).toBe("Database connection failed")
-  })
-
-  it("supports boolean false for unapproved transactions filter", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      headers: new Headers({ "content-type": "application/json" }),
-      json: async () => ({
-        items: [sampleTransactions[1]],
-        total: 1,
-        page: 1,
-        page_size: 20,
-        total_pages: 1,
-      }),
-    })
-
-    const store = useTransactionStore()
-    await store.fetchTransactions({
-      is_approved: false,
-    })
-
-    const calledUrl = mockFetch.mock.calls[0][0] as string
-    expect(calledUrl).toContain("is_approved=false")
-    expect(store.transactions).toHaveLength(1)
-    expect(store.transactions[0].is_approved).toBe(false)
   })
 
   it("passes company_id filter parameter when provided", async () => {
@@ -259,7 +228,7 @@ describe("useTransactionStore & Ledger Integration", () => {
 })
 
 describe("ManualEntryView Form Controls & Validation", () => {
-  it("initializes form state with empty date, description, amount, receipt, and default is_approved true", async () => {
+  it("initializes form state with empty date, description, amount, and receipt", async () => {
     const { createInitialManualEntryState } = await import("../src/views/manualEntry")
     const state = createInitialManualEntryState()
 
@@ -268,7 +237,6 @@ describe("ManualEntryView Form Controls & Validation", () => {
     expect(state.description).toBe("")
     expect(state.total_amount).toBe("")
     expect(state.receipt_file).toBeNull()
-    expect(state.is_approved).toBe(true)
   })
 
   it("validates date rules: required and YYYY-MM-DD format", async () => {

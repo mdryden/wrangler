@@ -2,7 +2,7 @@ import datetime
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Date, Numeric, String, UniqueConstraint, Uuid
+from sqlalchemy import Date, Numeric, String, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -22,7 +22,6 @@ class Transaction(Base):
     total_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     currency_code: Mapped[str] = mapped_column(String, nullable=False, default="USD")
     receipt_file_path: Mapped[str | None] = mapped_column(String, nullable=True)
-    is_approved: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     allocations: Mapped[list[Allocation]] = relationship(
         "Allocation",

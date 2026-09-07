@@ -4,7 +4,6 @@ export interface ManualEntryFormState {
   description: string
   total_amount: string
   receipt_file: File | null
-  is_approved: boolean
 }
 
 export const dateRules = [
@@ -39,6 +38,5 @@ export function createInitialManualEntryState(): ManualEntryFormState {
     description: "",
     total_amount: "",
     receipt_file: null,
-    is_approved: true,
   }
 }

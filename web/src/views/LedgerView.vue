@@ -39,7 +39,7 @@
       <q-card-section class="q-py-sm">
         <div class="row q-col-gutter-sm items-center">
           <!-- Source Filter -->
-          <div class="col-12 col-sm-6 col-md-2">
+          <div class="col-12 col-sm-6 col-md-3">
             <q-input
               v-model="filters.source"
               dense
@@ -58,7 +58,7 @@
           </div>
 
           <!-- Company Filter -->
-          <div class="col-12 col-sm-6 col-md-2">
+          <div class="col-12 col-sm-6 col-md-3">
             <q-select
               v-model="filters.company_id"
               dense
@@ -73,26 +73,6 @@
             >
               <template #prepend>
                 <q-icon name="business" />
-              </template>
-            </q-select>
-          </div>
-
-          <!-- Approval Status Filter -->
-          <div class="col-12 col-sm-6 col-md-2">
-            <q-select
-              v-model="filters.is_approved"
-              dense
-              outlined
-              emit-value
-              map-options
-              bg-color="white"
-              label="Approval Status"
-              :options="approvalOptions"
-              data-testid="filter-approval"
-              @update:model-value="applyFilters"
-            >
-              <template #prepend>
-                <q-icon name="fact_check" />
               </template>
             </q-select>
           </div>
@@ -184,14 +164,6 @@
         </q-td>
       </template>
 
-      <!-- Status Column -->
-      <template #body-cell-is_approved="props">
-        <q-td :props="props" align="center">
-          <q-badge v-if="props.row.is_approved" color="positive" text-color="white" label="Approved" class="q-px-sm q-py-xs" />
-          <q-badge v-else color="orange-8" text-color="white" label="Pending" class="q-px-sm q-py-xs" />
-        </q-td>
-      </template>
-
       <!-- Allocations Column -->
       <template #body-cell-allocations="props">
         <q-td :props="props" align="center">
@@ -235,7 +207,6 @@ const transactionStore = useTransactionStore()
 const filters = ref({
   source: "",
   company_id: null as string | null,
-  is_approved: null as boolean | null,
   start_date: "",
   end_date: "",
 })
@@ -244,12 +215,6 @@ const companyOptions = computed(() => [
   { label: "All Companies", value: null },
   ...companyStore.companies.map(c => ({ label: c.name, value: c.id })),
 ])
-
-const approvalOptions = [
-  { label: "All Approval States", value: null },
-  { label: "Approved Only", value: true },
-  { label: "Pending Approval", value: false },
-]
 
 const pagination = ref({
   sortBy: "date",
@@ -289,13 +254,6 @@ const columns: QTableColumn[] = [
     label: "Source",
     align: "left",
     field: (row: Transaction) => row.source,
-    sortable: true,
-  },
-  {
-    name: "is_approved",
-    label: "Status",
-    align: "center",
-    field: (row: Transaction) => (row.is_approved ? "Approved" : "Pending"),
     sortable: true,
   },
   {
@@ -341,7 +299,6 @@ async function onRequest(props: {
       descending: descending ?? true,
       source: filters.value.source.trim() || undefined,
       company_id: filters.value.company_id || undefined,
-      is_approved: filters.value.is_approved,
       start_date: filters.value.start_date || undefined,
       end_date: filters.value.end_date || undefined,
     })
@@ -365,7 +322,6 @@ function resetFilters(): void {
   filters.value = {
     source: "",
     company_id: null,
-    is_approved: null,
     start_date: "",
     end_date: "",
   }

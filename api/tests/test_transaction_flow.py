@@ -69,14 +69,12 @@ def test_transaction_allocation_receipt_lifecycle_flow(client, auth_headers, db_
         "currency_code": "USD",
         "source": "manual",
         "external_id": "INT-TX-001",
-        "is_approved": False,
     }
     tx_resp = client.post("/api/transactions", json=tx_payload, headers=auth_headers)
     assert tx_resp.status_code == 201
     tx_data = tx_resp.json()
     tx_id = tx_data["id"]
     assert tx_data["description"] == "Hardware & Office Setup"
-    assert tx_data["is_approved"] is False
     assert len(tx_data["allocations"]) == 1
     assert tx_data["allocations"][0]["company_id"] == str(company.id)
     assert tx_data["allocations"][0]["amount"] == "250.00"
@@ -93,14 +91,10 @@ def test_transaction_allocation_receipt_lifecycle_flow(client, auth_headers, db_
     assert list_data["total"] == 1
     assert list_data["items"][0]["id"] == tx_id
 
-    # 5. Update transaction metadata & approve
+    # 5. Update transaction metadata
     update_resp = client.put(f"/api/transactions/{tx_id}", json={"description": "Hardware & Office Setup (Reviewed)"}, headers=auth_headers)
     assert update_resp.status_code == 200
     assert update_resp.json()["description"] == "Hardware & Office Setup (Reviewed)"
-
-    approve_resp = client.put(f"/api/transactions/{tx_id}/approve", headers=auth_headers)
-    assert approve_resp.status_code == 200
-    assert approve_resp.json()["is_approved"] is True
 
     # 6. Upload receipt file
     receipt_bytes = b"PDF dummy content for receipt test"

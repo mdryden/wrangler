@@ -23,7 +23,6 @@ from schemas.allocation import (
 )
 from schemas.transaction import (
     PaginatedTransactionsResponse,
-    TransactionApproveRequest,
     TransactionCreate,
     TransactionResponse,
     TransactionUpdate,
@@ -44,7 +43,6 @@ def list_transactions(
     descending: Annotated[bool, Query(description="Sort descending if true")] = True,
     order: Annotated[str | None, Query(description="'asc' or 'desc'")] = None,
     source: Annotated[str | None, Query(description="Filter by source")] = None,
-    is_approved: Annotated[bool | None, Query(description="Filter by approval status")] = None,
     start_date: Annotated[datetime.date | None, Query(description="Filter by start date (inclusive)")] = None,
     end_date: Annotated[datetime.date | None, Query(description="Filter by end date (inclusive)")] = None,
     company_id: Annotated[uuid.UUID | None, Query(description="Filter by company ID")] = None,
@@ -62,7 +60,6 @@ def list_transactions(
         "total_amount": Transaction.total_amount,
         "description": Transaction.description,
         "source": Transaction.source,
-        "is_approved": Transaction.is_approved,
         "id": Transaction.id,
     }
     column = sort_field_map.get(effective_sort_by, Transaction.date)
@@ -71,8 +68,6 @@ def list_transactions(
     filters = []
     if source is not None:
         filters.append(Transaction.source == source)
-    if is_approved is not None:
-        filters.append(Transaction.is_approved == is_approved)
     if start_date is not None:
         filters.append(Transaction.date >= start_date)
     if end_date is not None:
@@ -124,8 +119,6 @@ async def create_transaction(
                     continue
                 if isinstance(v, str) and k in ("external_id", "receipt_file_path", "company_id") and not v.strip():
                     clean_dict[k] = None
-                elif isinstance(v, str) and k == "is_approved":
-                    clean_dict[k] = v.lower() in ("true", "1", "yes")
                 elif isinstance(v, str) and k == "allocations":
                     if not v.strip():
                         clean_dict[k] = None
@@ -200,7 +193,6 @@ async def create_transaction(
         total_amount=payload.total_amount,
         currency_code=payload.currency_code,
         receipt_file_path=receipt_path,
-        is_approved=payload.is_approved,
     )
 
     if payload.allocations is None:
@@ -310,32 +302,6 @@ def update_transaction(
             detail="Transaction duplicate constraint violation",
         ) from exc
 
-    db.refresh(transaction)
-    return transaction
-
-
-@router.put("/{transaction_id}/approve", response_model=TransactionResponse)
-def approve_transaction(
-    transaction_id: uuid.UUID,
-    db: Annotated[Session, Depends(get_db)],
-    payload: TransactionApproveRequest | None = None,
-) -> Transaction:
-    """Toggle or explicitly set transaction approval status."""
-    stmt = select(Transaction).options(selectinload(Transaction.allocations)).where(Transaction.id == transaction_id)
-    transaction = db.scalar(stmt)
-    if transaction is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Transaction with ID '{transaction_id}' not found",
-        )
-
-    if payload is not None and payload.is_approved is not None:
-        transaction.is_approved = payload.is_approved
-    else:
-        transaction.is_approved = not transaction.is_approved
-
-    db.add(transaction)
-    db.commit()
     db.refresh(transaction)
     return transaction
 

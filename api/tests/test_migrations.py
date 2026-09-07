@@ -36,6 +36,9 @@ def test_alembic_migrations_upgrade_and_downgrade(tmp_path):
     assert "wave_category_id" not in alloc_cols
     assert "wave_transaction_id" not in alloc_cols
 
+    tx_cols = {col["name"] for col in inspector.get_columns("transactions")}
+    assert "is_approved" not in tx_cols
+
     # Downgrade to base
     command.downgrade(alembic_cfg, "base")
     inspector = inspect(engine)

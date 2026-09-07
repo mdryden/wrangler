@@ -16,7 +16,6 @@ export interface TransactionCreatePayload {
   currency_code?: string
   source?: string
   external_id?: string | null
-  is_approved?: boolean
   allocations?: AllocationCreateItem[]
 }
 
@@ -38,7 +37,6 @@ export interface Transaction {
   total_amount: string | number
   currency_code: string
   receipt_file_path: string | null
-  is_approved: boolean
   allocations: Allocation[]
 }
 
@@ -52,7 +50,6 @@ export interface PaginatedTransactionsResponse {
 
 export interface TransactionFilterParams {
   source?: string
-  is_approved?: boolean | null
   start_date?: string
   end_date?: string
   company_id?: string | null

@@ -62,7 +62,6 @@ def test_transactions_unauthenticated_requests_blocked(client):
     assert client.post("/api/transactions", json={"date": "2026-09-06", "description": "X", "total_amount": "10.00"}).status_code == 401
     assert client.get(f"/api/transactions/{random_id}").status_code == 401
     assert client.put(f"/api/transactions/{random_id}", json={"description": "Y"}).status_code == 401
-    assert client.put(f"/api/transactions/{random_id}/approve").status_code == 401
     assert client.put(f"/api/transactions/{random_id}/allocations", json=[]).status_code == 401
     assert client.delete(f"/api/transactions/{random_id}").status_code == 401
     assert client.get("/api/receipts/some_file.pdf").status_code == 401
@@ -90,7 +89,6 @@ def test_create_transaction_json_success(client, auth_headers, db_session):
     assert data["currency_code"] == "USD"
     assert data["source"] == "manual"
     assert data["external_id"] == "EXP-001"
-    assert data["is_approved"] is True
     assert data["receipt_file_path"] is None
     assert len(data["allocations"]) == 1
     assert data["allocations"][0]["amount"] == "125.50"
@@ -297,14 +295,12 @@ def test_create_transaction_multipart_with_receipt(client, auth_headers, db_sess
         "total_amount": "78.25",
         "currency_code": "USD",
         "source": "manual",
-        "is_approved": "true",
     }
     resp = client.post("/api/transactions", data=data, files=files, headers=auth_headers)
     assert resp.status_code == 201
     res_data = resp.json()
     assert res_data["description"] == "Printed receipt manual entry"
     assert res_data["total_amount"] == "78.25"
-    assert res_data["is_approved"] is True
     assert res_data["receipt_file_path"] is not None
     assert res_data["receipt_file_path"].endswith("invoice.pdf")
     assert len(res_data["allocations"]) == 1
@@ -342,7 +338,6 @@ def test_create_transaction_multipart_with_splits_json(client, auth_headers, db_
     assert resp.status_code == 201
     res_data = resp.json()
     assert res_data["total_amount"] == "100.00"
-    assert res_data["is_approved"] is True
     assert res_data["receipt_file_path"] is not None
     assert len(res_data["allocations"]) == 2
     assert res_data["allocations"][0]["amount"] == "60.00"
@@ -408,33 +403,6 @@ def test_update_transaction_metadata(client, auth_headers, db_session):
     assert data["description"] == "Updated description"
     assert data["total_amount"] == "120.00"
     assert data["source"] == "manual"
-
-
-def test_approve_transaction(client, auth_headers, db_session):
-    tx = Transaction(
-        source="manual",
-        date=date(2026, 9, 6),
-        description="To approve",
-        total_amount=Decimal("50.00"),
-        is_approved=False,
-    )
-    db_session.add(tx)
-    db_session.commit()
-
-    # Toggle to True
-    resp1 = client.put(f"/api/transactions/{tx.id}/approve", headers=auth_headers)
-    assert resp1.status_code == 200
-    assert resp1.json()["is_approved"] is True
-
-    # Toggle to False
-    resp2 = client.put(f"/api/transactions/{tx.id}/approve", headers=auth_headers)
-    assert resp2.status_code == 200
-    assert resp2.json()["is_approved"] is False
-
-    # Explicit set to True
-    resp3 = client.put(f"/api/transactions/{tx.id}/approve", json={"is_approved": True}, headers=auth_headers)
-    assert resp3.status_code == 200
-    assert resp3.json()["is_approved"] is True
 
 
 def test_update_allocations_success(client, auth_headers, db_session):
@@ -577,7 +545,6 @@ def test_get_transactions_filtering(client, auth_headers, db_session):
         date=date(2026, 9, 1),
         description="Office supply store",
         total_amount=Decimal("50.00"),
-        is_approved=True,
     )
     tx2 = Transaction(
         source="bank_b",
@@ -585,7 +552,6 @@ def test_get_transactions_filtering(client, auth_headers, db_session):
         date=date(2026, 9, 5),
         description="Gas station",
         total_amount=Decimal("30.00"),
-        is_approved=False,
     )
     tx3 = Transaction(
         source="bank_a",
@@ -593,7 +559,6 @@ def test_get_transactions_filtering(client, auth_headers, db_session):
         date=date(2026, 9, 10),
         description="Restaurant meal",
         total_amount=Decimal("75.00"),
-        is_approved=False,
     )
     tx4 = Transaction(
         source="manual",
@@ -601,7 +566,6 @@ def test_get_transactions_filtering(client, auth_headers, db_session):
         date=date(2026, 9, 15),
         description="Client payment",
         total_amount=Decimal("200.00"),
-        is_approved=True,
     )
     db_session.add_all([tx1, tx2, tx3, tx4])
     db_session.commit()
@@ -612,22 +576,6 @@ def test_get_transactions_filtering(client, auth_headers, db_session):
     data_source = resp_source.json()
     assert data_source["total"] == 2
     assert {item["external_id"] for item in data_source["items"]} == {"TX-1", "TX-3"}
-
-    # Filter by is_approved=True
-    resp_appr_true = client.get("/api/transactions?is_approved=true", headers=auth_headers)
-    assert resp_appr_true.status_code == 200
-    data_appr_true = resp_appr_true.json()
-    assert all(item["is_approved"] is True for item in data_appr_true["items"])
-    assert "TX-1" in {item["external_id"] for item in data_appr_true["items"]}
-    assert "TX-4" in {item["external_id"] for item in data_appr_true["items"]}
-
-    # Filter by is_approved=False
-    resp_appr_false = client.get("/api/transactions?is_approved=false", headers=auth_headers)
-    assert resp_appr_false.status_code == 200
-    data_appr_false = resp_appr_false.json()
-    assert all(item["is_approved"] is False for item in data_appr_false["items"])
-    assert "TX-2" in {item["external_id"] for item in data_appr_false["items"]}
-    assert "TX-3" in {item["external_id"] for item in data_appr_false["items"]}
 
     # Filter by date range (start_date and end_date)
     resp_date_range = client.get("/api/transactions?start_date=2026-09-04&end_date=2026-09-12", headers=auth_headers)
@@ -650,9 +598,9 @@ def test_get_transactions_filtering(client, auth_headers, db_session):
     assert data_end["total"] == 2
     assert {item["external_id"] for item in data_end["items"]} == {"TX-1", "TX-2"}
 
-    # Combined filters: source + is_approved + date range
+    # Combined filters: source + date range
     resp_combo = client.get(
-        "/api/transactions?source=bank_a&is_approved=false&start_date=2026-09-01&end_date=2026-09-15",
+        "/api/transactions?source=bank_a&start_date=2026-09-05&end_date=2026-09-15",
         headers=auth_headers,
     )
     assert resp_combo.status_code == 200

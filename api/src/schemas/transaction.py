@@ -17,7 +17,6 @@ class TransactionCreate(BaseModel):
     source: str = "manual"
     external_id: str | None = None
     receipt_file_path: str | None = None
-    is_approved: bool = True
     allocations: list[AllocationCreateItem] | None = None
 
     @field_validator("external_id", mode="before")
@@ -50,7 +49,6 @@ class TransactionUpdate(BaseModel):
     source: str | None = None
     external_id: str | None = None
     receipt_file_path: str | None = None
-    is_approved: bool | None = None
 
     @field_validator("external_id", mode="before")
     @classmethod
@@ -74,10 +72,6 @@ class TransactionUpdate(BaseModel):
         return v
 
 
-class TransactionApproveRequest(BaseModel):
-    is_approved: bool | None = None
-
-
 class TransactionResponse(BaseModel):
     id: uuid.UUID
     source: str
@@ -87,7 +81,6 @@ class TransactionResponse(BaseModel):
     total_amount: Decimal
     currency_code: str
     receipt_file_path: str | None = None
-    is_approved: bool
     allocations: list[AllocationResponse] = []
 
     model_config = ConfigDict(from_attributes=True)

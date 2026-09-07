@@ -47,20 +47,7 @@ Authorization: Bearer {{authToken}}
   "total_amount": 160.00
 }
 
-### 6. Toggle Transaction Approval
-PUT http://localhost:8000/api/transactions/{{transactionId}}/approve
-Authorization: Bearer {{authToken}}
-
-### 7. Explicitly Approve Transaction
-PUT http://localhost:8000/api/transactions/{{transactionId}}/approve
-Content-Type: application/json
-Authorization: Bearer {{authToken}}
-
-{
-  "is_approved": true
-}
-
-### 8. Update Split Allocations (Split into Personal and Business)
+### 6. Update Split Allocations (Split into Personal and Business)
 PUT http://localhost:8000/api/transactions/{{transactionId}}/allocations
 Content-Type: application/json
 Authorization: Bearer {{authToken}}

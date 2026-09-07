@@ -39,7 +39,7 @@ def test_database_schema_setup():
     assert "total_amount" in tx_cols
     assert "currency_code" in tx_cols
     assert "receipt_file_path" in tx_cols
-    assert "is_approved" in tx_cols
+    assert "is_approved" not in tx_cols
 
     # 4. Verify columns in allocations
     alloc_cols = {col["name"]: col for col in inspector.get_columns("allocations")}

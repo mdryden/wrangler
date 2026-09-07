@@ -99,9 +99,9 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 - [ ] 13.5 Verify Manual Entry end-to-end in browser
 
 ## Phase 14: Removal of `is_approved` (Schema & Code Remediation)
-- [ ] 14.1 Generate and apply Alembic migration to drop `is_approved` column from `transactions` table
-- [ ] 14.2 Remove `is_approved` and `TransactionApproveRequest` from backend schemas (`schemas/transaction.py`) and ORM model (`models/transaction.py`)
-- [ ] 14.3 Remove `PUT /api/transactions/{id}/approve` endpoint and remove `is_approved` query filter from `GET /api/transactions` in `routers/transactions.py`
-- [ ] 14.4 Remove `is_approved` from frontend types (`types/transaction.ts`), stores (`transactionStore.ts`), and views (`LedgerView.vue`, `ManualEntryView.vue`)
-- [ ] 14.5 Update backend and frontend test suites to remove `is_approved` assertions and verify all tests pass
+- [x] 14.1 Generate and apply Alembic migration to drop `is_approved` column from `transactions` table
+- [x] 14.2 Remove `is_approved` and `TransactionApproveRequest` from backend schemas (`schemas/transaction.py`) and ORM model (`models/transaction.py`)
+- [x] 14.3 Remove `PUT /api/transactions/{id}/approve` endpoint and remove `is_approved` query filter from `GET /api/transactions` in `routers/transactions.py`
+- [x] 14.4 Remove `is_approved` from frontend types (`types/transaction.ts`), stores (`transactionStore.ts`), and views (`LedgerView.vue`, `ManualEntryView.vue`)
+- [x] 14.5 Update backend and frontend test suites to remove `is_approved` assertions and verify all tests pass
 
