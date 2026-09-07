@@ -1,3 +1,100 @@
+<script setup lang="ts">
+import { onMounted, ref } from "vue"
+import { useQuasar, type QTableColumn } from "quasar"
+import { useCompanyStore } from "../stores/companies"
+import type { Company } from "../types/company"
+import CompanyFormDialog from "../components/CompanyFormDialog.vue"
+
+const $q = useQuasar()
+const companyStore = useCompanyStore()
+
+const dialogVisible = ref<boolean>(false)
+const selectedCompany = ref<Company | null>(null)
+
+const columns: QTableColumn[] = [
+  {
+    name: "name",
+    required: true,
+    label: "Company Name",
+    align: "left",
+    field: (row: Company) => row.name,
+    sortable: true,
+  },
+  {
+    name: "transaction_count",
+    label: "Allocated Transactions",
+    align: "center",
+    field: (row: Company) => row.transaction_count ?? 0,
+    sortable: true,
+  },
+  {
+    name: "actions",
+    label: "Actions",
+    align: "right",
+    field: () => "",
+    sortable: false,
+  },
+]
+
+async function loadCompanies(): Promise<void> {
+  try {
+    await companyStore.fetchCompanies()
+  } catch {
+    // Handled in store and error banner
+  }
+}
+
+function openAddDialog(): void {
+  selectedCompany.value = null
+  dialogVisible.value = true
+}
+
+function openEditDialog(company: Company): void {
+  selectedCompany.value = company
+  dialogVisible.value = true
+}
+
+function onCompanySaved(): void {
+  // Store is already updated by createCompany / updateCompany in dialog
+}
+
+function onDeleteCompany(company: Company): void {
+  $q.dialog({
+    title: "Delete Company",
+    message: `Are you sure you want to delete "${company.name}"? This action cannot be undone.`,
+    cancel: true,
+    persistent: true,
+    ok: {
+      color: "negative",
+      label: "Delete",
+      unelevated: true,
+    },
+  }).onOk(async () => {
+    try {
+      await companyStore.deleteCompany(company.id)
+      $q.notify({
+        type: "positive",
+        message: `Company "${company.name}" deleted successfully`,
+        position: "top",
+        timeout: 2500,
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to delete company"
+      $q.notify({
+        type: "negative",
+        message,
+        position: "top",
+        timeout: 4000,
+      })
+    }
+  })
+}
+
+onMounted(() => {
+  loadCompanies()
+})
+</script>
+
 <template>
   <q-page class="q-pa-md">
     <!-- Page Header -->
@@ -103,100 +200,3 @@
     <CompanyFormDialog v-model="dialogVisible" :company="selectedCompany" @saved="onCompanySaved" />
   </q-page>
 </template>
-
-<script setup lang="ts">
-import { onMounted, ref } from "vue"
-import { useQuasar, type QTableColumn } from "quasar"
-import { useCompanyStore } from "../stores/companies"
-import type { Company } from "../types/company"
-import CompanyFormDialog from "../components/CompanyFormDialog.vue"
-
-const $q = useQuasar()
-const companyStore = useCompanyStore()
-
-const dialogVisible = ref<boolean>(false)
-const selectedCompany = ref<Company | null>(null)
-
-const columns: QTableColumn[] = [
-  {
-    name: "name",
-    required: true,
-    label: "Company Name",
-    align: "left",
-    field: (row: Company) => row.name,
-    sortable: true,
-  },
-  {
-    name: "transaction_count",
-    label: "Allocated Transactions",
-    align: "center",
-    field: (row: Company) => row.transaction_count ?? 0,
-    sortable: true,
-  },
-  {
-    name: "actions",
-    label: "Actions",
-    align: "right",
-    field: () => "",
-    sortable: false,
-  },
-]
-
-async function loadCompanies(): Promise<void> {
-  try {
-    await companyStore.fetchCompanies()
-  } catch {
-    // Handled in store and error banner
-  }
-}
-
-function openAddDialog(): void {
-  selectedCompany.value = null
-  dialogVisible.value = true
-}
-
-function openEditDialog(company: Company): void {
-  selectedCompany.value = company
-  dialogVisible.value = true
-}
-
-function onCompanySaved(): void {
-  // Store is already updated by createCompany / updateCompany in dialog
-}
-
-function onDeleteCompany(company: Company): void {
-  $q.dialog({
-    title: "Delete Company",
-    message: `Are you sure you want to delete "${company.name}"? This action cannot be undone.`,
-    cancel: true,
-    persistent: true,
-    ok: {
-      color: "negative",
-      label: "Delete",
-      unelevated: true,
-    },
-  }).onOk(async () => {
-    try {
-      await companyStore.deleteCompany(company.id)
-      $q.notify({
-        type: "positive",
-        message: `Company "${company.name}" deleted successfully`,
-        position: "top",
-        timeout: 2500,
-      })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to delete company"
-      $q.notify({
-        type: "negative",
-        message,
-        position: "top",
-        timeout: 4000,
-      })
-    }
-  })
-}
-
-onMounted(() => {
-  loadCompanies()
-})
-</script>

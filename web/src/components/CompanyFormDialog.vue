@@ -1,55 +1,3 @@
-<template>
-  <q-dialog v-model="isOpen" persistent>
-    <q-card style="min-width: 440px; max-width: 550px; width: 100%">
-      <q-card-section class="row items-center q-pb-none">
-        <div class="text-h6 text-weight-bold">
-          {{ isEditMode ? "Edit Company" : "Add Company" }}
-        </div>
-        <q-space />
-        <q-btn icon="close" flat round dense v-close-popup :disable="saving" />
-      </q-card-section>
-
-      <q-card-section class="q-pt-sm">
-        <div class="text-caption text-grey-7">
-          {{ isEditMode ? "Update company details." : "Configure a new company entity for expense allocation." }}
-        </div>
-
-        <q-banner v-if="errorMessage" rounded dense inline-actions class="bg-negative text-white q-mt-sm">
-          <template #avatar>
-            <q-icon name="error" color="white" />
-          </template>
-          {{ errorMessage }}
-          <template #action>
-            <q-btn flat round dense icon="close" size="sm" @click="errorMessage = ''" />
-          </template>
-        </q-banner>
-
-        <q-form ref="formRef" class="q-gutter-y-md q-mt-sm" @submit.prevent="onSubmit">
-          <q-input
-            v-model="name"
-            label="Company Name *"
-            placeholder="e.g. Acme Corp or Consulting LLC"
-            outlined
-            dense
-            :rules="[val => (!!val && val.trim().length > 0) || 'Company name is required']"
-            :disable="saving"
-            autofocus
-          >
-            <template #prepend>
-              <q-icon name="business" />
-            </template>
-          </q-input>
-
-          <q-card-actions align="right" class="q-pt-md q-px-none">
-            <q-btn flat label="Cancel" color="grey-7" v-close-popup :disable="saving" />
-            <q-btn type="submit" :label="isEditMode ? 'Update Company' : 'Create Company'" color="primary" unelevated :loading="saving" />
-          </q-card-actions>
-        </q-form>
-      </q-card-section>
-    </q-card>
-  </q-dialog>
-</template>
-
 <script setup lang="ts">
 import { computed, ref, watch } from "vue"
 import { useQuasar, type QForm } from "quasar"
@@ -140,3 +88,55 @@ async function onSubmit(): Promise<void> {
   }
 }
 </script>
+
+<template>
+  <q-dialog v-model="isOpen" persistent>
+    <q-card style="min-width: 440px; max-width: 550px; width: 100%">
+      <q-card-section class="row items-center q-pb-none">
+        <div class="text-h6 text-weight-bold">
+          {{ isEditMode ? "Edit Company" : "Add Company" }}
+        </div>
+        <q-space />
+        <q-btn icon="close" flat round dense v-close-popup :disable="saving" />
+      </q-card-section>
+
+      <q-card-section class="q-pt-sm">
+        <div class="text-caption text-grey-7">
+          {{ isEditMode ? "Update company details." : "Configure a new company entity for expense allocation." }}
+        </div>
+
+        <q-banner v-if="errorMessage" rounded dense inline-actions class="bg-negative text-white q-mt-sm">
+          <template #avatar>
+            <q-icon name="error" color="white" />
+          </template>
+          {{ errorMessage }}
+          <template #action>
+            <q-btn flat round dense icon="close" size="sm" @click="errorMessage = ''" />
+          </template>
+        </q-banner>
+
+        <q-form ref="formRef" class="q-gutter-y-md q-mt-sm" @submit.prevent="onSubmit">
+          <q-input
+            v-model="name"
+            label="Company Name *"
+            placeholder="e.g. Acme Corp or Consulting LLC"
+            outlined
+            dense
+            :rules="[val => (!!val && val.trim().length > 0) || 'Company name is required']"
+            :disable="saving"
+            autofocus
+          >
+            <template #prepend>
+              <q-icon name="business" />
+            </template>
+          </q-input>
+
+          <q-card-actions align="right" class="q-pt-md q-px-none">
+            <q-btn flat label="Cancel" color="grey-7" v-close-popup :disable="saving" />
+            <q-btn type="submit" :label="isEditMode ? 'Update Company' : 'Create Company'" color="primary" unelevated :loading="saving" />
+          </q-card-actions>
+        </q-form>
+      </q-card-section>
+    </q-card>
+  </q-dialog>
+</template>

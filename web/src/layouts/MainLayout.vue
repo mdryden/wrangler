@@ -1,3 +1,24 @@
+<script setup lang="ts">
+import { ref } from "vue"
+import { useRouter } from "vue-router"
+import { useAuthStore } from "../stores/auth"
+import { navItems } from "./nav"
+
+const router = useRouter()
+const authStore = useAuthStore()
+
+const leftDrawerOpen = ref<boolean>(true)
+
+function toggleLeftDrawer(): void {
+  leftDrawerOpen.value = !leftDrawerOpen.value
+}
+
+function onLogout(): void {
+  authStore.logout()
+  router.push({ name: "login" })
+}
+</script>
+
 <template>
   <q-layout view="hHh Lpr fFf">
     <q-header elevated class="bg-primary text-white">
@@ -50,24 +71,3 @@
     </q-page-container>
   </q-layout>
 </template>
-
-<script setup lang="ts">
-import { ref } from "vue"
-import { useRouter } from "vue-router"
-import { useAuthStore } from "../stores/auth"
-import { navItems } from "./nav"
-
-const router = useRouter()
-const authStore = useAuthStore()
-
-const leftDrawerOpen = ref<boolean>(true)
-
-function toggleLeftDrawer(): void {
-  leftDrawerOpen.value = !leftDrawerOpen.value
-}
-
-function onLogout(): void {
-  authStore.logout()
-  router.push({ name: "login" })
-}
-</script>

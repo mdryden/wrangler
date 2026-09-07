@@ -1,3 +1,148 @@
+<script setup lang="ts">
+import { computed, onMounted, ref } from "vue"
+import type { QTableColumn } from "quasar"
+import { useCompanyStore } from "../stores/companies"
+import { useTransactionStore } from "../stores/transactions"
+import type { Transaction } from "../types/transaction"
+
+const companyStore = useCompanyStore()
+const transactionStore = useTransactionStore()
+
+const filters = ref({
+  source: "",
+  company_id: null as string | null,
+  start_date: "",
+  end_date: "",
+})
+
+const companyOptions = computed(() => [
+  { label: "All Companies", value: null },
+  ...companyStore.companies.map(c => ({ label: c.name, value: c.id })),
+])
+
+const pagination = ref({
+  sortBy: "date",
+  descending: true,
+  page: 1,
+  rowsPerPage: 20,
+  rowsNumber: 0,
+})
+
+const columns: QTableColumn[] = [
+  {
+    name: "date",
+    required: true,
+    label: "Date",
+    align: "left",
+    field: (row: Transaction) => row.date,
+    sortable: true,
+  },
+  {
+    name: "description",
+    required: true,
+    label: "Description",
+    align: "left",
+    field: (row: Transaction) => row.description,
+    sortable: true,
+  },
+  {
+    name: "total_amount",
+    required: true,
+    label: "Amount",
+    align: "right",
+    field: (row: Transaction) => row.total_amount,
+    sortable: true,
+  },
+  {
+    name: "source",
+    label: "Source",
+    align: "left",
+    field: (row: Transaction) => row.source,
+    sortable: true,
+  },
+  {
+    name: "allocations",
+    label: "Allocations",
+    align: "center",
+    field: (row: Transaction) => row.allocations?.length ?? 0,
+    sortable: false,
+  },
+  {
+    name: "receipt",
+    label: "Receipt",
+    align: "center",
+    field: (row: Transaction) => (row.receipt_file_path ? "Yes" : "No"),
+    sortable: false,
+  },
+]
+
+function formatCurrency(amount: string | number, currencyCode = "USD"): string {
+  const num = typeof amount === "string" ? parseFloat(amount) : amount
+  if (Number.isNaN(num)) return "$0.00"
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currencyCode || "USD",
+  }).format(num)
+}
+
+async function onRequest(props: {
+  pagination: {
+    sortBy?: string | null
+    descending?: boolean
+    page: number
+    rowsPerPage: number
+    rowsNumber?: number
+  }
+}): Promise<void> {
+  const { page, rowsPerPage, sortBy, descending } = props.pagination
+  try {
+    await transactionStore.fetchTransactions({
+      page,
+      rowsPerPage,
+      sortBy: sortBy || undefined,
+      descending: descending ?? true,
+      source: filters.value.source.trim() || undefined,
+      company_id: filters.value.company_id || undefined,
+      start_date: filters.value.start_date || undefined,
+      end_date: filters.value.end_date || undefined,
+    })
+
+    pagination.value.page = transactionStore.page
+    pagination.value.rowsPerPage = transactionStore.pageSize
+    pagination.value.rowsNumber = transactionStore.total
+    pagination.value.sortBy = sortBy ?? "date"
+    pagination.value.descending = descending ?? true
+  } catch {
+    // Handled in store error banner
+  }
+}
+
+function applyFilters(): void {
+  pagination.value.page = 1
+  onRequest({ pagination: pagination.value })
+}
+
+function resetFilters(): void {
+  filters.value = {
+    source: "",
+    company_id: null,
+    start_date: "",
+    end_date: "",
+  }
+  pagination.value.page = 1
+  onRequest({ pagination: pagination.value })
+}
+
+function refresh(): void {
+  onRequest({ pagination: pagination.value })
+}
+
+onMounted(() => {
+  companyStore.fetchCompanies().catch(() => {})
+  onRequest({ pagination: pagination.value })
+})
+</script>
+
 <template>
   <q-page class="q-pa-md">
     <!-- Page Header -->
@@ -193,148 +338,3 @@
     </q-table>
   </q-page>
 </template>
-
-<script setup lang="ts">
-import { computed, onMounted, ref } from "vue"
-import type { QTableColumn } from "quasar"
-import { useCompanyStore } from "../stores/companies"
-import { useTransactionStore } from "../stores/transactions"
-import type { Transaction } from "../types/transaction"
-
-const companyStore = useCompanyStore()
-const transactionStore = useTransactionStore()
-
-const filters = ref({
-  source: "",
-  company_id: null as string | null,
-  start_date: "",
-  end_date: "",
-})
-
-const companyOptions = computed(() => [
-  { label: "All Companies", value: null },
-  ...companyStore.companies.map(c => ({ label: c.name, value: c.id })),
-])
-
-const pagination = ref({
-  sortBy: "date",
-  descending: true,
-  page: 1,
-  rowsPerPage: 20,
-  rowsNumber: 0,
-})
-
-const columns: QTableColumn[] = [
-  {
-    name: "date",
-    required: true,
-    label: "Date",
-    align: "left",
-    field: (row: Transaction) => row.date,
-    sortable: true,
-  },
-  {
-    name: "description",
-    required: true,
-    label: "Description",
-    align: "left",
-    field: (row: Transaction) => row.description,
-    sortable: true,
-  },
-  {
-    name: "total_amount",
-    required: true,
-    label: "Amount",
-    align: "right",
-    field: (row: Transaction) => row.total_amount,
-    sortable: true,
-  },
-  {
-    name: "source",
-    label: "Source",
-    align: "left",
-    field: (row: Transaction) => row.source,
-    sortable: true,
-  },
-  {
-    name: "allocations",
-    label: "Allocations",
-    align: "center",
-    field: (row: Transaction) => row.allocations?.length ?? 0,
-    sortable: false,
-  },
-  {
-    name: "receipt",
-    label: "Receipt",
-    align: "center",
-    field: (row: Transaction) => (row.receipt_file_path ? "Yes" : "No"),
-    sortable: false,
-  },
-]
-
-function formatCurrency(amount: string | number, currencyCode = "USD"): string {
-  const num = typeof amount === "string" ? parseFloat(amount) : amount
-  if (Number.isNaN(num)) return "$0.00"
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: currencyCode || "USD",
-  }).format(num)
-}
-
-async function onRequest(props: {
-  pagination: {
-    sortBy?: string | null
-    descending?: boolean
-    page: number
-    rowsPerPage: number
-    rowsNumber?: number
-  }
-}): Promise<void> {
-  const { page, rowsPerPage, sortBy, descending } = props.pagination
-  try {
-    await transactionStore.fetchTransactions({
-      page,
-      rowsPerPage,
-      sortBy: sortBy || undefined,
-      descending: descending ?? true,
-      source: filters.value.source.trim() || undefined,
-      company_id: filters.value.company_id || undefined,
-      start_date: filters.value.start_date || undefined,
-      end_date: filters.value.end_date || undefined,
-    })
-
-    pagination.value.page = transactionStore.page
-    pagination.value.rowsPerPage = transactionStore.pageSize
-    pagination.value.rowsNumber = transactionStore.total
-    pagination.value.sortBy = sortBy ?? "date"
-    pagination.value.descending = descending ?? true
-  } catch {
-    // Handled in store error banner
-  }
-}
-
-function applyFilters(): void {
-  pagination.value.page = 1
-  onRequest({ pagination: pagination.value })
-}
-
-function resetFilters(): void {
-  filters.value = {
-    source: "",
-    company_id: null,
-    start_date: "",
-    end_date: "",
-  }
-  pagination.value.page = 1
-  onRequest({ pagination: pagination.value })
-}
-
-function refresh(): void {
-  onRequest({ pagination: pagination.value })
-}
-
-onMounted(() => {
-  companyStore.fetchCompanies().catch(() => {})
-  onRequest({ pagination: pagination.value })
-})
-</script>

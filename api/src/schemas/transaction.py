@@ -1,15 +1,14 @@
 import datetime
 import uuid
 from decimal import Decimal
-from typing import Any
+from typing import Any, Self
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from .allocation import AllocationCreateItem, AllocationResponse
 
 
 class TransactionCreate(BaseModel):
-    company_id: uuid.UUID
     date: datetime.date
     description: str
     total_amount: Decimal
@@ -17,7 +16,7 @@ class TransactionCreate(BaseModel):
     source: str = "manual"
     external_id: str | None = None
     receipt_file_path: str | None = None
-    allocations: list[AllocationCreateItem] | None = None
+    allocations: list[AllocationCreateItem]
 
     @field_validator("external_id", mode="before")
     @classmethod
@@ -39,6 +38,15 @@ class TransactionCreate(BaseModel):
         if v == 0:
             raise ValueError("total_amount must be strictly non-zero")
         return v
+
+    @model_validator(mode="after")
+    def validate_allocations(self) -> Self:
+        if not self.allocations:
+            raise ValueError("allocations list must not be empty")
+        for i, alloc in enumerate(self.allocations):
+            if not alloc.is_personal and alloc.company_id is None:
+                raise ValueError(f"Allocation at index {i} is missing company_id")
+        return self
 
 
 class TransactionUpdate(BaseModel):

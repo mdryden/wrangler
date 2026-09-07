@@ -9,14 +9,13 @@ export interface AllocationCreateItem {
 }
 
 export interface TransactionCreatePayload {
-  company_id: string
   date: string
   description: string
   total_amount: string | number
   currency_code?: string
   source?: string
   external_id?: string | null
-  allocations?: AllocationCreateItem[]
+  allocations: AllocationCreateItem[]
 }
 
 export interface Allocation {

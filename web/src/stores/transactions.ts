@@ -1,7 +1,7 @@
 import { defineStore } from "pinia"
 import { ref } from "vue"
 import { apiClient } from "../api/client"
-import type { PaginatedTransactionsResponse, Transaction, TransactionQueryParams } from "../types/transaction"
+import type { PaginatedTransactionsResponse, Transaction, TransactionCreatePayload, TransactionQueryParams } from "../types/transaction"
 
 export const useTransactionStore = defineStore("transactions", () => {
   const transactions = ref<Transaction[]>([])
@@ -46,6 +46,21 @@ export const useTransactionStore = defineStore("transactions", () => {
     }
   }
 
+  /**
+   * Create a new transaction (manual entry).
+   */
+  async function createTransaction(payload: TransactionCreatePayload | FormData): Promise<Transaction> {
+    error.value = null
+    try {
+      const created = await apiClient.post<Transaction>("/api/transactions", payload)
+      return created
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to create transaction"
+      error.value = msg
+      throw err
+    }
+  }
+
   return {
     transactions,
     total,
@@ -55,5 +70,6 @@ export const useTransactionStore = defineStore("transactions", () => {
     loading,
     error,
     fetchTransactions,
+    createTransaction,
   }
 })

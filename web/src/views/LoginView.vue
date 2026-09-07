@@ -1,3 +1,53 @@
+<script setup lang="ts">
+import { ref } from "vue"
+import { useRoute, useRouter } from "vue-router"
+import { useQuasar } from "quasar"
+import { useAuthStore } from "../stores/auth"
+
+const route = useRoute()
+const router = useRouter()
+const $q = useQuasar()
+const authStore = useAuthStore()
+
+const username = ref<string>("")
+const password = ref<string>("")
+const showPassword = ref<boolean>(false)
+const loading = ref<boolean>(false)
+const errorMessage = ref<string>("")
+
+async function onSubmit(): Promise<void> {
+  errorMessage.value = ""
+  loading.value = true
+
+  try {
+    await authStore.login({
+      username: username.value.trim(),
+      password: password.value,
+    })
+
+    $q.notify({
+      type: "positive",
+      message: "Signed in successfully",
+      position: "top",
+      timeout: 2000,
+    })
+
+    const redirectPath = (route.query.redirect as string) || { name: "ledger" }
+    await router.push(redirectPath)
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : "Failed to sign in"
+    $q.notify({
+      type: "negative",
+      message: errorMessage.value,
+      position: "top",
+      timeout: 4000,
+    })
+  } finally {
+    loading.value = false
+  }
+}
+</script>
+
 <template>
   <q-layout view="hHh lpR fFf">
     <q-page-container>
@@ -63,53 +113,3 @@
     </q-page-container>
   </q-layout>
 </template>
-
-<script setup lang="ts">
-import { ref } from "vue"
-import { useRoute, useRouter } from "vue-router"
-import { useQuasar } from "quasar"
-import { useAuthStore } from "../stores/auth"
-
-const route = useRoute()
-const router = useRouter()
-const $q = useQuasar()
-const authStore = useAuthStore()
-
-const username = ref<string>("")
-const password = ref<string>("")
-const showPassword = ref<boolean>(false)
-const loading = ref<boolean>(false)
-const errorMessage = ref<string>("")
-
-async function onSubmit(): Promise<void> {
-  errorMessage.value = ""
-  loading.value = true
-
-  try {
-    await authStore.login({
-      username: username.value.trim(),
-      password: password.value,
-    })
-
-    $q.notify({
-      type: "positive",
-      message: "Signed in successfully",
-      position: "top",
-      timeout: 2000,
-    })
-
-    const redirectPath = (route.query.redirect as string) || { name: "ledger" }
-    await router.push(redirectPath)
-  } catch (err) {
-    errorMessage.value = err instanceof Error ? err.message : "Failed to sign in"
-    $q.notify({
-      type: "negative",
-      message: errorMessage.value,
-      position: "top",
-      timeout: 4000,
-    })
-  } finally {
-    loading.value = false
-  }
-}
-</script>

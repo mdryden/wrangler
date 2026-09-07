@@ -62,13 +62,18 @@ def test_transaction_allocation_receipt_lifecycle_flow(client, auth_headers, db_
 
     # 2. Create a manual transaction
     tx_payload = {
-        "company_id": str(company.id),
         "date": "2026-09-06",
         "description": "Hardware & Office Setup",
         "total_amount": "250.00",
         "currency_code": "USD",
         "source": "manual",
         "external_id": "INT-TX-001",
+        "allocations": [
+            {
+                "company_id": str(company.id),
+                "amount": "250.00",
+            }
+        ],
     }
     tx_resp = client.post("/api/transactions", json=tx_payload, headers=auth_headers)
     assert tx_resp.status_code == 201

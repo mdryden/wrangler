@@ -94,8 +94,8 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 ## Phase 13: Manual Expense Intake & Rapid Entry Form
 - [x] 13.1 Update `POST /api/transactions` endpoint and schemas for company attribution and atomic allocations
 - [x] 13.2 Build Manual Entry form controls and datepicker in `ManualEntryView.vue`
-- [ ] 13.3 Implement inline allocation splitter with real-time balance validation
-- [ ] 13.4 Implement keyboard shortcuts, rapid continuous entry reset, and auto-focus
+- [x] 13.3 Implement inline allocation splitter with real-time balance validation
+- [x] 13.4 Implement keyboard shortcuts, rapid continuous entry reset, and auto-focus
 
 ## Phase 14: Removal of `is_approved` (Schema & Code Remediation)
 - [x] 14.1 Generate and apply Alembic migration to drop `is_approved` column from `transactions` table

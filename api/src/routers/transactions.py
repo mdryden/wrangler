@@ -117,7 +117,7 @@ async def create_transaction(
             for k, v in form.items():
                 if hasattr(v, "filename"):
                     continue
-                if isinstance(v, str) and k in ("external_id", "receipt_file_path", "company_id") and not v.strip():
+                if isinstance(v, str) and k in ("external_id", "receipt_file_path") and not v.strip():
                     clean_dict[k] = None
                 elif isinstance(v, str) and k == "allocations":
                     if not v.strip():
@@ -136,35 +136,25 @@ async def create_transaction(
     except ValidationError as exc:
         raise RequestValidationError(exc.errors()) from exc
 
-    # Company attribution validation
-    company = db.get(Company, payload.company_id)
-    if company is None:
+    # Split balance & allocation validation
+    split_sum = sum((alloc.amount for alloc in payload.allocations), Decimal("0"))
+    if split_sum != payload.total_amount:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Company with ID '{payload.company_id}' not found",
+            detail=f"Sum of split allocations ({split_sum}) does not equal transaction total amount ({payload.total_amount})",
         )
-
-    # Split balance & allocation validation if splits are provided
-    if payload.allocations is not None:
-        split_sum = sum((alloc.amount for alloc in payload.allocations), Decimal("0"))
-        if split_sum != payload.total_amount:
+    for alloc_item in payload.allocations:
+        if alloc_item.is_personal:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Sum of split allocations ({split_sum}) does not equal transaction total amount ({payload.total_amount})",
+                detail="Manual transaction allocations must be business allocations (is_personal=False)",
             )
-        for alloc_item in payload.allocations:
-            if alloc_item.is_personal:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Manual transaction allocations must be business allocations (is_personal=False)",
-                )
-            target_company_id = alloc_item.company_id or payload.company_id
-            target_company = db.get(Company, target_company_id)
-            if target_company is None:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Company with ID '{target_company_id}' not found",
-                )
+        target_company = db.get(Company, alloc_item.company_id)
+        if target_company is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Company with ID '{alloc_item.company_id}' not found",
+            )
 
     if payload.external_id is not None:
         existing = db.scalar(
@@ -195,28 +185,16 @@ async def create_transaction(
         receipt_file_path=receipt_path,
     )
 
-    if payload.allocations is None:
-        # Default single business allocation
-        default_alloc = Allocation(
-            id=uuid.uuid4(),
+    for alloc_item in payload.allocations:
+        alloc = Allocation(
+            id=alloc_item.id or uuid.uuid4(),
             transaction_id=tx_id,
-            amount=payload.total_amount,
+            amount=alloc_item.amount,
             is_personal=False,
-            company_id=payload.company_id,
+            company_id=alloc_item.company_id,
             sync_status=SyncStatus.PENDING,
         )
-        transaction.allocations.append(default_alloc)
-    else:
-        for alloc_item in payload.allocations:
-            alloc = Allocation(
-                id=alloc_item.id or uuid.uuid4(),
-                transaction_id=tx_id,
-                amount=alloc_item.amount,
-                is_personal=False,
-                company_id=alloc_item.company_id or payload.company_id,
-                sync_status=SyncStatus.PENDING,
-            )
-            transaction.allocations.append(alloc)
+        transaction.allocations.append(alloc)
 
     db.add(transaction)
     try:
