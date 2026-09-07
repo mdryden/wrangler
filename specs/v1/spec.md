@@ -116,7 +116,20 @@ A transaction must be able to be split across personal expenses or business enti
   - ~~`POST /api/companies/{id}/sync-categories`~~
 - **Transactions:** 
   - `GET /api/transactions` (Must implement **server-side pagination**, filtering by source, approval, and date).
-  - `POST /api/transactions` (Manual transaction creation with optional receipt file upload).
+  - `POST /api/transactions` (Manual transaction creation with optional receipt file upload and initial split allocations):
+    - **Payload:** Accepts `multipart/form-data` (when receipt file is uploaded) or `application/json`.
+    - **Validation:**
+      - `total_amount`: Numeric, strictly non-zero (supports positive for expenses, negative for returns/refunds).
+      - `date`: Required valid ISO date string (`YYYY-MM-DD`).
+      - `description`: Required, non-empty string.
+      - `company_id`: Required UUID for manual business transaction attribution.
+      - `is_approved`: Boolean (defaults to `true` for manual business entries).
+      - `allocations`: Optional list of splits. If provided, sum of `allocation.amount` must equal `total_amount`.
+    - **Atomic Creation:** In a single database transaction:
+      1. Creates the `Transaction` record with `source = "manual"`.
+      2. If receipt is uploaded, saves to `RECEIPT_STORAGE_DIR` and populates `receipt_file_path`.
+      3. Creates `Allocation` record(s): If splits are omitted in the request, automatically creates a single default business allocation (`amount = total_amount`, `company_id = payload.company_id`, `is_personal = false`, `sync_status = PENDING`).
+    - **Response:** `201 Created` with created `TransactionResponse` including its allocations.
   - `PUT /api/transactions/{id}` (Update transaction details).
   - `PUT /api/transactions/{id}/approve` (Mark transaction as approved).
 - **Allocations:**
@@ -145,7 +158,33 @@ Persistent navigation drawer: **Ledger**, **Manual Entry**, **Export Manager** (
 - **Sync Status & Immutability:** Transactions with `SYNCED` allocations must be visually indicated with a badge and locked from allocation editing. Locked transactions can be unlocked by reverting their synced allocations to `PENDING`.
 - **Receipt Downloads:** Direct download button/link for transactions with attached receipts so the user can easily download files when preparing manual Wave uploads.
 
-### 6.3 Allocation Editor (Transaction Splitter)
+### 6.3 Manual Entry View
+A dedicated form accessible via the persistent navigation drawer (`/manual-entry`) optimized for rapid, keyboard-driven manual business expense intake.
+
+- **Scope & Constraints:**
+  - Exclusively for business expenses; personal expenses are never manually entered here.
+  - Every manual entry must be attributed to a business entity (`Company`).
+- **Form Controls & Required Fields:**
+  - **Date:** Required input starting empty (no default date). Utilizes a Quasar datepicker (`q-date` / `q-popup-proxy`) configured with `today-btn=true` for one-click selection of the current date.
+  - **Description / Payee:** Required text input (e.g., vendor, supplier, or invoice memo).
+  - **Total Amount:** Required numeric input formatted to two decimal places. Must be strictly non-zero (negative amounts denote returns/refunds).
+  - **Company:** Required select dropdown populated from active `Company` records.
+  - **Receipt Attachment:** Optional file dropzone/picker accepting PDF, PNG, and JPEG.
+  - **Approval Toggle:** Optional toggle (`is_approved`), defaults to `true`.
+- **Inline Allocation Splitter (All-in-One):**
+  - Allows completing the ledger allocation directly within the entry form.
+  - Defaults to a single split assigning 100% of `Total Amount` to the selected `Company` (`is_personal = false`, `sync_status = PENDING`).
+  - Supports adding additional splits across different businesses for multi-company receipts.
+  - Enforces that all allocations are business splits (`is_personal = false` with a selected `company_id`).
+  - Real-time balance validation: Unallocated remainder (`Total Amount - sum(splits)`) must be `0.00`. Form submission is disabled while unbalanced.
+- **Keyboard Navigation & Rapid Continuous Entry:**
+  - **Global Shortcut:** Pressing `Ctrl + Enter` from anywhere within the form immediately submits the entry.
+  - **Post-Submission Reset:** Upon successful creation (`201 Created`):
+    1. Displays a success toast notification.
+    2. Completely resets the form: Clears the date field (returns to empty), clears description, clears amount, clears receipt, and restores a single 100% default allocation to the selected company.
+    3. **Auto-focuses the first field (Date)** so the user can immediately type the next receipt without touching the mouse.
+
+### 6.4 Allocation Editor (Transaction Splitter)
 - Modal or expandable panel allowing user to split a parent transaction into `Allocations`.
 - Controls:
   - Personal toggle (`is_personal`).
@@ -154,7 +193,7 @@ Persistent navigation drawer: **Ledger**, **Manual Entry**, **Export Manager** (
   - Amount input per split, with validation ensuring sum of allocations equals `Transaction.total_amount`.
 - Editing is locked if any allocation has `sync_status == SYNCED`.
 
-### 6.4 Export Manager UI (Supersedes Sync Manager UI)
+### 6.5 Export Manager UI (Supersedes Sync Manager UI)
 Dedicated view replacing the legacy automated Sync Manager:
 - **Pending Exports Summary:** Table or card list grouped by `Company`, showing:
   - Company Name
@@ -173,7 +212,7 @@ Dedicated view replacing the legacy automated Sync Manager:
 - ~~Actions: "Sync to Wave" and "Retry Failed".~~
 - ~~UI should poll the backend to display background sync progress.~~
 
-### 6.5 Company Management & Settings UI
+### 6.6 Company Management & Settings UI
 - CRUD interface for `Company` records (add, rename, delete businesses).
 - Displays total allocated transaction count per company.
 - ~~Configures `wave_equity_account_id` per company.~~ *(Superseded)*

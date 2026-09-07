@@ -272,7 +272,7 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
 *Goal: Implement server-side filtering, allocation status reversion, and Wave-compatible CSV generation and reconciliation endpoints.*
 
 ### 9.1 Implement transaction filtering on `GET /api/transactions`
-- Update `GET /api/transactions` in `routers/transactions.py` to support filtering query parameters: `source`, `is_approved`, `start_date`, and `end_date`.
+- Update `GET /api/transactions` in `routers/transactions.py` to support filtering query parameters: `source`, `is_approved`, `start_date`, `end_date` and `company_id`.
 - Apply filters to database query alongside existing pagination (`page`, `page_size`) and sorting.
 
 ### 9.2 Implement single allocation reversion endpoint (`PUT /api/allocations/{id}/revert`)
@@ -328,7 +328,7 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
 *Goal: Implement the transaction ledger table, receipt downloads, and transaction split editor without Wave category dependencies.*
 
 ### 11.1 Build Ledger View with server-side pagination and filters
-- In `web/src/views/LedgerView.vue`, implement `QTable` connected to `GET /api/transactions` supporting server-side pagination, sorting, and filter controls (`source`, `is_approved`, date range).
+- In `web/src/views/LedgerView.vue`, implement `QTable` connected to `GET /api/transactions` supporting server-side pagination, sorting, and filter controls (`source`, `is_approved`, date range, company).
 
 ### 11.2 Implement visual locking for synced transactions and reversion action
 - Display a locked indicator badge on transactions containing any `SYNCED` allocations, disabling split editing.
@@ -368,4 +368,49 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
 ### 12.4 Build Reconciliation & History section with reversion
 - Build tab or expandable view displaying `SYNCED` allocations grouped by company.
 - Add "Revert to Pending" button calling `POST /api/companies/{id}/revert-synced` to return allocations to `PENDING` state if a Wave import was aborted or needs correction.
+
+---
+
+## Phase 13: Manual Expense Intake & Rapid Entry Form
+*Goal: Implement backend atomic manual transaction creation with company attribution and default allocation, along with a dedicated keyboard-optimized manual entry UI.*
+
+### 13.1 Update `POST /api/transactions` endpoint and schemas for company attribution and atomic allocations
+- Update `TransactionCreate` schema to require `company_id: UUID`, validate that `total_amount` is strictly non-zero (positive for expenses, negative for returns/refunds), and accept optional `allocations: list[AllocationCreateItem]`.
+- Update `POST /api/transactions` in `routers/transactions.py`:
+  - Enforce split balance validation: if `allocations` list is provided, verify `sum(allocation.amount) == total_amount`.
+  - In a single atomic database transaction:
+    1. Create `Transaction` record with `source = "manual"`, `company_id`, and `is_approved` (defaulting to `true`).
+    2. If a receipt file is uploaded in `multipart/form-data`, persist to `RECEIPT_STORAGE_DIR` and set `receipt_file_path`.
+    3. Create `Allocation` records: if splits are omitted in the request, automatically generate a single default business allocation (`amount = total_amount`, `company_id = payload.company_id`, `is_personal = false`, `sync_status = PENDING`). If splits are provided, persist them as business allocations.
+  - Return HTTP `201 Created` with `TransactionResponse` populated with the generated allocations.
+
+### 13.2 Build Manual Entry form controls and datepicker in `ManualEntryView.vue`
+- In `web/src/views/ManualEntryView.vue`, build form layout dedicated exclusively to business expenses:
+  - Date input: starts empty (no default date); integrates Quasar datepicker popup (`q-date` / `q-popup-proxy`) configured with `today-btn=true` for 1-click current date selection.
+  - Description / Payee: required text input.
+  - Total Amount: required numeric input formatted to two decimal places, strictly non-zero.
+  - Company: required select dropdown populated with active businesses from `useCompanyStore`.
+  - Receipt Attachment: optional file dropzone/picker accepting PDF, PNG, and JPEG.
+  - Approval Toggle: optional toggle (`is_approved`), defaults to `true`.
+
+### 13.3 Implement inline allocation splitter with real-time balance validation
+- Within `ManualEntryView.vue`, build an inline split manager:
+  - Default state: single split assigning 100% of `Total Amount` to the selected `Company` (`is_personal = false`, `sync_status = PENDING`).
+  - Support adding and removing additional business splits across different active companies for multi-company receipts.
+  - Enforce business splits only: restrict `is_personal` to `false` and require a valid `company_id`.
+  - Real-time balance validation: calculate remainder (`Total Amount - sum(splits)`). Disable submit action while remainder != `0.00` and display a clear balance indicator.
+
+### 13.4 Implement keyboard shortcuts, rapid continuous entry reset, and auto-focus
+- Attach a global `Ctrl + Enter` keydown shortcut within the form to trigger submission immediately.
+- Integrate submission with `POST /api/transactions` (using `multipart/form-data` if receipt file attached, else JSON).
+- On HTTP `201 Created`:
+  1. Show a success toast notification.
+  2. Completely reset form fields: empty the date input, clear description, clear amount, clear receipt file, and restore a single 100% default allocation to the selected company.
+  3. Automatically programmatically focus the Date input field so the user can immediately type the next expense without using the mouse.
+
+### 13.5 Verify Manual Entry end-to-end in browser
+- Verify manual transaction creation with single company default allocation.
+- Verify multi-company split allocation creation and remainder validation.
+- Verify receipt file attachment and storage.
+- Verify `today-btn=true` one-click date selection, `Ctrl + Enter` shortcut submission, and post-submission form reset with Date field auto-focus.
 

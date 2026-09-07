@@ -78,7 +78,7 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 - [x] 10.3 Update navigation drawer and routing for Export Manager (`/export-manager`)
 
 ## Phase 11: Frontend Ledger & Allocation Editor
-- [ ] 11.1 Build Ledger View with server-side pagination and filters
+- [x] 11.1 Build Ledger View with server-side pagination and filters
 - [ ] 11.2 Implement visual locking for synced transactions and reversion action
 - [ ] 11.3 Build Allocation Editor (Transaction Splitter) component without Wave categories
 - [ ] 11.4 Integrate Allocation Editor with backend API (`PUT /api/transactions/{id}/allocations`)
@@ -90,4 +90,11 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 - [ ] 12.2 Implement "Export CSV" download action per company
 - [ ] 12.3 Implement "Mark as Synced" action per company
 - [ ] 12.4 Build Reconciliation & History section with reversion
+
+## Phase 13: Manual Expense Intake & Rapid Entry Form
+- [ ] 13.1 Update `POST /api/transactions` endpoint and schemas for company attribution and atomic allocations
+- [ ] 13.2 Build Manual Entry form controls and datepicker in `ManualEntryView.vue`
+- [ ] 13.3 Implement inline allocation splitter with real-time balance validation
+- [ ] 13.4 Implement keyboard shortcuts, rapid continuous entry reset, and auto-focus
+- [ ] 13.5 Verify Manual Entry end-to-end in browser
 

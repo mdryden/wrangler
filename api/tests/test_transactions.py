@@ -442,3 +442,24 @@ def test_get_transactions_filtering(client, auth_headers, db_session):
     data_combo = resp_combo.json()
     assert data_combo["total"] == 1
     assert data_combo["items"][0]["external_id"] == "TX-3"
+
+    # Filter by company_id
+    comp = Company(name="Acme Filtering Corp")
+    db_session.add(comp)
+    db_session.flush()
+
+    alloc = Allocation(
+        transaction_id=tx1.id,
+        amount=Decimal("50.00"),
+        is_personal=False,
+        company_id=comp.id,
+        sync_status=SyncStatus.PENDING,
+    )
+    db_session.add(alloc)
+    db_session.commit()
+
+    resp_comp = client.get(f"/api/transactions?company_id={comp.id}", headers=auth_headers)
+    assert resp_comp.status_code == 200
+    data_comp = resp_comp.json()
+    assert data_comp["total"] == 1
+    assert data_comp["items"][0]["external_id"] == "TX-1"
