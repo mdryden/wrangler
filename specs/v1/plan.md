@@ -409,12 +409,6 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
   2. Completely reset form fields: empty the date input, clear description, clear amount, clear receipt file, and restore a single 100% default allocation to the selected company.
   3. Automatically programmatically focus the Date input field so the user can immediately type the next expense without using the mouse.
 
-### 13.5 Verify Manual Entry end-to-end in browser
-- Verify manual transaction creation with single company default allocation.
-- Verify multi-company split allocation creation and remainder validation.
-- Verify receipt file attachment and storage.
-- Verify `today-btn=true` one-click date selection, `Ctrl + Enter` shortcut submission, and post-submission form reset with Date field auto-focus.
-
 ---
 
 ## Phase 14: Removal of `is_approved` (Schema & Code Remediation)

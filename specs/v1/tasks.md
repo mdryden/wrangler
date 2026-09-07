@@ -96,7 +96,6 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 - [x] 13.2 Build Manual Entry form controls and datepicker in `ManualEntryView.vue`
 - [ ] 13.3 Implement inline allocation splitter with real-time balance validation
 - [ ] 13.4 Implement keyboard shortcuts, rapid continuous entry reset, and auto-focus
-- [ ] 13.5 Verify Manual Entry end-to-end in browser
 
 ## Phase 14: Removal of `is_approved` (Schema & Code Remediation)
 - [x] 14.1 Generate and apply Alembic migration to drop `is_approved` column from `transactions` table
