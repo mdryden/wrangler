@@ -12,6 +12,8 @@ from core.security import AuthenticationMiddleware
 from database import get_db
 from routers.auth import router as auth_router
 from routers.companies import router as companies_router
+from routers.receipts import router as receipts_router
+from routers.transactions import router as transactions_router
 from routers.wave_oauth import router as wave_oauth_router
 
 
@@ -41,6 +43,8 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(companies_router)
 app.include_router(wave_oauth_router)
+app.include_router(transactions_router)
+app.include_router(receipts_router)
 
 
 @app.get("/api/health")

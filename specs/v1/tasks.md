@@ -38,14 +38,14 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 - [x] 4.4 Verify category synchronization via REST client
 
 ## Phase 5: Transaction & Allocation Management (Backend)
-- [ ] 5.1 Implement intake source parser abstraction and base interface
-- [ ] 5.2 Create `POST /api/transactions` endpoint (manual entry with receipt upload support)
-- [ ] 5.3 Create `GET /api/transactions` endpoint with server-side pagination
-- [ ] 5.4 Create `PUT /api/transactions/{id}` and `PUT /api/transactions/{id}/approve` endpoints
-- [ ] 5.5 Create `PUT /api/transactions/{id}/allocations` endpoint
-- [ ] 5.6 Enforce immutability validation on allocations (HTTP 400 if any allocation is `SYNCED`)
-- [ ] 5.7 Implement receipt upload (`POST /api/transactions/{id}/receipt`) and retrieval (`GET /api/receipts/{path}`) endpoints
-- [ ] 5.8 Verify transaction and allocation endpoints via REST client
+- [x] 5.1 Implement intake source parser abstraction and base interface
+- [x] 5.2 Create `POST /api/transactions` endpoint (manual entry with receipt upload support)
+- [x] 5.3 Create `GET /api/transactions` endpoint with server-side pagination
+- [x] 5.4 Create `PUT /api/transactions/{id}` and `PUT /api/transactions/{id}/approve` endpoints
+- [x] 5.5 Create `PUT /api/transactions/{id}/allocations` endpoint
+- [x] 5.6 Enforce immutability validation on allocations (HTTP 400 if any allocation is `SYNCED`)
+- [x] 5.7 Implement receipt upload (`POST /api/transactions/{id}/receipt`) and retrieval (`GET /api/receipts/{path}`) endpoints
+- [x] 5.8 Verify transaction and allocation endpoints via REST client
 
 ## Phase 6: Frontend Foundation
 - [x] 6.1 Initialize Vue 3 + Quasar project with Pinia

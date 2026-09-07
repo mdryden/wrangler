@@ -1,0 +1,113 @@
+### 1. Authenticate as Admin to get Bearer Token
+# @name login
+POST http://localhost:8000/api/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "admin"
+}
+
+### Store Auth Token
+@authToken = {{login.response.body.access_token}}
+
+### 2. Create a Manual Transaction
+# @name createTx
+POST http://localhost:8000/api/transactions
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "date": "2026-09-06",
+  "description": "Office Supplies & Books",
+  "total_amount": 150.00,
+  "currency_code": "USD",
+  "source": "manual",
+  "external_id": "MAN-2026-001"
+}
+
+### Store Transaction ID
+@transactionId = {{createTx.response.body.id}}
+
+### 3. List Transactions with Server-Side Pagination
+GET http://localhost:8000/api/transactions?page=1&page_size=10&sort_by=date&descending=true
+Authorization: Bearer {{authToken}}
+
+### 4. Get Transaction by ID (includes allocations)
+GET http://localhost:8000/api/transactions/{{transactionId}}
+Authorization: Bearer {{authToken}}
+
+### 5. Update Transaction Metadata
+PUT http://localhost:8000/api/transactions/{{transactionId}}
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "description": "Office Supplies, Books & Stationery",
+  "total_amount": 160.00
+}
+
+### 6. Toggle Transaction Approval
+PUT http://localhost:8000/api/transactions/{{transactionId}}/approve
+Authorization: Bearer {{authToken}}
+
+### 7. Explicitly Approve Transaction
+PUT http://localhost:8000/api/transactions/{{transactionId}}/approve
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "is_approved": true
+}
+
+### 8. Update Split Allocations (Split into Personal and Business)
+PUT http://localhost:8000/api/transactions/{{transactionId}}/allocations
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+[
+  {
+    "amount": 60.00,
+    "is_personal": true,
+    "sync_status": "IGNORED"
+  },
+  {
+    "amount": 100.00,
+    "is_personal": false,
+    "company_id": null,
+    "wave_category_id": null,
+    "sync_status": "PENDING"
+  }
+]
+
+### 9. Upload Transaction Receipt
+# Note: For multipart/form-data upload in VS Code / JetBrains REST Client:
+POST http://localhost:8000/api/transactions/{{transactionId}}/receipt
+Authorization: Bearer {{authToken}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="sample_receipt.pdf"
+Content-Type: application/pdf
+
+%PDF-1.4 sample receipt payload
+--boundary--
+
+### 10. Retrieve Receipt File
+# Replace with actual receipt file name from upload response
+@receiptPath = {{createTx.response.body.receipt_file_path}}
+GET http://localhost:8000/api/receipts/{{receiptPath}}
+Authorization: Bearer {{authToken}}
+
+### 11. Immutability Verification: Attempt to modify allocations when SYNCED
+# This request expects HTTP 400 Bad Request if any allocation has sync_status == SYNCED
+PUT http://localhost:8000/api/transactions/{{transactionId}}/allocations
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+[
+  {
+    "amount": 160.00,
+    "is_personal": true
+  }
+]
