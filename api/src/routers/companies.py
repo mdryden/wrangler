@@ -7,7 +7,17 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models.company import Company
+from models.wave_category import WaveCategory
 from schemas.company import CompanyCreate, CompanyResponse, CompanyUpdate
+from schemas.wave_category import WaveCategoryResponse
+from services.wave import (
+    WaveAuthError,
+    WaveConfigurationError,
+    WaveError,
+    WaveGraphQLError,
+    WaveNotConnectedError,
+    sync_company_categories,
+)
 
 router = APIRouter(prefix="/api/companies", tags=["companies"])
 
@@ -89,3 +99,51 @@ def delete_company(
         )
     db.delete(company)
     db.commit()
+
+
+@router.post("/{company_id}/sync-categories", response_model=list[WaveCategoryResponse])
+def sync_categories(
+    company_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+) -> list[WaveCategory]:
+    """Trigger synchronization of Chart of Accounts categories from Wave."""
+    company = db.get(Company, company_id)
+    if company is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Company with ID '{company_id}' not found",
+        )
+
+    try:
+        return sync_company_categories(company, db=db)
+    except (WaveNotConnectedError, WaveConfigurationError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except WaveAuthError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Wave authentication failure: {exc}",
+        ) from exc
+    except (WaveGraphQLError, WaveError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Wave sync error: {exc}",
+        ) from exc
+
+
+@router.get("/{company_id}/categories", response_model=list[WaveCategoryResponse])
+def list_company_categories(
+    company_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+) -> list[WaveCategory]:
+    """Retrieve all cached categories for a specific company."""
+    company = db.get(Company, company_id)
+    if company is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Company with ID '{company_id}' not found",
+        )
+    stmt = select(WaveCategory).where(WaveCategory.company_id == company_id).order_by(WaveCategory.name)
+    return list(db.scalars(stmt).all())

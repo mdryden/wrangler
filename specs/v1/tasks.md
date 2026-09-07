@@ -32,10 +32,10 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 - [x] 3.6 Verify company management and OAuth flow via REST client and browser
 
 ## Phase 4: Wave Chart of Accounts Sync
-- [ ] 4.1 Implement Wave Chart of Accounts GraphQL query (filter for Expense, Asset, Income)
-- [ ] 4.2 Create `POST /api/companies/{id}/sync-categories` endpoint
-- [ ] 4.3 Implement upsert logic for `WaveCategory` table
-- [ ] 4.4 Verify category synchronization via REST client
+- [x] 4.1 Implement Wave Chart of Accounts GraphQL query (filter for Expense, Asset, Income)
+- [x] 4.2 Create `POST /api/companies/{id}/sync-categories` endpoint
+- [x] 4.3 Implement upsert logic for `WaveCategory` table
+- [x] 4.4 Verify category synchronization via REST client
 
 ## Phase 5: Transaction & Allocation Management (Backend)
 - [ ] 5.1 Implement intake source parser abstraction and base interface

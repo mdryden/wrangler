@@ -5,10 +5,12 @@ from urllib.parse import urlencode
 
 import httpx
 import jwt
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from core.config import settings
 from models.company import Company
+from models.wave_category import WaveCategory
 
 
 class WaveError(Exception):
@@ -21,6 +23,10 @@ class WaveAuthError(WaveError):
 
 class WaveNotConnectedError(WaveError):
     """Raised when an operation requires Wave credentials but the company is not connected."""
+
+
+class WaveConfigurationError(WaveError):
+    """Raised when required Wave configuration on a company or environment is missing."""
 
 
 class WaveGraphQLError(WaveError):
@@ -109,6 +115,37 @@ def exchange_oauth_code(code: str, http_client: httpx.Client | None = None) -> d
         raise WaveAuthError(f"Wave token endpoint response missing access_token: {data}")
 
     return data
+
+
+CHART_OF_ACCOUNTS_QUERY = """
+query GetChartOfAccounts($businessId: ID!, $page: Int!, $pageSize: Int!) {
+  business(id: $businessId) {
+    id
+    accounts(page: $page, pageSize: $pageSize, types: [EXPENSE, ASSET, INCOME]) {
+      pageInfo {
+        currentPage
+        totalPages
+        totalCount
+      }
+      edges {
+        node {
+          id
+          name
+          type {
+            name
+            value
+          }
+          subtype {
+            name
+            value
+          }
+          isArchived
+        }
+      }
+    }
+  }
+}
+"""
 
 
 class WaveClient:
@@ -238,3 +275,116 @@ class WaveClient:
             raise WaveGraphQLError(result["errors"])
 
         return result.get("data", {})
+
+    def get_chart_of_accounts(
+        self,
+        business_id: str | None = None,
+        page_size: int = 100,
+    ) -> list[dict[str, str]]:
+        """Fetch active Expense, Asset, and Income accounts from Wave Chart of Accounts."""
+        target_business_id = business_id or self.company.wave_business_id
+        if not target_business_id:
+            raise WaveConfigurationError(f"Company '{self.company.name}' does not have a Wave business ID configured")
+
+        page = 1
+        accounts: list[dict[str, str]] = []
+        seen_ids: set[str] = set()
+
+        while True:
+            variables = {
+                "businessId": target_business_id,
+                "page": page,
+                "pageSize": page_size,
+            }
+            data = self.query_graphql(CHART_OF_ACCOUNTS_QUERY, variables)
+            business_data = data.get("business")
+            if not business_data:
+                raise WaveError(f"Wave business '{target_business_id}' not found or inaccessible")
+
+            accounts_data = business_data.get("accounts") or {}
+            edges = accounts_data.get("edges") or []
+
+            for edge in edges:
+                node = edge.get("node") or {}
+                node_id = node.get("id")
+                node_name = node.get("name")
+                if not node_id or not node_name:
+                    continue
+
+                if str(node_id) in seen_ids:
+                    continue
+
+                if node.get("isArchived") is True:
+                    continue
+
+                type_info = node.get("type")
+                if type_info:
+                    if isinstance(type_info, dict):
+                        type_val = str(type_info.get("value") or type_info.get("name") or "").upper()
+                    else:
+                        type_val = str(type_info).upper()
+                    if type_val and type_val not in {"EXPENSE", "ASSET", "INCOME"}:
+                        continue
+
+                accounts.append(
+                    {
+                        "wave_account_id": str(node_id),
+                        "name": str(node_name),
+                    }
+                )
+                seen_ids.add(str(node_id))
+
+            page_info = accounts_data.get("pageInfo") or {}
+            total_pages = page_info.get("totalPages")
+            if total_pages is not None:
+                if page >= total_pages:
+                    break
+            else:
+                if not edges or len(edges) < page_size:
+                    break
+
+            page += 1
+
+        return accounts
+
+
+def sync_company_categories(
+    company: Company,
+    db: Session,
+    client: WaveClient | None = None,
+) -> list[WaveCategory]:
+    """Fetch accounts from Wave and upsert into WaveCategory table for the company."""
+    if not company.wave_access_token:
+        raise WaveNotConnectedError(f"Company '{company.name}' is not connected to Wave")
+
+    if not company.wave_business_id:
+        raise WaveConfigurationError(f"Company '{company.name}' has no Wave business ID configured")
+
+    wave_client = client if client is not None else WaveClient(company, db=db)
+    raw_accounts = wave_client.get_chart_of_accounts()
+
+    existing_categories_stmt = select(WaveCategory).where(WaveCategory.company_id == company.id)
+    existing_map = {cat.wave_account_id: cat for cat in db.scalars(existing_categories_stmt).all()}
+
+    for item in raw_accounts:
+        wave_acc_id = item["wave_account_id"]
+        cat_name = item["name"]
+
+        if wave_acc_id in existing_map:
+            cat = existing_map[wave_acc_id]
+            if cat.name != cat_name:
+                cat.name = cat_name
+                db.add(cat)
+        else:
+            new_cat = WaveCategory(
+                company_id=company.id,
+                wave_account_id=wave_acc_id,
+                name=cat_name,
+            )
+            db.add(new_cat)
+            existing_map[wave_acc_id] = new_cat
+
+    db.commit()
+
+    stmt = select(WaveCategory).where(WaveCategory.company_id == company.id).order_by(WaveCategory.name)
+    return list(db.scalars(stmt).all())

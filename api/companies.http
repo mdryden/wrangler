@@ -61,6 +61,15 @@ GET http://localhost:8000/api/wave/oauth/callback?code=simulated_auth_code&state
 GET http://localhost:8000/api/companies/{{companyId}}
 Authorization: Bearer {{authToken}}
 
-### 10. Delete Company
+### 10. Sync Company Categories from Wave Chart of Accounts
+# @name syncCategories
+POST http://localhost:8000/api/companies/{{companyId}}/sync-categories
+Authorization: Bearer {{authToken}}
+
+### 11. List Cached Company Categories
+GET http://localhost:8000/api/companies/{{companyId}}/categories
+Authorization: Bearer {{authToken}}
+
+### 12. Delete Company
 DELETE http://localhost:8000/api/companies/{{companyId}}
 Authorization: Bearer {{authToken}}
