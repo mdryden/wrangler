@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest"
 import { setActivePinia, createPinia } from "pinia"
 import { useCompanyStore } from "../src/stores/companies"
-import { getCompanyTokenStatus, getTokenStatusInfo, type Company } from "../src/types/company"
+import type { Company } from "../src/types/company"
 
 // In-memory mock storage
 const mockStorage = new Map<string, string>()
@@ -23,74 +23,6 @@ Object.defineProperty(globalThis, "localStorage", {
   writable: true,
 })
 
-describe("getCompanyTokenStatus", () => {
-  it("returns 'disconnected' when company has no wave_access_token", () => {
-    const comp: Company = {
-      id: "1",
-      name: "Acme Inc",
-      wave_equity_account_id: "eq_123",
-      wave_access_token: null,
-    }
-    expect(getCompanyTokenStatus(comp)).toBe("disconnected")
-    expect(getCompanyTokenStatus(null)).toBe("disconnected")
-    expect(getCompanyTokenStatus(undefined)).toBe("disconnected")
-  })
-
-  it("returns 'connected' when company has wave_access_token and no expiration", () => {
-    const comp: Company = {
-      id: "1",
-      name: "Acme Inc",
-      wave_equity_account_id: "eq_123",
-      wave_access_token: "token_abc",
-      wave_token_expires_at: null,
-    }
-    expect(getCompanyTokenStatus(comp)).toBe("connected")
-  })
-
-  it("returns 'connected' when company has wave_access_token and future expiration", () => {
-    const futureDate = new Date(Date.now() + 3600 * 1000).toISOString()
-    const comp: Company = {
-      id: "1",
-      name: "Acme Inc",
-      wave_equity_account_id: "eq_123",
-      wave_access_token: "token_abc",
-      wave_token_expires_at: futureDate,
-    }
-    expect(getCompanyTokenStatus(comp)).toBe("connected")
-  })
-
-  it("returns 'expired' when company has wave_access_token and past expiration", () => {
-    const pastDate = new Date(Date.now() - 3600 * 1000).toISOString()
-    const comp: Company = {
-      id: "1",
-      name: "Acme Inc",
-      wave_equity_account_id: "eq_123",
-      wave_access_token: "token_abc",
-      wave_token_expires_at: pastDate,
-    }
-    expect(getCompanyTokenStatus(comp)).toBe("expired")
-  })
-})
-
-describe("getTokenStatusInfo", () => {
-  it("returns correct labels and colors for statuses", () => {
-    const connected = getTokenStatusInfo("connected")
-    expect(connected.label).toBe("Connected")
-    expect(connected.color).toBe("positive")
-    expect(connected.icon).toBe("check_circle")
-
-    const expired = getTokenStatusInfo("expired")
-    expect(expired.label).toBe("Expired")
-    expect(expired.color).toBe("warning")
-    expect(expired.icon).toBe("warning")
-
-    const disconnected = getTokenStatusInfo("disconnected")
-    expect(disconnected.label).toBe("Disconnected")
-    expect(disconnected.color).toBe("grey-6")
-    expect(disconnected.icon).toBe("cloud_off")
-  })
-})
-
 describe("useCompanyStore", () => {
   let mockFetch: ReturnType<typeof vi.fn>
 
@@ -109,10 +41,10 @@ describe("useCompanyStore", () => {
     expect(store.error).toBeNull()
   })
 
-  it("fetchCompanies successfully fetches and sets sorted companies", async () => {
+  it("fetchCompanies successfully fetches and sets sorted companies with transaction counts", async () => {
     const mockCompanies: Company[] = [
-      { id: "2", name: "Zebra LLC", wave_equity_account_id: "eq_2" },
-      { id: "1", name: "Alpha Corp", wave_equity_account_id: "eq_1" },
+      { id: "2", name: "Zebra LLC", transaction_count: 5 },
+      { id: "1", name: "Alpha Corp", transaction_count: 12 },
     ]
 
     mockFetch.mockResolvedValueOnce({
@@ -148,8 +80,8 @@ describe("useCompanyStore", () => {
   })
 
   it("createCompany sends POST request and adds to store sorted", async () => {
-    const existing: Company = { id: "1", name: "Beta LLC", wave_equity_account_id: "eq_1" }
-    const newCompany: Company = { id: "2", name: "Alpha Inc", wave_equity_account_id: "eq_2" }
+    const existing: Company = { id: "1", name: "Beta LLC", transaction_count: 0 }
+    const newCompany: Company = { id: "2", name: "Alpha Inc", transaction_count: 0 }
 
     mockFetch.mockResolvedValueOnce({
       ok: true,
@@ -163,14 +95,13 @@ describe("useCompanyStore", () => {
 
     const result = await store.createCompany({
       name: "Alpha Inc",
-      wave_equity_account_id: "eq_2",
     })
 
     expect(mockFetch).toHaveBeenCalledWith(
       "/api/companies",
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ name: "Alpha Inc", wave_equity_account_id: "eq_2" }),
+        body: JSON.stringify({ name: "Alpha Inc" }),
       }),
     )
     expect(result).toEqual(newCompany)
@@ -181,14 +112,13 @@ describe("useCompanyStore", () => {
   })
 
   it("updateCompany sends PUT request and updates item in store", async () => {
-    const existing1: Company = { id: "1", name: "Alpha Inc", wave_equity_account_id: "eq_1" }
-    const existing2: Company = { id: "2", name: "Beta LLC", wave_equity_account_id: "eq_2" }
+    const existing1: Company = { id: "1", name: "Alpha Inc", transaction_count: 3 }
+    const existing2: Company = { id: "2", name: "Beta LLC", transaction_count: 7 }
 
     const updated1: Company = {
       id: "1",
       name: "Alpha Updated Corp",
-      wave_equity_account_id: "eq_new",
-      wave_business_id: "biz_123",
+      transaction_count: 3,
     }
 
     mockFetch.mockResolvedValueOnce({
@@ -203,8 +133,6 @@ describe("useCompanyStore", () => {
 
     const result = await store.updateCompany("1", {
       name: "Alpha Updated Corp",
-      wave_equity_account_id: "eq_new",
-      wave_business_id: "biz_123",
     })
 
     expect(mockFetch).toHaveBeenCalledWith(
@@ -213,8 +141,6 @@ describe("useCompanyStore", () => {
         method: "PUT",
         body: JSON.stringify({
           name: "Alpha Updated Corp",
-          wave_equity_account_id: "eq_new",
-          wave_business_id: "biz_123",
         }),
       }),
     )
@@ -223,8 +149,8 @@ describe("useCompanyStore", () => {
   })
 
   it("deleteCompany sends DELETE request and removes company from store", async () => {
-    const existing1: Company = { id: "1", name: "Alpha Inc", wave_equity_account_id: "eq_1" }
-    const existing2: Company = { id: "2", name: "Beta LLC", wave_equity_account_id: "eq_2" }
+    const existing1: Company = { id: "1", name: "Alpha Inc" }
+    const existing2: Company = { id: "2", name: "Beta LLC" }
 
     mockFetch.mockResolvedValueOnce({
       ok: true,
@@ -245,80 +171,5 @@ describe("useCompanyStore", () => {
     )
     expect(store.companies).toHaveLength(1)
     expect(store.companies[0].id).toBe("2")
-  })
-
-  it("getWaveAuthorizeUrl calls the backend authorize endpoint", async () => {
-    const authUrl = "https://api.waveapps.com/oauth2/authorize?client_id=123"
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      headers: new Headers({ "content-type": "application/json" }),
-      json: async () => ({ authorization_url: authUrl, redirect_url: authUrl }),
-    })
-
-    const store = useCompanyStore()
-    const res = await store.getWaveAuthorizeUrl("comp-1")
-
-    expect(mockFetch).toHaveBeenCalledWith("/api/wave/oauth/authorize?company_id=comp-1", expect.anything())
-    expect(res.authorization_url).toBe(authUrl)
-  })
-
-  it("connectToWave invokes authorize endpoint and returns the URL", async () => {
-    const authUrl = "https://api.waveapps.com/oauth2/authorize?client_id=abc"
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      headers: new Headers({ "content-type": "application/json" }),
-      json: async () => ({ authorization_url: authUrl, redirect_url: authUrl }),
-    })
-
-    const store = useCompanyStore()
-    const url = await store.connectToWave("comp-2")
-
-    expect(url).toBe(authUrl)
-    expect(store.connectingOAuth["comp-2"]).toBe(false)
-  })
-
-  it("syncCategories calls POST sync-categories endpoint and manages loading state", async () => {
-    const mockCategories = [
-      { id: "c1", company_id: "comp-1", wave_account_id: "acc_1", name: "Meals & Entertainment" },
-      { id: "c2", company_id: "comp-1", wave_account_id: "acc_2", name: "Office Supplies" },
-    ]
-
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      headers: new Headers({ "content-type": "application/json" }),
-      json: async () => mockCategories,
-    })
-
-    const store = useCompanyStore()
-    const result = await store.syncCategories("comp-1")
-
-    expect(mockFetch).toHaveBeenCalledWith(
-      "/api/companies/comp-1/sync-categories",
-      expect.objectContaining({
-        method: "POST",
-      }),
-    )
-    expect(result).toEqual(mockCategories)
-    expect(store.syncingCategories["comp-1"]).toBe(false)
-  })
-
-  it("fetchCategories calls GET categories endpoint", async () => {
-    const mockCategories = [{ id: "c1", company_id: "comp-1", wave_account_id: "acc_1", name: "Travel" }]
-
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      headers: new Headers({ "content-type": "application/json" }),
-      json: async () => mockCategories,
-    })
-
-    const store = useCompanyStore()
-    const result = await store.fetchCategories("comp-1")
-
-    expect(mockFetch).toHaveBeenCalledWith("/api/companies/comp-1/categories", expect.anything())
-    expect(result).toEqual(mockCategories)
   })
 })

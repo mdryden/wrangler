@@ -17,5 +17,10 @@ class CompanyUpdate(BaseModel):
 
 class CompanyResponse(CompanyBase):
     id: uuid.UUID
+    transaction_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class CompanySyncStatusBatchRequest(BaseModel):
+    allocation_ids: list[uuid.UUID] | None = None

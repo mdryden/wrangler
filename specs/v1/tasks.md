@@ -65,17 +65,17 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 - [x] 8.6 Generate and execute Alembic migration for SQLite schema cleanup
 
 ## Phase 9: Backend Export & Sync Reconciliation Endpoints
-- [ ] 9.1 Implement transaction filtering on `GET /api/transactions` (source, approval, date range)
-- [ ] 9.2 Implement single allocation reversion endpoint (`PUT /api/allocations/{id}/revert`)
-- [ ] 9.3 Implement RFC 4180 CSV export utility for Wave format (`Date,Description,Amount`)
-- [ ] 9.4 Implement `GET /api/companies/{id}/export-transactions` endpoint
-- [ ] 9.5 Implement `POST /api/companies/{id}/mark-synced` endpoint
-- [ ] 9.6 Implement `POST /api/companies/{id}/revert-synced` endpoint
+- [x] 9.1 Implement transaction filtering on `GET /api/transactions` (source, approval, date range)
+- [x] 9.2 Implement single allocation reversion endpoint (`PUT /api/allocations/{id}/revert`)
+- [x] 9.3 Implement RFC 4180 CSV export utility for Wave format (`Date,Description,Amount`)
+- [x] 9.4 Implement `GET /api/companies/{id}/export-transactions` endpoint
+- [x] 9.5 Implement `POST /api/companies/{id}/mark-synced` endpoint
+- [x] 9.6 Implement `POST /api/companies/{id}/revert-synced` endpoint
 
 ## Phase 10: Frontend Wave Reversion & Settings Updates
-- [ ] 10.1 Remove Wave OAuth UI and actions from Settings (`SettingsView.vue`, `TokenStatusBadge.vue`)
-- [ ] 10.2 Update Company dialog, types, and store to remove Wave fields and display transaction counts
-- [ ] 10.3 Update navigation drawer and routing for Export Manager (`/export-manager`)
+- [x] 10.1 Remove Wave OAuth UI and actions from Settings (`SettingsView.vue`, `TokenStatusBadge.vue`)
+- [x] 10.2 Update Company dialog, types, and store to remove Wave fields and display transaction counts
+- [x] 10.3 Update navigation drawer and routing for Export Manager (`/export-manager`)
 
 ## Phase 11: Frontend Ledger & Allocation Editor
 - [ ] 11.1 Build Ledger View with server-side pagination and filters

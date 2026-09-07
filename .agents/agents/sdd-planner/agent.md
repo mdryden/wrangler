@@ -34,6 +34,7 @@ You will produce two files, typically co-located in the same directory as the sp
 - **Atomic Tasks**: Within each phase, define a specific list of atomic tasks in dependency order, even if some could theoretically be parallelized.
 - **Task Numbering**: Number all tasks sequentially by phase and item number (e.g., `1.1`, `1.2`, `2.1`).
 - **No Checkboxes**: `plan.md` will contain the full details and implementation steps for each task, but **must not** contain any markdown checkboxes (`- [ ]`). The implementation agent will not make changes to the plan.
+- **No reference to tasks.md**: Do not reference `tasks.md` in `plan.md`. The plan is the source of truth for the implementation agent, while `tasks.md` is a separate checklist for tracking progress and will be removed from the repo once all tasks are completed.
 
 ## 4. Task List Structure (`tasks.md`)
 - Create a separate file called `tasks.md`.

@@ -38,9 +38,9 @@ export const routes: RouteRecordRaw[] = [
         },
       },
       {
-        path: "sync-manager",
-        name: "sync-manager",
-        component: () => import("../views/SyncManagerView.vue"),
+        path: "export-manager",
+        name: "export-manager",
+        component: () => import("../views/ExportManagerView.vue"),
         meta: {
           requiresAuth: true,
         },

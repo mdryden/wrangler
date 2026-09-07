@@ -51,7 +51,7 @@ describe("Router Configuration & Navigation Guards", () => {
 
       expect(childNames).toContain("ledger")
       expect(childNames).toContain("manual-entry")
-      expect(childNames).toContain("sync-manager")
+      expect(childNames).toContain("export-manager")
       expect(childNames).toContain("settings")
 
       // Empty path redirects to ledger

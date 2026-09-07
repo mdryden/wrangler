@@ -1,14 +1,12 @@
 import { defineStore } from "pinia"
 import { ref } from "vue"
 import { apiClient } from "../api/client"
-import type { Company, CompanyCreatePayload, CompanyUpdatePayload, WaveAuthorizeResponse, WaveCategory } from "../types/company"
+import type { Company, CompanyCreatePayload, CompanyUpdatePayload } from "../types/company"
 
 export const useCompanyStore = defineStore("companies", () => {
   const companies = ref<Company[]>([])
   const loading = ref<boolean>(false)
   const error = ref<string | null>(null)
-  const syncingCategories = ref<Record<string, boolean>>({})
-  const connectingOAuth = ref<Record<string, boolean>>({})
 
   /**
    * Fetch all companies from the backend.
@@ -82,63 +80,13 @@ export const useCompanyStore = defineStore("companies", () => {
     }
   }
 
-  /**
-   * Fetch the Wave OAuth authorization URL for a specific company.
-   */
-  async function getWaveAuthorizeUrl(companyId: string): Promise<WaveAuthorizeResponse> {
-    return await apiClient.get<WaveAuthorizeResponse>(`/api/wave/oauth/authorize?company_id=${encodeURIComponent(companyId)}`)
-  }
-
-  /**
-   * Initiate Wave OAuth authorization by fetching authorization URL and redirecting the browser.
-   */
-  async function connectToWave(companyId: string): Promise<string> {
-    connectingOAuth.value[companyId] = true
-    try {
-      const response = await getWaveAuthorizeUrl(companyId)
-      const targetUrl = response.authorization_url || response.redirect_url
-      if (targetUrl && typeof window !== "undefined") {
-        window.location.href = targetUrl
-      }
-      return targetUrl
-    } finally {
-      connectingOAuth.value[companyId] = false
-    }
-  }
-
-  /**
-   * Trigger synchronization of Wave categories (Chart of Accounts) for a company.
-   */
-  async function syncCategories(companyId: string): Promise<WaveCategory[]> {
-    syncingCategories.value[companyId] = true
-    try {
-      const result = await apiClient.post<WaveCategory[]>(`/api/companies/${companyId}/sync-categories`)
-      return result
-    } finally {
-      syncingCategories.value[companyId] = false
-    }
-  }
-
-  /**
-   * Retrieve cached categories for a company.
-   */
-  async function fetchCategories(companyId: string): Promise<WaveCategory[]> {
-    return await apiClient.get<WaveCategory[]>(`/api/companies/${companyId}/categories`)
-  }
-
   return {
     companies,
     loading,
     error,
-    syncingCategories,
-    connectingOAuth,
     fetchCompanies,
     createCompany,
     updateCompany,
     deleteCompany,
-    getWaveAuthorizeUrl,
-    connectToWave,
-    syncCategories,
-    fetchCategories,
   }
 })

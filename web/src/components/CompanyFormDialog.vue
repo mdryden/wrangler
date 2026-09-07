@@ -11,11 +11,7 @@
 
       <q-card-section class="q-pt-sm">
         <div class="text-caption text-grey-7">
-          {{
-            isEditMode
-              ? "Update company details and Wave configuration accounts."
-              : "Configure a new company entity for expense allocation and Wave synchronization."
-          }}
+          {{ isEditMode ? "Update company details." : "Configure a new company entity for expense allocation." }}
         </div>
 
         <q-banner v-if="errorMessage" rounded dense inline-actions class="bg-negative text-white q-mt-sm">
@@ -41,35 +37,6 @@
           >
             <template #prepend>
               <q-icon name="business" />
-            </template>
-          </q-input>
-
-          <q-input
-            v-model="waveEquityAccountId"
-            label="Wave Equity / Anchor Account ID *"
-            placeholder="e.g. QWNjb3VudDoxMjM0NTY..."
-            hint="Required: Anchor account (Bank or Owner's Equity) used to balance expenses in Wave double-entry accounting"
-            outlined
-            dense
-            :rules="[val => (!!val && val.trim().length > 0) || 'Wave equity account ID is required']"
-            :disable="saving"
-          >
-            <template #prepend>
-              <q-icon name="account_balance" />
-            </template>
-          </q-input>
-
-          <q-input
-            v-model="waveBusinessId"
-            label="Wave Business ID"
-            placeholder="e.g. QnVzaW5lc3M6MTIzNDU2..."
-            hint="Optional: Wave workspace business ID (populated automatically during OAuth if omitted)"
-            outlined
-            dense
-            :disable="saving"
-          >
-            <template #prepend>
-              <q-icon name="domain" />
             </template>
           </q-input>
 
@@ -104,8 +71,6 @@ const companyStore = useCompanyStore()
 
 const formRef = ref<QForm | null>(null)
 const name = ref<string>("")
-const waveEquityAccountId = ref<string>("")
-const waveBusinessId = ref<string>("")
 const saving = ref<boolean>(false)
 const errorMessage = ref<string>("")
 
@@ -124,12 +89,8 @@ watch(
       errorMessage.value = ""
       if (comp) {
         name.value = comp.name || ""
-        waveEquityAccountId.value = comp.wave_equity_account_id || ""
-        waveBusinessId.value = comp.wave_business_id || ""
       } else {
         name.value = ""
-        waveEquityAccountId.value = ""
-        waveBusinessId.value = ""
       }
     }
   },
@@ -145,8 +106,6 @@ async function onSubmit(): Promise<void> {
     if (isEditMode && props.company) {
       result = await companyStore.updateCompany(props.company.id, {
         name: name.value.trim(),
-        wave_equity_account_id: waveEquityAccountId.value.trim(),
-        wave_business_id: waveBusinessId.value.trim() || null,
       })
       $q.notify({
         type: "positive",
@@ -157,8 +116,6 @@ async function onSubmit(): Promise<void> {
     } else {
       result = await companyStore.createCompany({
         name: name.value.trim(),
-        wave_equity_account_id: waveEquityAccountId.value.trim(),
-        wave_business_id: waveBusinessId.value.trim() || null,
       })
       $q.notify({
         type: "positive",

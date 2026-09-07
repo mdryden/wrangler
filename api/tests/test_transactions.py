@@ -350,3 +350,95 @@ def test_receipt_path_traversal_blocked(client, auth_headers):
     # Non-existent file
     resp404 = client.get("/api/receipts/non_existent_file.pdf", headers=auth_headers)
     assert resp404.status_code == 404
+
+
+def test_get_transactions_filtering(client, auth_headers, db_session):
+    # Seed distinct transactions
+    tx1 = Transaction(
+        source="bank_a",
+        external_id="TX-1",
+        date=date(2026, 9, 1),
+        description="Office supply store",
+        total_amount=Decimal("50.00"),
+        is_approved=True,
+    )
+    tx2 = Transaction(
+        source="bank_b",
+        external_id="TX-2",
+        date=date(2026, 9, 5),
+        description="Gas station",
+        total_amount=Decimal("30.00"),
+        is_approved=False,
+    )
+    tx3 = Transaction(
+        source="bank_a",
+        external_id="TX-3",
+        date=date(2026, 9, 10),
+        description="Restaurant meal",
+        total_amount=Decimal("75.00"),
+        is_approved=False,
+    )
+    tx4 = Transaction(
+        source="manual",
+        external_id="TX-4",
+        date=date(2026, 9, 15),
+        description="Client payment",
+        total_amount=Decimal("200.00"),
+        is_approved=True,
+    )
+    db_session.add_all([tx1, tx2, tx3, tx4])
+    db_session.commit()
+
+    # Filter by source
+    resp_source = client.get("/api/transactions?source=bank_a", headers=auth_headers)
+    assert resp_source.status_code == 200
+    data_source = resp_source.json()
+    assert data_source["total"] == 2
+    assert {item["external_id"] for item in data_source["items"]} == {"TX-1", "TX-3"}
+
+    # Filter by is_approved=True
+    resp_appr_true = client.get("/api/transactions?is_approved=true", headers=auth_headers)
+    assert resp_appr_true.status_code == 200
+    data_appr_true = resp_appr_true.json()
+    assert all(item["is_approved"] is True for item in data_appr_true["items"])
+    assert "TX-1" in {item["external_id"] for item in data_appr_true["items"]}
+    assert "TX-4" in {item["external_id"] for item in data_appr_true["items"]}
+
+    # Filter by is_approved=False
+    resp_appr_false = client.get("/api/transactions?is_approved=false", headers=auth_headers)
+    assert resp_appr_false.status_code == 200
+    data_appr_false = resp_appr_false.json()
+    assert all(item["is_approved"] is False for item in data_appr_false["items"])
+    assert "TX-2" in {item["external_id"] for item in data_appr_false["items"]}
+    assert "TX-3" in {item["external_id"] for item in data_appr_false["items"]}
+
+    # Filter by date range (start_date and end_date)
+    resp_date_range = client.get("/api/transactions?start_date=2026-09-04&end_date=2026-09-12", headers=auth_headers)
+    assert resp_date_range.status_code == 200
+    data_date_range = resp_date_range.json()
+    assert data_date_range["total"] == 2
+    assert {item["external_id"] for item in data_date_range["items"]} == {"TX-2", "TX-3"}
+
+    # Filter by start_date only
+    resp_start = client.get("/api/transactions?start_date=2026-09-10", headers=auth_headers)
+    assert resp_start.status_code == 200
+    data_start = resp_start.json()
+    assert data_start["total"] == 2
+    assert {item["external_id"] for item in data_start["items"]} == {"TX-3", "TX-4"}
+
+    # Filter by end_date only
+    resp_end = client.get("/api/transactions?end_date=2026-09-05", headers=auth_headers)
+    assert resp_end.status_code == 200
+    data_end = resp_end.json()
+    assert data_end["total"] == 2
+    assert {item["external_id"] for item in data_end["items"]} == {"TX-1", "TX-2"}
+
+    # Combined filters: source + is_approved + date range
+    resp_combo = client.get(
+        "/api/transactions?source=bank_a&is_approved=false&start_date=2026-09-01&end_date=2026-09-15",
+        headers=auth_headers,
+    )
+    assert resp_combo.status_code == 200
+    data_combo = resp_combo.json()
+    assert data_combo["total"] == 1
+    assert data_combo["items"][0]["external_id"] == "TX-3"

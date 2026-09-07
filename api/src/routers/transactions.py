@@ -1,3 +1,4 @@
+import datetime
 import math
 import uuid
 from typing import Annotated
@@ -27,15 +28,19 @@ router = APIRouter(prefix="/api/transactions", tags=["transactions"])
 @router.get("", response_model=PaginatedTransactionsResponse)
 def list_transactions(
     db: Annotated[Session, Depends(get_db)],
-    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
-    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
-    rowsPerPage: int | None = Query(None, ge=1, le=100, description="Alias for page_size"),
-    sort_by: str = Query("date", description="Field to sort by"),
-    sortBy: str | None = Query(None, description="Alias for sort_by"),
-    descending: bool = Query(True, description="Sort descending if true"),
-    order: str | None = Query(None, description="'asc' or 'desc'"),
+    page: Annotated[int, Query(ge=1, description="Page number (1-indexed)")] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100, description="Items per page")] = 20,
+    rowsPerPage: Annotated[int | None, Query(ge=1, le=100, description="Alias for page_size")] = None,
+    sort_by: Annotated[str, Query(description="Field to sort by")] = "date",
+    sortBy: Annotated[str | None, Query(description="Alias for sort_by")] = None,
+    descending: Annotated[bool, Query(description="Sort descending if true")] = True,
+    order: Annotated[str | None, Query(description="'asc' or 'desc'")] = None,
+    source: Annotated[str | None, Query(description="Filter by source")] = None,
+    is_approved: Annotated[bool | None, Query(description="Filter by approval status")] = None,
+    start_date: Annotated[datetime.date | None, Query(description="Filter by start date (inclusive)")] = None,
+    end_date: Annotated[datetime.date | None, Query(description="Filter by end date (inclusive)")] = None,
 ) -> PaginatedTransactionsResponse:
-    """Retrieve transactions with server-side pagination and sorting."""
+    """Retrieve transactions with server-side pagination, sorting, and filtering."""
     effective_page_size = rowsPerPage if rowsPerPage is not None else page_size
     effective_sort_by = (sortBy if sortBy is not None else sort_by).lower()
     if order is not None:
@@ -54,16 +59,26 @@ def list_transactions(
     column = sort_field_map.get(effective_sort_by, Transaction.date)
     sort_expr = column.desc() if effective_descending else column.asc()
 
-    total_count = db.scalar(select(func.count()).select_from(Transaction)) or 0
+    filters = []
+    if source is not None:
+        filters.append(Transaction.source == source)
+    if is_approved is not None:
+        filters.append(Transaction.is_approved == is_approved)
+    if start_date is not None:
+        filters.append(Transaction.date >= start_date)
+    if end_date is not None:
+        filters.append(Transaction.date <= end_date)
+
+    count_stmt = select(func.count()).select_from(Transaction)
+    if filters:
+        count_stmt = count_stmt.where(*filters)
+    total_count = db.scalar(count_stmt) or 0
     total_pages = math.ceil(total_count / effective_page_size) if total_count > 0 else 0
 
-    stmt = (
-        select(Transaction)
-        .options(selectinload(Transaction.allocations))
-        .order_by(sort_expr, Transaction.id.desc())
-        .offset((page - 1) * effective_page_size)
-        .limit(effective_page_size)
-    )
+    stmt = select(Transaction).options(selectinload(Transaction.allocations))
+    if filters:
+        stmt = stmt.where(*filters)
+    stmt = stmt.order_by(sort_expr, Transaction.id.desc()).offset((page - 1) * effective_page_size).limit(effective_page_size)
     items = list(db.scalars(stmt).all())
 
     return PaginatedTransactionsResponse(

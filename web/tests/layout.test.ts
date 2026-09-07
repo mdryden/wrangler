@@ -5,7 +5,7 @@ describe("MainLayout Navigation Drawer", () => {
   it("defines the 4 primary persistent navigation items", () => {
     expect(navItems).toHaveLength(4)
     const itemNames = navItems.map(item => item.name)
-    expect(itemNames).toEqual(["ledger", "manual-entry", "sync-manager", "settings"])
+    expect(itemNames).toEqual(["ledger", "manual-entry", "export-manager", "settings"])
   })
 
   it("configures each navigation item with label, icon, and route path", () => {
@@ -25,12 +25,12 @@ describe("MainLayout Navigation Drawer", () => {
       path: "/manual-entry",
     })
 
-    const syncManager = navItems.find(item => item.name === "sync-manager")
-    expect(syncManager).toEqual({
-      name: "sync-manager",
-      label: "Sync Manager",
-      icon: "sync",
-      path: "/sync-manager",
+    const exportManager = navItems.find(item => item.name === "export-manager")
+    expect(exportManager).toEqual({
+      name: "export-manager",
+      label: "Export Manager",
+      icon: "file_download",
+      path: "/export-manager",
     })
 
     const settings = navItems.find(item => item.name === "settings")
