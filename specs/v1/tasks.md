@@ -63,31 +63,42 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 - [x] 7.5 Implement "Sync Categories" button
 - [x] 7.6 Verify Company Management UI in browser
 
-## Phase 8: Frontend Ledger & Allocation Editor
-- [ ] 8.1 Create Ledger View with server-side paginated `QTable`
-- [ ] 8.2 Implement visual locking and read-only state for transactions with `SYNCED` allocations
-- [ ] 8.3 Build Allocation Editor (Transaction Splitter) component
-- [ ] 8.4 Integrate Allocation Editor with `PUT /api/transactions/{id}/allocations`
-- [ ] 8.5 Implement receipt upload and view component
-- [ ] 8.6 Implement transaction approval action UI
-- [ ] 8.7 Verify Ledger and Allocation Editor UI in browser
+## Phase 8: Revert Wave Integration (Backend & Database)
+- [ ] 8.1 Remove Wave configuration settings from backend (`core/config.py`)
+- [ ] 8.2 Remove Wave routers (`routers/wave_oauth.py`), category sync endpoints, Wave service, and Wave schemas
+- [ ] 8.3 Update `Company` ORM model and schemas to remove Wave attributes and enforce unique name
+- [ ] 8.4 Update `Allocation` ORM model to remove Wave fields, restrict `SyncStatus` enum to `PENDING` and `SYNCED`, and drop `WaveCategory` model
+- [ ] 8.5 Update allocation endpoints to remove Wave categories and restrict company deletion if linked to allocations
+- [ ] 8.6 Generate and execute Alembic migration for SQLite schema cleanup
+- [ ] 8.7 Verify backend Wave removal and database integrity
 
-## Phase 9: Wave Synchronization Engine (Backend)
-- [ ] 9.1 Implement Wave GraphQL `documentCreate` mutation for receipts using Apollo multipart spec via `httpx`
-- [ ] 9.2 Implement Wave GraphQL transaction mutation builder
-- [ ] 9.3 Implement transaction grouping logic (group same-company allocations into one Wave transaction with multiple line items)
-- [ ] 9.4 Implement refund and negative amount handling (flip debits/credits)
-- [ ] 9.5 Implement cross-company receipt upload logic (upload receipt separately to each company)
-- [ ] 9.6 Implement background task worker logic for `PENDING` allocations
-- [ ] 9.7 Wrap Wave push updates and local DB state updates in local database transaction
-- [ ] 9.8 Implement `POST /api/sync/wave` background task endpoint (returns `202 Accepted`)
-- [ ] 9.9 Implement sync progress polling endpoint
-- [ ] 9.10 Verify Wave synchronization engine
+## Phase 9: Backend Export & Sync Reconciliation Endpoints
+- [ ] 9.1 Implement transaction filtering on `GET /api/transactions` (source, approval, date range)
+- [ ] 9.2 Implement single allocation reversion endpoint (`PUT /api/allocations/{id}/revert`)
+- [ ] 9.3 Implement RFC 4180 CSV export utility for Wave format (`Date,Description,Amount`)
+- [ ] 9.4 Implement `GET /api/companies/{id}/export-transactions` endpoint
+- [ ] 9.5 Implement `POST /api/companies/{id}/mark-synced` endpoint
+- [ ] 9.6 Implement `POST /api/companies/{id}/revert-synced` endpoint
+- [ ] 9.7 Verify backend export and sync reconciliation endpoints
 
-## Phase 10: Sync Manager & Polling (Frontend)
-- [ ] 10.1 Create Sync Manager View displaying `PENDING` and `FAILED` allocations
-- [ ] 10.2 Implement "Sync to Wave" action
-- [ ] 10.3 Implement "Retry Failed" action
-- [ ] 10.4 Implement polling mechanism for sync progress
-- [ ] 10.5 Implement error display for failed syncs
-- [ ] 10.6 Verify end-to-end Wave sync flow
+## Phase 10: Frontend Wave Reversion & Settings Updates
+- [ ] 10.1 Remove Wave OAuth UI and actions from Settings (`SettingsView.vue`, `TokenStatusBadge.vue`)
+- [ ] 10.2 Update Company dialog, types, and store to remove Wave fields and display transaction counts
+- [ ] 10.3 Update navigation drawer and routing for Export Manager (`/export-manager`)
+- [ ] 10.4 Verify Company Settings and Navigation in browser
+
+## Phase 11: Frontend Ledger & Allocation Editor
+- [ ] 11.1 Build Ledger View with server-side pagination and filters
+- [ ] 11.2 Implement visual locking for synced transactions and reversion action
+- [ ] 11.3 Build Allocation Editor (Transaction Splitter) component without Wave categories
+- [ ] 11.4 Integrate Allocation Editor with backend API (`PUT /api/transactions/{id}/allocations`)
+- [ ] 11.5 Implement receipt file upload and direct download link
+- [ ] 11.6 Implement transaction approval toggle UI
+- [ ] 11.7 Verify Ledger and Allocation Editor UI in browser
+
+## Phase 12: Frontend Export Manager UI
+- [ ] 12.1 Build Export Manager View with Pending Exports Summary
+- [ ] 12.2 Implement "Export CSV" download action per company
+- [ ] 12.3 Implement "Mark as Synced" action per company
+- [ ] 12.4 Build Reconciliation & History section with reversion
+- [ ] 12.5 Verify end-to-end CSV export and reconciliation workflow

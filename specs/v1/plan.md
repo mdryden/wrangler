@@ -253,85 +253,161 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
 
 ---
 
-## Phase 8: Frontend Ledger & Allocation Editor
-*Goal: Provide the main interface for reviewing and categorizing expenses.*
+## Phase 8: Revert Wave Integration (Backend & Database)
+*Goal: Remove Wave API integrations, clean up backend models and configuration, and migrate the database schema to remove Wave-specific fields and tables.*
 
-### 8.1 Create Ledger View with server-side pagination
-- Build table using `QTable` connected to `GET /api/transactions` supporting server-side pagination, sorting, and row selection.
+### 8.1 Remove Wave configuration settings from backend
+- In `core/config.py`, remove `WAVE_CLIENT_ID`, `WAVE_CLIENT_SECRET`, and `WAVE_REDIRECT_URI` settings.
+- Ensure the configuration loader only expects `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `JWT_SECRET_KEY`, `JWT_ACCESS_TOKEN_EXPIRE_MINUTES`, and `RECEIPT_STORAGE_DIR`.
 
-### 8.2 Implement visual locking for synced transactions
-- When a transaction contains any allocation with `sync_status == SYNCED`, render a lock indicator and disable editing actions.
+### 8.2 Remove Wave routers, services, and schemas
+- Unregister and delete `routers/wave_oauth.py`.
+- Remove `POST /api/companies/{id}/sync-categories` and `GET /api/companies/{id}/categories` endpoints from `routers/companies.py`.
+- Delete `services/wave.py`.
+- Delete `schemas/wave.py` and `schemas/wave_category.py`.
 
-### 8.3 Build Allocation Editor (Transaction Splitter) component
-- Modal or expandable row allowing user to split the total transaction amount into multiple allocations.
-- Controls: `is_personal` toggle, Company select dropdown, Wave Category select dropdown (filtered by selected company), and split amount.
+### 8.3 Update Company ORM model and schemas
+- In `models/company.py`, remove columns: `wave_business_id`, `wave_access_token`, `wave_refresh_token`, `wave_token_expires_at`, and `wave_equity_account_id`.
+- Ensure `name` is unique on `Company`.
+- In `schemas/company.py`, update `CompanyCreate`, `CompanyUpdate`, and `CompanyResponse` to only expose `id` and `name`.
 
-### 8.4 Integrate Allocation Editor with backend
-- Submit updated splits to `PUT /api/transactions/{id}/allocations`. Handle 400 error cleanly if record is locked.
+### 8.4 Update Allocation ORM model, SyncStatus enum, and drop WaveCategory model
+- In `models/allocation.py`, remove `wave_category_id` and `wave_transaction_id` columns and relationships.
+- Update `SyncStatus` enum to only contain `PENDING` and `SYNCED`.
+- Delete `models/wave_category.py` and remove references in model metadata.
+- In `schemas/allocation.py`, remove `wave_category_id` and `wave_transaction_id`.
 
-### 8.5 Implement receipt upload and view component
-- File upload trigger calling `POST /api/transactions/{id}/receipt` and link/modal to view receipt via `GET /api/receipts/{path}`.
+### 8.5 Update allocation endpoints and company deletion validation
+- In `routers/transactions.py`, update `PUT /api/transactions/{id}/allocations` to remove WaveCategory validation. Ensure foreign key validation only checks `company_id` when `is_personal` is False.
+- Retain immutability validation returning HTTP 400 if any existing allocation is `SYNCED`.
+- In `routers/companies.py`, update `DELETE /api/companies/{id}` to verify whether any allocations reference the company; if linked allocations exist, return HTTP 400 Bad Request.
 
-### 8.6 Implement transaction approval UI
-- Checkbox or button to toggle transaction approval status via `PUT /api/transactions/{id}/approve`.
+### 8.6 Generate and execute Alembic migration for schema cleanup
+- Create an Alembic migration using batch operations for SQLite:
+  - Drop the `wave_categories` table.
+  - Drop Wave columns from `companies` (`wave_business_id`, `wave_access_token`, `wave_refresh_token`, `wave_token_expires_at`, `wave_equity_account_id`).
+  - Drop `wave_category_id` and `wave_transaction_id` from `allocations`.
+  - Ensure unique constraint on `companies.name`.
+- Run `alembic upgrade head` to apply the migration.
 
-### 8.7 Verify Ledger and Allocation Editor UI
-- Test viewing transactions, splitting allocations, uploading receipts, approving transactions, and checking lock state in browser.
-
----
-
-## Phase 9: Wave Synchronization Engine (Backend)
-*Goal: Push approved transactions to Wave as a background task.*
-
-### 9.1 Implement Wave GraphQL `documentCreate` mutation (Receipt upload)
-- Implement multipart file upload using `httpx` and the Apollo GraphQL multipart request specification to upload receipt files to Wave.
-
-### 9.2 Implement Wave GraphQL transaction mutation builder
-- Construct mutation using `wave_category_id` (line items) and `wave_equity_account_id` (anchor/offset account).
-
-### 9.3 Implement transaction grouping logic
-- Group multiple allocations for the same company from a single parent `Transaction` into a single Wave transaction with multiple line items.
-
-### 9.4 Implement refund and negative amount handling
-- When allocation amount is negative, invert debit/credit legs in the Wave GraphQL transaction payload.
-
-### 9.5 Implement cross-company receipt upload logic
-- If a receipt is attached to a parent transaction split across multiple companies, upload the receipt separately to each company's Wave workspace.
-
-### 9.6 Implement background task worker logic
-- Worker process querying `PENDING` allocations on approved transactions, calling Wave API for receipts and transactions, and marking results as `SYNCED` or `FAILED`.
-
-### 9.7 Wrap Wave push updates in local database transaction
-- Wrap the local DB updates (`sync_status = SYNCED` and `wave_transaction_id`) inside a local DB transaction to prevent orphan states if local commit fails.
-
-### 9.8 Implement `POST /api/sync/wave` endpoint
-- Spawns background task and returns `202 Accepted`.
-
-### 9.9 Implement sync progress polling endpoint
-- Endpoint reporting status of ongoing or completed background sync operations.
-
-### 9.10 Verify Wave synchronization engine
-- Test background worker logic, grouping, refund debit/credit inversion, receipt upload, and atomic DB updates.
+### 8.7 Verify backend Wave removal and database integrity
+- Run tests and verify with REST client that Wave endpoints return 404, Company CRUD functions with `id` and `name`, company deletion is blocked when linked to allocations, and SQLite schema contains no Wave tables or columns.
 
 ---
 
-## Phase 10: Sync Manager & Polling (Frontend)
-*Goal: Let users manage and monitor the Wave sync process.*
+## Phase 9: Backend Export & Sync Reconciliation Endpoints
+*Goal: Implement server-side filtering, allocation status reversion, and Wave-compatible CSV generation and reconciliation endpoints.*
 
-### 10.1 Create Sync Manager View
-- Build view displaying allocations filtered/grouped by `PENDING` and `FAILED` statuses.
+### 9.1 Implement transaction filtering on `GET /api/transactions`
+- Update `GET /api/transactions` in `routers/transactions.py` to support filtering query parameters: `source`, `is_approved`, `start_date`, and `end_date`.
+- Apply filters to database query alongside existing pagination (`page`, `page_size`) and sorting.
 
-### 10.2 Implement "Sync to Wave" action
-- Action button calling `POST /api/sync/wave` and initiating progress polling.
+### 9.2 Implement single allocation reversion endpoint (`PUT /api/allocations/{id}/revert`)
+- Implement `PUT /api/allocations/{id}/revert` endpoint.
+- If allocation exists and is `SYNCED`, revert `sync_status` to `PENDING` and commit. Return updated allocation. Return 404 if allocation does not exist.
 
-### 10.3 Implement "Retry Failed" action
-- Button to reset `FAILED` allocations to `PENDING` and trigger sync.
+### 9.3 Implement RFC 4180 CSV export utility for Wave format
+- Implement CSV generator utility adhering to Wave specifications:
+  - Header: `Date,Description,Amount`
+  - `Date`: ISO 8601 (`YYYY-MM-DD`) from parent `Transaction.date`.
+  - `Description`: Escaped text string from parent `Transaction.description`.
+  - `Amount`: Two decimal places with leading negative sign for refunds/credits from `Allocation.amount`.
+  - Filter: Exclude personal allocations; map each business allocation for the company to one row.
 
-### 10.4 Implement polling mechanism for sync progress
-- Implement periodic polling while background task is active to update UI state and notify user upon completion.
+### 9.4 Implement `GET /api/companies/{id}/export-transactions` endpoint
+- Add endpoint accepting query parameter `status` (defaults to `PENDING`, optional `SYNCED`).
+- Query business allocations for the company matching the specified status.
+- Generate CSV using export utility and stream file download with `Content-Type: text/csv` and descriptive filename attachment.
 
-### 10.5 Implement error display for failed syncs
-- Show detailed error messages or failure reasons on `FAILED` allocations.
+### 9.5 Implement `POST /api/companies/{id}/mark-synced` endpoint
+- Add endpoint accepting optional payload `allocation_ids: list[uuid.UUID] | None`.
+- If `allocation_ids` is provided, mark those specific allocations for the company as `SYNCED`.
+- If `allocation_ids` is omitted or empty, mark all `PENDING` allocations for the company as `SYNCED`.
 
-### 10.6 Verify end-to-end Wave sync flow
-- Full verification: create split transaction, approve, trigger sync from Sync Manager, poll status, and verify final `SYNCED` state.
+### 9.6 Implement `POST /api/companies/{id}/revert-synced` endpoint
+- Add endpoint accepting optional payload `allocation_ids: list[uuid.UUID] | None`.
+- If `allocation_ids` is provided, revert those specific allocations for the company back to `PENDING`.
+- If `allocation_ids` is omitted or empty, revert all `SYNCED` allocations for the company back to `PENDING`.
+
+### 9.7 Verify backend export and sync reconciliation endpoints
+- Test `GET /api/companies/{id}/export-transactions` to verify CSV formatting, header names, row mapping, and amount decimals.
+- Test `POST /api/companies/{id}/mark-synced` and `POST /api/companies/{id}/revert-synced` with and without explicit ID lists.
+- Test `PUT /api/allocations/{id}/revert` and confirm parent transaction is unlocked for editing when no synced allocations remain.
+
+---
+
+## Phase 10: Frontend Wave Reversion & Settings Updates
+*Goal: Remove Wave integration UI elements from the frontend and update company settings and navigation.*
+
+### 10.1 Remove Wave OAuth UI and actions from Settings
+- In `web/src/views/SettingsView.vue`, remove "Connect to Wave", "Reconnect Wave", and "Sync Categories" buttons.
+- Remove token status column and remove `TokenStatusBadge.vue` component.
+
+### 10.2 Update Company dialog, types, and store
+- In `web/src/types/company.ts`, remove Wave-related properties.
+- In `web/src/components/CompanyFormDialog.vue`, remove the `wave_equity_account_id` field, keeping only Company Name.
+- In `web/src/stores/companies.ts`, remove OAuth and category sync methods.
+- In `web/src/views/SettingsView.vue`, display total allocated transaction count for each company.
+
+### 10.3 Update navigation drawer and routing for Export Manager
+- In `web/src/layouts/nav.ts`, replace "Sync Manager" with "Export Manager" (`path: "/export-manager"`).
+- In `web/src/router/routes.ts`, update route to map `/export-manager` to `ExportManagerView.vue`.
+- Rename or replace `web/src/views/SyncManagerView.vue` with `web/src/views/ExportManagerView.vue`.
+
+### 10.4 Verify Company Settings and Navigation in browser
+- Verify Settings view displays companies with allocation counts and allows adding/editing companies with name only.
+- Verify company deletion restriction error handling when allocations exist.
+- Verify navigation drawer displays "Export Manager" and routes correctly.
+
+---
+
+## Phase 11: Frontend Ledger & Allocation Editor
+*Goal: Implement the transaction ledger table, receipt downloads, and transaction split editor without Wave category dependencies.*
+
+### 11.1 Build Ledger View with server-side pagination and filters
+- In `web/src/views/LedgerView.vue`, implement `QTable` connected to `GET /api/transactions` supporting server-side pagination, sorting, and filter controls (`source`, `is_approved`, date range).
+
+### 11.2 Implement visual locking for synced transactions and reversion action
+- Display a locked indicator badge on transactions containing any `SYNCED` allocations, disabling split editing.
+- Provide a row/inline action to revert synced allocations back to `PENDING` via `PUT /api/allocations/{id}/revert`, unlocking the transaction.
+
+### 11.3 Build Allocation Editor (Transaction Splitter) component
+- Modal or expandable panel allowing users to split transaction amounts across personal and business entities.
+- Controls: `is_personal` toggle, Company select dropdown (disabled if personal), and amount input.
+- Enforce validation ensuring sum of allocation amounts equals `Transaction.total_amount`.
+
+### 11.4 Integrate Allocation Editor with backend API
+- Submit updated splits to `PUT /api/transactions/{id}/allocations`.
+- Handle HTTP 400 error cleanly if parent transaction contains synced allocations.
+
+### 11.5 Implement receipt file upload and direct download link
+- Add receipt file upload button calling `POST /api/transactions/{id}/receipt`.
+- Add receipt download link/button for transactions with `receipt_file_path` calling `GET /api/receipts/{path}` so users can inspect and download receipt files for manual upload to Wave.
+
+### 11.6 Implement transaction approval toggle UI
+- Add approval toggle button or checkbox calling `PUT /api/transactions/{id}/approve`.
+
+### 11.7 Verify Ledger and Allocation Editor UI in browser
+- Verify table pagination, filtering, approval toggle, receipt upload, receipt download, split allocations creation, sum validation, lock state display, and allocation reversion in browser.
+
+---
+
+## Phase 12: Frontend Export Manager UI
+*Goal: Implement the Export Manager view to generate Wave-compatible CSVs and manage allocation sync reconciliation.*
+
+### 12.1 Build Export Manager View with Pending Exports Summary
+- In `web/src/views/ExportManagerView.vue`, display a pending exports summary grouped by Company.
+- For each company, show: Company Name, count of `PENDING` allocations, and total dollar amount of pending allocations.
+
+### 12.2 Implement "Export CSV" download action per company
+- Add "Export CSV" button per company triggering `GET /api/companies/{id}/export-transactions?status=PENDING` and downloading the generated RFC 4180 CSV file.
+
+### 12.3 Implement "Mark as Synced" action per company
+- Add "Mark as Synced" button that becomes active/primary after export, calling `POST /api/companies/{id}/mark-synced` to transition pending allocations to `SYNCED`.
+
+### 12.4 Build Reconciliation & History section with reversion
+- Build tab or expandable view displaying `SYNCED` allocations grouped by company.
+- Add "Revert to Pending" button calling `POST /api/companies/{id}/revert-synced` to return allocations to `PENDING` state if a Wave import was aborted or needs correction.
+
+### 12.5 Verify end-to-end CSV export and reconciliation workflow
+- In browser, verify exporting pending transactions to CSV, checking downloaded CSV file structure, marking allocations as synced, viewing synced history, and reverting synced allocations back to pending.

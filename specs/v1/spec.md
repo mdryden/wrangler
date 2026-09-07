@@ -1,7 +1,9 @@
 # Family Accounting App - Technical Specification
 
 ## 1. Project Overview
-This application is a private, internal web tool used to review, allocate, and process financial transactions from various intake sources. Transactions can be split and assigned to either personal/home expenses or specific business entities. Approved business transactions are subsequently synced to Wave (waveapps.com) via their API.
+This application is a private, internal web tool used to review, allocate, and process financial transactions from various intake sources. Transactions can be split and assigned to either personal/home expenses or specific business entities. Approved business transactions are exported to a CSV format compatible with Wave (waveapps.com) for manual upload, featuring batch tracking, status reconciliation, and receipt file correlation.
+
+~~Approved business transactions are subsequently synced to Wave (waveapps.com) via their API.~~ *(Superseded: Wave GraphQL API requires a paid tier. Pivoted to manual CSV export).*
 
 ### 1.1 Target Audience & Access
 - The application is for internal family use only.
@@ -9,37 +11,26 @@ This application is a private, internal web tool used to review, allocate, and p
 - Access requires a single-user login mechanism.
 
 ## 2. Technical Stack
-- **Frontend:** Vue 3.5.x (typescript), Vue Router, Quasar 2.30.x, Pinia 3.x, Fetch API
+- **Frontend:** Vue 3.5.x, Vue Router, Quasar 2.30.x, Pinia 3.x, Fetch API
 - **Backend:** Python 3.14.x, FastAPI, Uvicorn, Pydantic, Alembic
 - **Database:** SQLite
-- **Wave API:** Wave GraphQL API
+- ~~**Wave API:** Wave GraphQL API~~ *(Superseded: Pivoted to CSV export).*
+- **Accounting Export:** CSV formatted for manual Wave transaction import (`Date`, `Description`, `Amount`).
 
-### 3.1 Tooling
-
-- uv for managing python and dependencies, along with formatting and linting
-- nvm for managing nodejs and dependencies
-- prettier for formatting and linting the frontend
-- pnpm for frontend package management
-- pytest and httpx for backend testing
-- vitest for frontend testing
-
+### 2.1 Tooling
+- `uv` for managing Python and dependencies, along with formatting and linting
+- `nvm` for managing Node.js and dependencies
+- `prettier` for formatting and linting the frontend
+- `pnpm` for frontend package management
 
 ## 3. Security & Authentication
 - **Admin Credentials:** A single username and password must be configured via environment variables (e.g., `ADMIN_USERNAME`, `ADMIN_PASSWORD`).
 - **Session Management:** The frontend will authenticate via a login screen, receiving a JWT (JSON Web Token) from the FastAPI backend.
-- **Secure-by-Default Architecture:** All endpoints across the backend are protected by default regardless of router. Authentication is
-  automatically enforced at the middleware layer (`AuthenticationMiddleware`). Unauthenticated requests to any non-exempt route are rejected with HTTP
-  `401 Unauthorized`.
-    - **Opt-in Anonymous Routes:** Public/unauthenticated access is strictly opt-in. Only `GET /api/health`, `POST /api/login`, and OpenAPI
-  documentation endpoints (`/docs`, `/redoc`, `/openapi.json`) are permitted without credentials. Any newly added endpoint or router is secured
-  automatically without requiring manual per-route annotations.
-    - **User Identity Extraction:** Upon successful Bearer token verification, the middleware populates `request.state.current_user`. Routes that need
-  the authenticated admin identity can inject it via the `get_current_user` dependency.
 - **Global Configuration:** The application requires the following environment variables:
   - `JWT_SECRET_KEY` and `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` for session management.
-  - `WAVE_CLIENT_ID`, `WAVE_CLIENT_SECRET`, and `WAVE_REDIRECT_URI` for OAuth.
-  - `RECEIPT_STORAGE_DIR`: Absolute path for durable file storage.
-- **Wave API Credentials & Scopes:** Wave API tokens must be configurable *per company* and stored in the database. The OAuth flow must request the following scopes: `business:read`, `account:read`, `transaction:write`. To identify the company during the OAuth callback, the `company_id` must be passed as a signed JWT within the OAuth `state` parameter.
+  - ~~`WAVE_CLIENT_ID`, `WAVE_CLIENT_SECRET`, and `WAVE_REDIRECT_URI` for OAuth.~~ *(Superseded: OAuth flow dropped in favor of CSV export).*
+  - `RECEIPT_STORAGE_DIR`: Absolute path for durable on-disk receipt storage.
+- ~~**Wave API Credentials & Scopes:** Wave API tokens must be configurable *per company* and stored in the database. The OAuth flow must request the following scopes: `business:read`, `account:read`, `transaction:write`. To identify the company during the OAuth callback, the `company_id` must be passed as a signed JWT within the OAuth `state` parameter.~~ *(Superseded).*
 
 ## 4. Data Model
 The database will be SQLite. The implementation agent should use an ORM (like SQLAlchemy or SQLModel).
@@ -47,43 +38,44 @@ The database will be SQLite. The implementation agent should use an ORM (like SQ
 ### 4.1 Company
 Represents a business entity.
 - `id`: UUID / Primary Key
-- `name`: String
-- `wave_business_id`: String
-- `wave_access_token`: String
-- `wave_refresh_token`: String
-- `wave_token_expires_at`: DateTime
-- `wave_equity_account_id`: String (**REQUIRED** for Wave's double-entry accounting. This represents the offset/anchor account like 'Bank' or 'Owner's Equity' used to balance expenses).
+- `name`: String (Unique business name)
+- ~~`wave_business_id`: String~~ *(Superseded)*
+- ~~`wave_access_token`: String~~ *(Superseded)*
+- ~~`wave_refresh_token`: String~~ *(Superseded)*
+- ~~`wave_token_expires_at`: DateTime~~ *(Superseded)*
+- ~~`wave_equity_account_id`: String (**REQUIRED** for Wave's double-entry accounting. This represents the offset/anchor account like 'Bank' or 'Owner's Equity' used to balance expenses).~~ *(Superseded)*
 
-### 4.2 WaveCategory (Cached)
-The app will fetch and cache the Chart of Accounts from Wave.
-- `id`: UUID
-- `company_id`: Foreign Key to Company
-- `wave_account_id`: String
-- `name`: String
-- *Note:* Fetching should filter only for applicable Expense/Asset/Income accounts to prevent users from allocating to invalid system accounts.
+### 4.2 WaveCategory (Cached) — [SUPERSEDED]
+> [!NOTE]
+> **Superseded:** Category tracking and Wave account caching have been removed because Wave's free CSV transaction import does not support category assignments during import.
+- ~~`id`: UUID~~
+- ~~`company_id`: Foreign Key to Company~~
+- ~~`wave_account_id`: String~~
+- ~~`name`: String~~
+- ~~*Note:* Fetching should filter only for applicable Expense/Asset/Income accounts to prevent users from allocating to invalid system accounts.~~
 
 ### 4.3 Transaction
-Represents the top-level transaction imported from a source or manually entered.
-- `id`: UUID
+Represents the top-level transaction imported from an intake source or manually entered.
+- `id`: UUID / Primary Key
 - `source`: String (e.g., "manual", "amazon")
 - `external_id`: String (Nullable. Unique identifier from the source system. A Database Unique Constraint must be placed on `(source, external_id)` to prevent duplicate imports).
 - `date`: Date
 - `description`: String
 - `total_amount`: Decimal / Float (Can be negative to support refunds/income).
-- `currency_code`: String (Defaults to the base currency).
-- `receipt_file_path`: String
-- `is_approved`: Boolean
+- `currency_code`: String (Defaults to base currency, e.g., "USD").
+- `receipt_file_path`: String (Nullable. Relative path to stored receipt file on disk).
+- `is_approved`: Boolean (Indicates ready for allocation/export).
 
 ### 4.4 Allocation (Splits)
-A transaction must be able to be split.
-- `id`: UUID
-- `transaction_id`: Foreign Key to Transaction
+A transaction must be able to be split across personal expenses or business entities.
+- `id`: UUID / Primary Key
+- `transaction_id`: Foreign Key to `Transaction` (CASCADE on delete)
 - `amount`: Decimal / Float
-- `is_personal`: Boolean
-- `company_id`: Foreign Key to Company (Nullable)
-- `wave_category_id`: Foreign Key to WaveCategory (Nullable)
-- `sync_status`: Enum (`PENDING`, `SYNCED`, `FAILED`, `IGNORED`)
-- `wave_transaction_id`: String (Nullable)
+- `is_personal`: Boolean (True if personal expense; False if allocated to a business)
+- `company_id`: Foreign Key to `Company` (Nullable; required if `is_personal` is False)
+- ~~`wave_category_id`: Foreign Key to WaveCategory (Nullable)~~ *(Superseded)*
+- `sync_status`: Enum (`PENDING`, `SYNCED` ~~, `FAILED`, `IGNORED`~~)
+- ~~`wave_transaction_id`: String (Nullable)~~ *(Superseded)*
 
 ## 5. Backend Architecture (FastAPI)
 
@@ -111,25 +103,34 @@ A transaction must be able to be split.
       }
     }
     ```
-- **Auth:** `POST /api/login` (Returns JWT)
-- **Companies:** CRUD operations for businesses and their configuration.
-- **Wave OAuth:**
-  - `GET /api/wave/oauth/authorize?company_id={id}`
-  - `GET /api/wave/oauth/callback`
-- **Wave Sync:** 
-  - `POST /api/companies/{id}/sync-categories`
+- **Auth:** `POST /api/login` (Returns JWT token)
+- **Companies:**
+  - `GET /api/companies` (List all companies)
+  - `POST /api/companies` (Create company)
+  - `PUT /api/companies/{id}` (Update company)
+  - `DELETE /api/companies/{id}` (Delete company; restricted if linked to existing allocations)
+- ~~**Wave OAuth:**~~ *(Superseded)*
+  - ~~`GET /api/wave/oauth/authorize?company_id={id}`~~
+  - ~~`GET /api/wave/oauth/callback`~~
+- ~~**Wave Sync:**~~ *(Superseded)*
+  - ~~`POST /api/companies/{id}/sync-categories`~~
 - **Transactions:** 
-  - `GET /api/transactions` (Must implement **server-side pagination**).
-  - `POST /api/transactions` (Manual entry with file upload support).
-  - `PUT /api/transactions/{id}`
-  - `PUT /api/transactions/{id}/approve`
+  - `GET /api/transactions` (Must implement **server-side pagination**, filtering by source, approval, and date).
+  - `POST /api/transactions` (Manual transaction creation with optional receipt file upload).
+  - `PUT /api/transactions/{id}` (Update transaction details).
+  - `PUT /api/transactions/{id}/approve` (Mark transaction as approved).
 - **Allocations:**
   - `PUT /api/transactions/{id}/allocations` (Updates split allocations. **MUST** return a 400 error if any existing allocation is `SYNCED`).
+  - `PUT /api/allocations/{id}/revert` (Reverts a single `SYNCED` allocation back to `PENDING`).
 - **Receipts:**
-  - `POST /api/transactions/{id}/receipt` (Uploads to `RECEIPT_STORAGE_DIR`).
-  - `GET /api/receipts/{path}` 
-- **Wave Push:**
-  - `POST /api/sync/wave` (Must spawn a **background task** to process `PENDING` transactions to avoid 504 timeouts. Returns `202 Accepted`).
+  - `POST /api/transactions/{id}/receipt` (Uploads receipt file to `RECEIPT_STORAGE_DIR`).
+  - `GET /api/receipts/{path}` (Downloads receipt file for user inspection and manual upload into Wave).
+- ~~**Wave Push:**~~ *(Superseded)*
+  - ~~`POST /api/sync/wave` (Must spawn a background task to process PENDING transactions to avoid 504 timeouts. Returns 202 Accepted).~~
+- **Export & Sync Management:**
+  - `GET /api/companies/{id}/export-transactions` (Generates and downloads a CSV of business allocations. Query param `status`: defaults to `PENDING`, optional `SYNCED`).
+  - `POST /api/companies/{id}/mark-synced` (Marks business allocations for this company as `SYNCED`. Accepts optional list of allocation IDs in payload; if omitted, marks all currently `PENDING` allocations for the company).
+  - `POST /api/companies/{id}/revert-synced` (Reverts business allocations for this company back to `PENDING`. Accepts optional list of allocation IDs in payload; if omitted, reverts all `SYNCED` allocations).
 
 ### 5.2 Abstraction Layer for Intake Sources
 The backend must include an abstraction layer for parsing transaction sources, enforcing the extraction of `external_id` for duplicate prevention.
@@ -137,40 +138,82 @@ The backend must include an abstraction layer for parsing transaction sources, e
 ## 6. Frontend UI Requirements (Vue 3 + Quasar)
 
 ### 6.1 Layout
-Persistent navigation drawer: Ledger, Manual Entry, Sync Manager, and Settings.
+Persistent navigation drawer: **Ledger**, **Manual Entry**, **Export Manager** (replacing ~~Sync Manager~~), and **Settings**.
 
 ### 6.2 Ledger View
 - **Data Table:** Displays top-level `Transactions` using server-side pagination.
-- **Immutability:** Transactions with `SYNCED` allocations must be visually locked and strictly read-only to prevent drifting from Wave.
+- **Sync Status & Immutability:** Transactions with `SYNCED` allocations must be visually indicated with a badge and locked from allocation editing. Locked transactions can be unlocked by reverting their synced allocations to `PENDING`.
+- **Receipt Downloads:** Direct download button/link for transactions with attached receipts so the user can easily download files when preparing manual Wave uploads.
 
 ### 6.3 Allocation Editor (Transaction Splitter)
-- UI allowing user to split a transaction into `Allocations`.
-- Personal switch, Company select, Category select.
-- Locked if any allocation has `sync_status == SYNCED`.
+- Modal or expandable panel allowing user to split a parent transaction into `Allocations`.
+- Controls:
+  - Personal toggle (`is_personal`).
+  - Business Company select dropdown (disabled if `is_personal` is True).
+  - ~~Category select~~ *(Superseded: Categories removed).*
+  - Amount input per split, with validation ensuring sum of allocations equals `Transaction.total_amount`.
+- Editing is locked if any allocation has `sync_status == SYNCED`.
 
-### 6.4 Sync Manager UI
-- Dedicated view for Wave synchronization.
-- Displays `PENDING` and `FAILED` business allocations.
-- Actions: "Sync to Wave" and "Retry Failed".
-- UI should poll the backend to display background sync progress.
+### 6.4 Export Manager UI (Supersedes Sync Manager UI)
+Dedicated view replacing the legacy automated Sync Manager:
+- **Pending Exports Summary:** Table or card list grouped by `Company`, showing:
+  - Company Name
+  - Count of `PENDING` allocations
+  - Total dollar amount of pending allocations
+- **Actions per Company:**
+  - **"Export CSV" button:** Triggers CSV file download formatted for Wave import.
+  - **"Mark as Synced" button:** Becomes primary action after export, allowing the user to mark the exported allocations as `SYNCED`.
+- **Reconciliation & History Section:**
+  - Tab or expandable view showing `SYNCED` allocations per company.
+  - **"Revert to Pending" button:** Allows reverting allocations back to `PENDING` if an import into Wave was aborted, rejected, or needs correction.
+
+~~**Legacy Sync Manager UI (Superseded):**~~
+- ~~Dedicated view for Wave synchronization.~~
+- ~~Displays `PENDING` and `FAILED` business allocations.~~
+- ~~Actions: "Sync to Wave" and "Retry Failed".~~
+- ~~UI should poll the backend to display background sync progress.~~
 
 ### 6.5 Company Management & Settings UI
-- CRUD interface for `Company` records.
-- Configures `wave_equity_account_id` per company.
-- Connect to Wave (OAuth flow) button and token status indicator.
+- CRUD interface for `Company` records (add, rename, delete businesses).
+- Displays total allocated transaction count per company.
+- ~~Configures `wave_equity_account_id` per company.~~ *(Superseded)*
+- ~~Connect to Wave (OAuth flow) button and token status indicator.~~ *(Superseded)*
 
-## 7. Wave Integration Details
+## 7. Export & Integration Details
 
-### 7.1 Sync Logic & Rules
-- **Double-Entry Requirement:** Wave requires an offset account. The system will use the `Company.wave_equity_account_id` as the anchor account for all synced transactions.
-- **Transaction Grouping:** Multiple allocations for the *same* company from a single parent `Transaction` must be grouped into a **single Wave transaction with multiple line items**.
-- **Cross-Company Receipts:** If a receipt is attached to a parent transaction split across *two different* companies, the receipt must be uploaded separately to *each* company's Wave workspace.
-- **Immutability & Refunds:** Synced transactions are read-only. Negative amounts represent refunds and must flip debits/credits in the Wave GraphQL mutation.
+### 7.1 CSV Export & Reconciliation Details (Active)
 
-### 7.2 Implementation Steps for Wave API
-1. Identify the Wave `businessId` and `wave_equity_account_id` from the `Company` record.
-2. Verify token validity (`wave_token_expires_at`). If expired, use `wave_refresh_token` to get new tokens before proceeding.
-3. Authenticate using the valid `wave_access_token`.
-4. **Receipts (Multipart Note):** Wave's GraphQL API requires the Apollo GraphQL multipart request specification for file uploads. The developer must use `httpx` with `multipart/form-data` for the `documentCreate` mutation.
-5. Execute transaction mutation using `wave_category_id` (line item) and `wave_equity_account_id` (anchor account). 
-6. Wrap the local DB updates (`sync_status = SYNCED` and `wave_transaction_id`) in a local database transaction to prevent orphan states if the local commit fails.
+#### 7.1.1 Wave CSV Format Specification
+Wave's transaction import accepts standard 3-column CSV files. The exported CSV must conform to RFC 4180:
+- **Columns & Header:** `Date,Description,Amount`
+- **Field Formatting:**
+  - `Date`: ISO 8601 formatted date string (`YYYY-MM-DD`). Derived from parent `Transaction.date`.
+  - `Description`: Text string escaping commas and quotes properly. Derived from parent `Transaction.description`.
+  - `Amount`: Numeric string with two decimal places (e.g., `12.50`). Refunds and negative transactions are represented with a leading negative sign (e.g., `-50.00`). Derived from `Allocation.amount`.
+- **Row Mapping:**
+  - Each business `Allocation` (`is_personal == False`) linked to the requested `company_id` produces exactly one row in the CSV.
+  - Personal allocations are excluded from company CSV exports.
+
+#### 7.1.2 Sync State Lifecycle & Rules
+- **States:** `PENDING` and `SYNCED`.
+- **Creation:** All new business allocations default to `PENDING`.
+- **Marking as Synced:** Completed manually by the user via the Export Manager after generating the CSV and importing it into Wave.
+- **Reversion:** Users can revert `SYNCED` allocations back to `PENDING`. This unlocks the parent transaction for editing or reallocation if an error occurred during Wave import.
+- **Transaction Safety:** Allocation modifications (`PUT /api/transactions/{id}/allocations`) remain strictly prohibited while any allocation in the transaction is `SYNCED`.
+
+### 7.2 Wave GraphQL API Integration Details (Superseded)
+> [!NOTE]
+> **Superseded (2026-09-06):** The automated Wave GraphQL integration has been retired because Wave requires a paid subscription tier for API access. The active design uses manual CSV export (Section 7.1). Historical integration specifications are preserved below for reference.
+
+- ~~**Double-Entry Requirement:** Wave requires an offset account. The system will use the `Company.wave_equity_account_id` as the anchor account for all synced transactions.~~
+- ~~**Transaction Grouping:** Multiple allocations for the *same* company from a single parent `Transaction` must be grouped into a **single Wave transaction with multiple line items**.~~
+- ~~**Cross-Company Receipts:** If a receipt is attached to a parent transaction split across *two different* companies, the receipt must be uploaded separately to *each* company's Wave workspace.~~
+- ~~**Immutability & Refunds:** Synced transactions are read-only. Negative amounts represent refunds and must flip debits/credits in the Wave GraphQL mutation.~~
+
+#### ~~7.2.1 Legacy Implementation Steps for Wave API (Superseded)~~
+1. ~~Identify the Wave `businessId` and `wave_equity_account_id` from the `Company` record.~~
+2. ~~Verify token validity (`wave_token_expires_at`). If expired, use `wave_refresh_token` to get new tokens before proceeding.~~
+3. ~~Authenticate using the valid `wave_access_token`.~~
+4. ~~**Receipts (Multipart Note):** Wave's GraphQL API requires the Apollo GraphQL multipart request specification for file uploads. The developer must use `httpx` with `multipart/form-data` for the `documentCreate` mutation.~~
+5. ~~Execute transaction mutation using `wave_category_id` (line item) and `wave_equity_account_id` (anchor account).~~
+6. ~~Wrap the local DB updates (`sync_status = SYNCED` and `wave_transaction_id`) in a local database transaction to prevent orphan states if the local commit fails.~~
