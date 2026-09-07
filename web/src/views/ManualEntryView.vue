@@ -170,9 +170,10 @@ function focusDateInput() {
   }
 }
 
-function resetForm(preserveCompany = true) {
+async function resetForm(preserveCompany = true) {
   const companyToKeep = preserveCompany ? form.value.splits[0]?.company_id || "" : ""
   form.value = createInitialManualEntryState(companyToKeep)
+  await nextTick()
   formRef.value?.resetValidation()
 }
 
@@ -192,7 +193,7 @@ async function submitForm() {
     notifySuccess("Transaction created successfully")
 
     // Reset form fields while preserving company attribution for rapid continuous entry
-    resetForm(true)
+    await resetForm(true)
 
     // Programmatically focus date input for next expense
     await nextTick()
@@ -234,7 +235,6 @@ defineExpose({
 }
 </style>
 
-
 <template>
   <q-page class="q-pa-md flex justify-center">
     <div class="full-width" style="max-width: 800px">
@@ -253,9 +253,20 @@ defineExpose({
             <!-- Row 1: Date | Amount -->
             <div class="row q-col-gutter-md q-mb-xs">
               <div class="col-12 col-sm-6">
-                <q-input ref="dateInputRef" v-model="form.date" outlined dense label="Date *" placeholder="YYYY-MM-DD"
-                  mask="####-##-##" :rules="dateRules" data-testid="input-date" hint="Use Ctrl+; to set today"
-                  @keydown="handleDateKeydown">
+                <q-input
+                  ref="dateInputRef"
+                  v-model="form.date"
+                  outlined
+                  dense
+                  lazy-rules="ondemand"
+                  label="Date *"
+                  placeholder="YYYY-MM-DD"
+                  mask="####-##-##"
+                  :rules="dateRules"
+                  data-testid="input-date"
+                  hint="Use Ctrl+; to set today"
+                  @keydown="handleDateKeydown"
+                >
                   <template #append>
                     <q-icon name="event" class="cursor-pointer" data-testid="icon-date-picker">
                       <q-popup-proxy cover transition-show="scale" transition-hide="scale">
@@ -271,8 +282,19 @@ defineExpose({
               </div>
 
               <div class="col-12 col-sm-6">
-                <q-input v-model="form.total_amount" type="number" step="0.01" outlined dense label="Amount *"
-                  placeholder="0.00" :rules="amountRules" data-testid="input-total-amount" @blur="formatAmountOnBlur">
+                <q-input
+                  v-model="form.total_amount"
+                  type="number"
+                  step="0.01"
+                  outlined
+                  dense
+                  lazy-rules="ondemand"
+                  label="Amount *"
+                  placeholder="0.00"
+                  :rules="amountRules"
+                  data-testid="input-total-amount"
+                  @blur="formatAmountOnBlur"
+                >
                   <template #prepend>
                     <span class="text-subtitle2 text-grey-7">$</span>
                   </template>
@@ -283,9 +305,16 @@ defineExpose({
             <!-- Row 2: Description -->
             <div class="row q-col-gutter-md q-mb-xs">
               <div class="col-12">
-                <q-input v-model="form.description" outlined dense label="Description / Payee *"
-                  placeholder="e.g. Acme Supplies, Vendor memo..." :rules="descriptionRules"
-                  data-testid="input-description">
+                <q-input
+                  v-model="form.description"
+                  outlined
+                  dense
+                  lazy-rules="ondemand"
+                  label="Description / Payee *"
+                  placeholder="e.g. Acme Supplies, Vendor memo..."
+                  :rules="descriptionRules"
+                  data-testid="input-description"
+                >
                   <template #prepend>
                     <q-icon name="edit_note" />
                   </template>
@@ -296,8 +325,15 @@ defineExpose({
             <!-- Row 3: Receipt Attachment -->
             <div class="row q-col-gutter-md q-mb-xs">
               <div class="col-12">
-                <q-file v-model="form.receipt_file" outlined dense clearable label="Receipt Attachment (Optional)"
-                  accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" data-testid="input-receipt-file">
+                <q-file
+                  v-model="form.receipt_file"
+                  outlined
+                  dense
+                  clearable
+                  label="Receipt Attachment (Optional)"
+                  accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+                  data-testid="input-receipt-file"
+                >
                   <template #prepend>
                     <q-icon name="attach_file" />
                   </template>
@@ -312,16 +348,19 @@ defineExpose({
               <div class="row items-center justify-between q-mb-sm">
                 <div>
                   <div class="text-subtitle1 text-weight-bold text-grey-9">Allocations</div>
-                  <div class="text-caption text-grey-7">Assign expenses across businesses (business entities only).
-                  </div>
+                  <div class="text-caption text-grey-7">Assign expenses across businesses (business entities only).</div>
                 </div>
 
                 <div class="row items-center q-gutter-x-sm">
                   <!-- Real-time Balance Indicator -->
-                  <q-chip :color="isBalanced ? 'positive' : 'warning'" text-color="white"
-                    :icon="isBalanced ? 'check_circle' : 'warning'" dense data-testid="split-balance-indicator">
-                    <template
-                      v-if="!form.total_amount || isNaN(Number(form.total_amount)) || Number(form.total_amount) === 0">
+                  <q-chip
+                    :color="isBalanced ? 'positive' : 'warning'"
+                    text-color="white"
+                    :icon="isBalanced ? 'check_circle' : 'warning'"
+                    dense
+                    data-testid="split-balance-indicator"
+                  >
+                    <template v-if="!form.total_amount || isNaN(Number(form.total_amount)) || Number(form.total_amount) === 0">
                       Enter total amount
                     </template>
                     <template v-else-if="isBalanced"> Balanced ($0.00 remaining) </template>
@@ -335,17 +374,30 @@ defineExpose({
                   </q-chip>
 
                   <!-- Add Split Button -->
-                  <q-btn flat dense color="primary" icon="add" label="Add Split" data-testid="btn-add-split"
-                    @click="addSplit" />
+                  <q-btn flat dense color="primary" icon="add" label="Add Split" data-testid="btn-add-split" @click="addSplit" />
                 </div>
               </div>
 
               <!-- Splits List -->
-              <div v-for="(split, index) in form.splits" :key="index" class="row q-col-gutter-sm items-start q-mb-xs"
-                :data-testid="`split-row-${index}`">
+              <div
+                v-for="(split, index) in form.splits"
+                :key="index"
+                class="row q-col-gutter-sm items-start q-mb-xs"
+                :data-testid="`split-row-${index}`"
+              >
                 <div class="col-12 col-sm-6">
-                  <q-select v-model="split.company_id" outlined dense emit-value map-options label="Company *"
-                    :options="companyOptions" :rules="splitCompanyRules" :data-testid="`split-company-${index}`">
+                  <q-select
+                    v-model="split.company_id"
+                    outlined
+                    dense
+                    emit-value
+                    map-options
+                    lazy-rules="ondemand"
+                    label="Company *"
+                    :options="companyOptions"
+                    :rules="splitCompanyRules"
+                    :data-testid="`split-company-${index}`"
+                  >
                     <template #prepend>
                       <q-icon name="business" />
                     </template>
@@ -358,11 +410,20 @@ defineExpose({
                 </div>
 
                 <div class="col-10 col-sm-5">
-                  <q-input v-model="split.amount" type="number" step="0.01" outlined dense
+                  <q-input
+                    v-model="split.amount"
+                    type="number"
+                    step="0.01"
+                    outlined
+                    dense
+                    lazy-rules="ondemand"
                     :readonly="form.splits.length === 1"
-                    :label="form.splits.length === 1 ? 'Amount *' : 'Split Amount *'" placeholder="0.00"
-                    :rules="splitAmountRules" :data-testid="`split-amount-${index}`"
-                    @blur="formatSplitAmountOnBlur(index)">
+                    :label="form.splits.length === 1 ? 'Amount *' : 'Split Amount *'"
+                    placeholder="0.00"
+                    :rules="splitAmountRules"
+                    :data-testid="`split-amount-${index}`"
+                    @blur="formatSplitAmountOnBlur(index)"
+                  >
                     <template #prepend>
                       <span class="text-subtitle2 text-grey-7">$</span>
                     </template>
@@ -370,8 +431,16 @@ defineExpose({
                 </div>
 
                 <div class="col-2 col-sm-1 flex justify-center q-pt-xs">
-                  <q-btn flat round dense color="negative" icon="delete" :disable="form.splits.length <= 1"
-                    :data-testid="`btn-remove-split-${index}`" @click="removeSplit(index)">
+                  <q-btn
+                    flat
+                    round
+                    dense
+                    color="negative"
+                    icon="delete"
+                    :disable="form.splits.length <= 1"
+                    :data-testid="`btn-remove-split-${index}`"
+                    @click="removeSplit(index)"
+                  >
                     <q-tooltip v-if="form.splits.length > 1">Remove split</q-tooltip>
                     <q-tooltip v-else>At least one split is required</q-tooltip>
                   </q-btn>
@@ -383,16 +452,21 @@ defineExpose({
             <q-separator class="q-my-md" />
 
             <div class="row items-center justify-between q-pt-xs">
-              <div class="text-caption text-grey-6 flex items-center q-gutter-x-xs">
-                <q-icon name="keyboard" size="16px" />
-                <span>Ctrl+Enter to submit | Ctrl+; in Date for today</span>
-              </div>
+              <div><!-- spacer --></div>
 
               <div class="row items-center q-gutter-x-sm">
                 <q-btn flat color="grey-7" label="Reset" data-testid="btn-reset" @click="resetForm(false)" />
 
-                <q-btn unelevated color="primary" label="Submit Transaction" icon="check" type="submit"
-                  :loading="isSubmitting" :disable="!canSubmit || isSubmitting" data-testid="btn-submit" />
+                <q-btn
+                  unelevated
+                  color="primary"
+                  label="Submit Transaction"
+                  icon="check"
+                  type="submit"
+                  :loading="isSubmitting"
+                  :disable="!canSubmit || isSubmitting"
+                  data-testid="btn-submit"
+                />
               </div>
             </div>
           </q-card-section>

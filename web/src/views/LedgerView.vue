@@ -4,6 +4,7 @@ import type { QTableColumn } from "quasar"
 import { useCompanyStore } from "../stores/companies"
 import { useTransactionStore } from "../stores/transactions"
 import type { Transaction } from "../types/transaction"
+import { formatCurrency, getAllocationLabel, getSingleAllocationCompany } from "./ledger"
 
 const companyStore = useCompanyStore()
 const transactionStore = useTransactionStore()
@@ -20,6 +21,12 @@ const companyOptions = computed(() => [
   ...companyStore.companies.map(c => ({ label: c.name, value: c.id })),
 ])
 
+const companyMap = computed(() => new Map(companyStore.companies.map(c => [c.id, c.name])))
+
+function getAllocationDisplay(row: Transaction) {
+  return getAllocationLabel(row, companyMap.value)
+}
+
 const pagination = ref({
   sortBy: "date",
   descending: true,
@@ -28,7 +35,7 @@ const pagination = ref({
   rowsNumber: 0,
 })
 
-const columns: QTableColumn[] = [
+const columns = computed<QTableColumn[]>(() => [
   {
     name: "date",
     required: true,
@@ -63,8 +70,8 @@ const columns: QTableColumn[] = [
   {
     name: "allocations",
     label: "Allocations",
-    align: "center",
-    field: (row: Transaction) => row.allocations?.length ?? 0,
+    align: "left",
+    field: (row: Transaction) => getAllocationDisplay(row),
     sortable: false,
   },
   {
@@ -74,16 +81,7 @@ const columns: QTableColumn[] = [
     field: (row: Transaction) => (row.receipt_file_path ? "Yes" : "No"),
     sortable: false,
   },
-]
-
-function formatCurrency(amount: string | number, currencyCode = "USD"): string {
-  const num = typeof amount === "string" ? parseFloat(amount) : amount
-  if (Number.isNaN(num)) return "$0.00"
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: currencyCode || "USD",
-  }).format(num)
-}
+])
 
 async function onRequest(props: {
   pagination: {
@@ -140,6 +138,19 @@ function refresh(): void {
 onMounted(() => {
   companyStore.fetchCompanies().catch(() => {})
   onRequest({ pagination: pagination.value })
+})
+
+defineExpose({
+  filters,
+  pagination,
+  columns,
+  companyMap,
+  getAllocationDisplay,
+  getSingleAllocationCompany,
+  formatCurrency,
+  applyFilters,
+  resetFilters,
+  refresh,
 })
 </script>
 
@@ -311,10 +322,8 @@ onMounted(() => {
 
       <!-- Allocations Column -->
       <template #body-cell-allocations="props">
-        <q-td :props="props" align="center">
-          <q-badge color="grey-2" text-color="grey-9" class="q-px-sm q-py-xs">
-            {{ props.row.allocations ? props.row.allocations.length : 0 }} split(s)
-          </q-badge>
+        <q-td :props="props">
+          <div class="text-weight-medium" data-testid="allocation-cell">{{ getAllocationDisplay(props.row) }}</div>
         </q-td>
       </template>
 
