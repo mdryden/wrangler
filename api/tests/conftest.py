@@ -6,7 +6,6 @@ from sqlalchemy.pool import StaticPool
 import models.allocation  # noqa: F401
 import models.company  # noqa: F401
 import models.transaction  # noqa: F401
-import models.wave_category  # noqa: F401
 from database import Base
 
 

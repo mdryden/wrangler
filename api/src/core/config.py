@@ -28,14 +28,6 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
 
-    # Wave OAuth & API
-    WAVE_CLIENT_ID: str = ""
-    WAVE_CLIENT_SECRET: str = ""
-    WAVE_REDIRECT_URI: str = "http://localhost:8000/api/wave/oauth/callback"
-    WAVE_AUTHORIZE_URL: str = "https://api.waveapps.com/oauth2/authorize/"
-    WAVE_TOKEN_URL: str = "https://api.waveapps.com/oauth2/token/"
-    WAVE_GRAPHQL_URL: str = "https://api.waveapps.com/graphql/public"
-
     # Receipt Storage
     RECEIPT_STORAGE_DIR: Path = Path("receipts").resolve()
 

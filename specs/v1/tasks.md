@@ -14,14 +14,12 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 - [x] 1.9 Set up Alembic and apply initial migrations
 - [x] 1.10 Ensure receipt storage directory creation on startup
 - [x] 1.11 Implement SQLite health check endpoint (`GET /api/health`)
-- [x] 1.12 Verify database schema setup and health check endpoint
 
 ## Phase 2: Authentication & Security (Backend)
 - [x] 2.1 Implement JWT utilities (create and verify tokens)
 - [x] 2.2 Implement admin credential verification against environment variables
 - [x] 2.3 Create `POST /api/login` endpoint
 - [x] 2.4 Implement secure-by-default authentication middleware (opt-in anonymous routes for health & login) and `get_current_user` dependency
-- [x] 2.5 Verify authentication and route protection using a REST client
 
 ## Phase 3: Company Management & Wave OAuth (Backend)
 - [x] 3.1 Create Company CRUD endpoints (`GET`, `POST`, `PUT`, `DELETE` at `/api/companies`)
@@ -29,13 +27,11 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 - [x] 3.3 Implement `GET /api/wave/oauth/authorize` endpoint with signed JWT state parameter
 - [x] 3.4 Implement `GET /api/wave/oauth/callback` endpoint and token persistence
 - [x] 3.5 Implement Wave token refresh logic in client utility
-- [x] 3.6 Verify company management and OAuth flow via REST client and browser
 
 ## Phase 4: Wave Chart of Accounts Sync
 - [x] 4.1 Implement Wave Chart of Accounts GraphQL query (filter for Expense, Asset, Income)
 - [x] 4.2 Create `POST /api/companies/{id}/sync-categories` endpoint
 - [x] 4.3 Implement upsert logic for `WaveCategory` table
-- [x] 4.4 Verify category synchronization via REST client
 
 ## Phase 5: Transaction & Allocation Management (Backend)
 - [x] 5.1 Implement intake source parser abstraction and base interface
@@ -45,7 +41,6 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 - [x] 5.5 Create `PUT /api/transactions/{id}/allocations` endpoint
 - [x] 5.6 Enforce immutability validation on allocations (HTTP 400 if any allocation is `SYNCED`)
 - [x] 5.7 Implement receipt upload (`POST /api/transactions/{id}/receipt`) and retrieval (`GET /api/receipts/{path}`) endpoints
-- [x] 5.8 Verify transaction and allocation endpoints via REST client
 
 ## Phase 6: Frontend Foundation
 - [x] 6.1 Initialize Vue 3 + Quasar project with Pinia
@@ -53,7 +48,6 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 - [x] 6.3 Implement Login View and integrate with `POST /api/login`
 - [x] 6.4 Implement persistent Navigation Drawer layout (Ledger, Manual Entry, Sync Manager, Settings)
 - [x] 6.5 Implement Fetch API client wrapper with automatic JWT authorization header
-- [x] 6.6 Verify frontend foundation in browser
 
 ## Phase 7: Frontend Company & Settings Management
 - [x] 7.1 Create Company Management & Settings View
@@ -61,16 +55,14 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 - [x] 7.3 Implement "Connect to Wave" OAuth action button
 - [x] 7.4 Implement token status indicator (Connected/Disconnected/Expired)
 - [x] 7.5 Implement "Sync Categories" button
-- [x] 7.6 Verify Company Management UI in browser
 
 ## Phase 8: Revert Wave Integration (Backend & Database)
-- [ ] 8.1 Remove Wave configuration settings from backend (`core/config.py`)
-- [ ] 8.2 Remove Wave routers (`routers/wave_oauth.py`), category sync endpoints, Wave service, and Wave schemas
-- [ ] 8.3 Update `Company` ORM model and schemas to remove Wave attributes and enforce unique name
-- [ ] 8.4 Update `Allocation` ORM model to remove Wave fields, restrict `SyncStatus` enum to `PENDING` and `SYNCED`, and drop `WaveCategory` model
-- [ ] 8.5 Update allocation endpoints to remove Wave categories and restrict company deletion if linked to allocations
-- [ ] 8.6 Generate and execute Alembic migration for SQLite schema cleanup
-- [ ] 8.7 Verify backend Wave removal and database integrity
+- [x] 8.1 Remove Wave configuration settings from backend (`core/config.py`)
+- [x] 8.2 Remove Wave routers (`routers/wave_oauth.py`), category sync endpoints, Wave service, and Wave schemas
+- [x] 8.3 Update `Company` ORM model and schemas to remove Wave attributes and enforce unique name
+- [x] 8.4 Update `Allocation` ORM model to remove Wave fields, restrict `SyncStatus` enum to `PENDING` and `SYNCED`, and drop `WaveCategory` model
+- [x] 8.5 Update allocation endpoints to remove Wave categories and restrict company deletion if linked to allocations
+- [x] 8.6 Generate and execute Alembic migration for SQLite schema cleanup
 
 ## Phase 9: Backend Export & Sync Reconciliation Endpoints
 - [ ] 9.1 Implement transaction filtering on `GET /api/transactions` (source, approval, date range)
@@ -79,13 +71,11 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 - [ ] 9.4 Implement `GET /api/companies/{id}/export-transactions` endpoint
 - [ ] 9.5 Implement `POST /api/companies/{id}/mark-synced` endpoint
 - [ ] 9.6 Implement `POST /api/companies/{id}/revert-synced` endpoint
-- [ ] 9.7 Verify backend export and sync reconciliation endpoints
 
 ## Phase 10: Frontend Wave Reversion & Settings Updates
 - [ ] 10.1 Remove Wave OAuth UI and actions from Settings (`SettingsView.vue`, `TokenStatusBadge.vue`)
 - [ ] 10.2 Update Company dialog, types, and store to remove Wave fields and display transaction counts
 - [ ] 10.3 Update navigation drawer and routing for Export Manager (`/export-manager`)
-- [ ] 10.4 Verify Company Settings and Navigation in browser
 
 ## Phase 11: Frontend Ledger & Allocation Editor
 - [ ] 11.1 Build Ledger View with server-side pagination and filters
@@ -94,11 +84,10 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 - [ ] 11.4 Integrate Allocation Editor with backend API (`PUT /api/transactions/{id}/allocations`)
 - [ ] 11.5 Implement receipt file upload and direct download link
 - [ ] 11.6 Implement transaction approval toggle UI
-- [ ] 11.7 Verify Ledger and Allocation Editor UI in browser
 
 ## Phase 12: Frontend Export Manager UI
 - [ ] 12.1 Build Export Manager View with Pending Exports Summary
 - [ ] 12.2 Implement "Export CSV" download action per company
 - [ ] 12.3 Implement "Mark as Synced" action per company
 - [ ] 12.4 Build Reconciliation & History section with reversion
-- [ ] 12.5 Verify end-to-end CSV export and reconciliation workflow
+

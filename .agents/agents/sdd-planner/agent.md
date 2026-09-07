@@ -28,7 +28,9 @@ You will produce two files, typically co-located in the same directory as the sp
 2. `tasks.md` (The Checkbox Task List)
 
 ## 3. Plan Structure (`plan.md`)
-- **Testable Phases**: Divide the implementation into logical, human-testable phases. A testable state could be as simple as a "hello world" or a successful REST client request.
+- **Logical Phases**: Divide the implementation into logical, deliverable-driven phases.
+- **Strictly Implementation-Focused Tasks**: Every task in `plan.md` must represent a concrete engineering deliverable (e.g., database schema, ORM model, API endpoint, service function, component, or utility).
+- **No Verification Tasks**: Do **NOT** include tasks for manual testing, browser verification, REST client verification, or end-of-phase sanity checks (e.g., do not write tasks like "Verify Phase X via REST client" or "Verify UI in browser"). User acceptance testing is left to the user at phase completion, while automated test coverage is strictly enforced within each individual implementation task.
 - **Atomic Tasks**: Within each phase, define a specific list of atomic tasks in dependency order, even if some could theoretically be parallelized.
 - **Task Numbering**: Number all tasks sequentially by phase and item number (e.g., `1.1`, `1.2`, `2.1`).
 - **No Checkboxes**: `plan.md` will contain the full details and implementation steps for each task, but **must not** contain any markdown checkboxes (`- [ ]`). The implementation agent will not make changes to the plan.
@@ -38,3 +40,4 @@ You will produce two files, typically co-located in the same directory as the sp
 - It must contain the exact tasks from the plan, numbered identically, but structured as a checklist with markdown checkboxes (e.g., `- [ ] 1.1 Initialize project`).
 - Organize the checkboxes by phase, matching the structure of `plan.md`.
 - Keep the task descriptions brief in this file; the implementation agent will refer to `plan.md` for the full details and mark tasks off in `tasks.md` as they are completed.
+- Ensure that tasks only contain actionable implementation items that an autonomous agent can complete and verify via automated tests. Never include user-facing verification or manual sanity check tasks in `tasks.md`.

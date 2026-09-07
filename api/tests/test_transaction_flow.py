@@ -10,7 +10,6 @@ from database import get_db
 from main import app
 from models.allocation import SyncStatus
 from models.company import Company
-from models.wave_category import WaveCategory
 
 MOCK_ADMIN = "admin"
 MOCK_PASSWORD = "admin"
@@ -54,21 +53,14 @@ def client(db_session):
     app.dependency_overrides.clear()
 
 
-def test_phase5_end_to_end_transaction_allocation_receipt_flow(client, auth_headers, db_session):
-    # 1. Set up company and category
-    company = Company(name="Acme Consulting LLC", wave_equity_account_id="equity_001")
+def test_transaction_allocation_receipt_lifecycle_flow(client, auth_headers, db_session):
+    """End-to-end integration flow testing transaction creation, pagination, approval, receipts, split allocations, and immutability locking."""
+    # 1. Set up company
+    company = Company(name="Acme Consulting LLC")
     db_session.add(company)
     db_session.commit()
 
-    category = WaveCategory(
-        company_id=company.id,
-        wave_account_id="wave_cat_office",
-        name="Office Supplies",
-    )
-    db_session.add(category)
-    db_session.commit()
-
-    # 2. Create a manual transaction (5.2)
+    # 2. Create a manual transaction
     tx_payload = {
         "date": "2026-09-06",
         "description": "Hardware & Office Setup",
@@ -88,14 +80,14 @@ def test_phase5_end_to_end_transaction_allocation_receipt_flow(client, auth_head
     dup_resp = client.post("/api/transactions", json=tx_payload, headers=auth_headers)
     assert dup_resp.status_code == 409
 
-    # 4. List transactions with pagination (5.3)
+    # 4. List transactions with pagination
     list_resp = client.get("/api/transactions?page=1&page_size=10", headers=auth_headers)
     assert list_resp.status_code == 200
     list_data = list_resp.json()
     assert list_data["total"] == 1
     assert list_data["items"][0]["id"] == tx_id
 
-    # 5. Update transaction metadata & approve (5.4)
+    # 5. Update transaction metadata & approve
     update_resp = client.put(f"/api/transactions/{tx_id}", json={"description": "Hardware & Office Setup (Reviewed)"}, headers=auth_headers)
     assert update_resp.status_code == 200
     assert update_resp.json()["description"] == "Hardware & Office Setup (Reviewed)"
@@ -104,7 +96,7 @@ def test_phase5_end_to_end_transaction_allocation_receipt_flow(client, auth_head
     assert approve_resp.status_code == 200
     assert approve_resp.json()["is_approved"] is True
 
-    # 6. Upload receipt file (5.7)
+    # 6. Upload receipt file
     receipt_bytes = b"PDF dummy content for receipt test"
     files = {"file": ("acme_receipt.pdf", io.BytesIO(receipt_bytes), "application/pdf")}
     receipt_upload_resp = client.post(f"/api/transactions/{tx_id}/receipt", files=files, headers=auth_headers)
@@ -112,23 +104,22 @@ def test_phase5_end_to_end_transaction_allocation_receipt_flow(client, auth_head
     receipt_file_path = receipt_upload_resp.json()["receipt_file_path"]
     assert receipt_file_path is not None
 
-    # Retrieve receipt file (5.7)
+    # Retrieve receipt file
     get_receipt_resp = client.get(f"/api/receipts/{receipt_file_path}", headers=auth_headers)
     assert get_receipt_resp.status_code == 200
     assert get_receipt_resp.content == receipt_bytes
 
-    # 7. Update split allocations (5.5)
+    # 7. Update split allocations
     allocations_payload = [
         {
             "amount": "100.00",
             "is_personal": True,
-            "sync_status": "IGNORED",
+            "sync_status": "PENDING",
         },
         {
             "amount": "150.00",
             "is_personal": False,
             "company_id": str(company.id),
-            "wave_category_id": str(category.id),
             "sync_status": "PENDING",
         },
     ]
@@ -138,7 +129,6 @@ def test_phase5_end_to_end_transaction_allocation_receipt_flow(client, auth_head
     assert len(alloc_data) == 2
     assert alloc_data[0]["is_personal"] is True
     assert alloc_data[1]["company_id"] == str(company.id)
-    assert alloc_data[1]["wave_category_id"] == str(category.id)
 
     # 8. Simulate sync to Wave: set business allocation sync_status to SYNCED
     tx = client.get(f"/api/transactions/{tx_id}", headers=auth_headers).json()
@@ -154,7 +144,7 @@ def test_phase5_end_to_end_transaction_allocation_receipt_flow(client, auth_head
     business_alloc.sync_status = SyncStatus.SYNCED
     db_session.commit()
 
-    # 9. Verify immutability validation (5.6):
+    # 9. Verify immutability validation:
     # Cannot modify allocations when SYNCED
     imm_resp1 = client.put(f"/api/transactions/{tx_id}/allocations", json=[], headers=auth_headers)
     assert imm_resp1.status_code == 400

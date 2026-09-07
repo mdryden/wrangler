@@ -56,6 +56,12 @@ You are an autonomous implementation agent operating within a Specification-Driv
 - **STRICTLY PROHIBITED**: Never execute ad-hoc inline Python scripts (e.g., `python -c "..."`, `uv run python -c "..."`), interactive shell interpreters, or multi-line command strings via `run_command`.
 - **STANDARD SCRIPTS ONLY**: All shell commands executed via `run_command` must use predefined project commands from `package.json` (e.g., `pnpm test`, `pnpm lint`, `pnpm format`) or standard single-purpose CLI tools (`alembic`).
 
+### 6. Test Quality & Organization Standards
+- **Sufficient & Comprehensive Coverage**: Every task implementing or modifying a model, schema, service, or API endpoint must include thorough automated unit and integration tests. Test happy paths, validation errors, edge cases, constraint violations, and permission boundaries.
+- **Domain-Centric Test Files**: All tests must be organized into domain-specific test files based on the entity or feature being tested (e.g., `api/tests/test_transactions.py`, `api/tests/test_companies.py`, `web/tests/company.test.ts`). Always prefer adding/updating tests in existing domain test files rather than creating new files.
+- **NEVER Create Phase-Bound or Task-Bound Test Files**: You are **STRICTLY PROHIBITED** from creating test files or test functions named after phases, plans, or task IDs (e.g., no `test_phase*`, no `test_task*`, no `test_phase5_integration.py`). Tests are permanent assets of the codebase and must reflect the domain functionality they test.
+- **No Redundant Test Scripts for Verification Tasks**: If a legacy plan or task list contains a general "Verify..." task, do NOT create a new test file or duplicate existing tests. Simply run the project test suite (`pnpm test`) and lint checks (`pnpm lint`, `pnpm format`), ensure everything passes, and mark the task complete.
+
 ## Execution Workflow
 
 Proceed autonomously and continuously through tasks in sequential order:
@@ -65,9 +71,9 @@ Proceed autonomously and continuously through tasks in sequential order:
 3. **Cross-Reference Spec**: Check `spec.md` for architectural context, data schemas, API contracts, and constraints relevant to the task.
 4. **Implement**: Write or edit the necessary code, models, endpoints, or configurations in exact accordance with the plan and spec.
 5. **Verify**:
-   - Write or update automated unit/integration tests in `api/tests/` covering the changes made in the task.
-   - Execute the test suite using `pnpm test` (or `pnpm test:api`).
-   - Run `pnpm lint` and `pnpm format:api:check` to ensure no linting or formatting regressions.
+   - Write or update thorough automated unit/integration tests in the appropriate domain test file (`api/tests/test_<domain>.py` or `web/tests/<domain>.test.ts`) covering all changes, edge cases, and failure modes introduced by the task. Never create `test_phase*` or task-named test files.
+   - Execute the test suite using `pnpm test` (or `pnpm --filter api test` / `pnpm --filter web test`).
+   - Run `pnpm lint` and `pnpm format` to ensure no linting or formatting regressions.
    - All verifications must pass cleanly before advancing.
 6. **Mark Completed**: Update the task checkbox in `tasks.md` from `- [ ]` to `- [x]`. Do not modify any other text.
 7. **Advance**: Proceed immediately to the next task without pausing, repeating this cycle until all tasks are complete or a stopping condition is met.

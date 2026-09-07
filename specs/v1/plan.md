@@ -100,11 +100,6 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
   }
   ```
 
-### 1.12 Verify database schema setup and health check endpoint
-- Run migration script and verify table creation, columns, relationships, and unique constraints in SQLite.
-- Send a request to `GET /api/health` using a REST client to verify HTTP `200 OK` and healthy response payload with metadata.
-- Verify HTTP `503 Service Unavailable` error handling when SQLite is unreachable or query execution fails.
-
 ---
 
 ## Phase 2: Authentication & Security (Backend)
@@ -123,10 +118,6 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
 - Implement `AuthenticationMiddleware` intercepting all incoming requests to ensure all endpoints are secure by default regardless of router.
 - Support opt-in anonymous routes (`/api/health`, `/api/login`, and API docs), rejecting all other unauthenticated requests with HTTP `401 Unauthorized`.
 - Implement `get_current_user` dependency to extract `request.state.current_user` for endpoints requiring the caller's identity.
-
-### 2.5 Verify authentication and route protection
-- Verify that unadorned endpoints (those without explicit user parameters) reject unauthenticated requests by default and succeed with valid tokens.
-- Verify that opt-in anonymous routes (`/api/health`, `/api/login`) remain accessible without credentials.
 
 ---
 
@@ -153,9 +144,6 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
 ### 3.5 Implement Wave token refresh logic
 - In the Wave client, verify `wave_token_expires_at` before making requests; refresh tokens automatically using `wave_refresh_token` and persist the new token set to the database.
 
-### 3.6 Verify company management and OAuth flow
-- Create a company record via REST client, test authorize redirect URL generation, simulate callback exchange, and verify tokens in database.
-
 ---
 
 ## Phase 4: Wave Chart of Accounts Sync
@@ -169,9 +157,6 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
 
 ### 4.3 Implement upsert logic for `WaveCategory`
 - Insert new accounts and update existing ones in `WaveCategory` table scoped to `company_id`.
-
-### 4.4 Verify category synchronization
-- Trigger `POST /api/companies/{id}/sync-categories` via REST client and verify records are populated in SQLite.
 
 ---
 
@@ -201,9 +186,6 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
 - `POST /api/transactions/{id}/receipt`: Save uploaded multipart file into `RECEIPT_STORAGE_DIR` and save path to `Transaction.receipt_file_path`.
 - `GET /api/receipts/{path}`: Safely stream/serve receipt file from `RECEIPT_STORAGE_DIR`.
 
-### 5.8 Verify transaction and allocation endpoints
-- Test creating transactions, updating split allocations, verifying the 400 error on synced items, and uploading/retrieving receipt files via REST client.
-
 ---
 
 ## Phase 6: Frontend Foundation
@@ -225,9 +207,6 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
 ### 6.5 Implement Fetch API client wrapper
 - Build centralized wrapper around native `fetch` that automatically attaches `Authorization: Bearer <token>` headers, handles base URLs, parses JSON, and redirects to login on 401.
 
-### 6.6 Verify frontend foundation
-- Run dev server, verify login flow, test route protection guards, and confirm navigation drawer switches views correctly.
-
 ---
 
 ## Phase 7: Frontend Company & Settings Management
@@ -247,9 +226,6 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
 
 ### 7.5 Implement "Sync Categories" button
 - Button triggering `POST /api/companies/{id}/sync-categories` with loading states and user notification upon success.
-
-### 7.6 Verify Company Management UI
-- Verify creating a company, setting the equity account ID, initiating OAuth, and syncing categories via browser.
 
 ---
 
@@ -290,9 +266,6 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
   - Ensure unique constraint on `companies.name`.
 - Run `alembic upgrade head` to apply the migration.
 
-### 8.7 Verify backend Wave removal and database integrity
-- Run tests and verify with REST client that Wave endpoints return 404, Company CRUD functions with `id` and `name`, company deletion is blocked when linked to allocations, and SQLite schema contains no Wave tables or columns.
-
 ---
 
 ## Phase 9: Backend Export & Sync Reconciliation Endpoints
@@ -329,11 +302,6 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
 - If `allocation_ids` is provided, revert those specific allocations for the company back to `PENDING`.
 - If `allocation_ids` is omitted or empty, revert all `SYNCED` allocations for the company back to `PENDING`.
 
-### 9.7 Verify backend export and sync reconciliation endpoints
-- Test `GET /api/companies/{id}/export-transactions` to verify CSV formatting, header names, row mapping, and amount decimals.
-- Test `POST /api/companies/{id}/mark-synced` and `POST /api/companies/{id}/revert-synced` with and without explicit ID lists.
-- Test `PUT /api/allocations/{id}/revert` and confirm parent transaction is unlocked for editing when no synced allocations remain.
-
 ---
 
 ## Phase 10: Frontend Wave Reversion & Settings Updates
@@ -353,11 +321,6 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
 - In `web/src/layouts/nav.ts`, replace "Sync Manager" with "Export Manager" (`path: "/export-manager"`).
 - In `web/src/router/routes.ts`, update route to map `/export-manager` to `ExportManagerView.vue`.
 - Rename or replace `web/src/views/SyncManagerView.vue` with `web/src/views/ExportManagerView.vue`.
-
-### 10.4 Verify Company Settings and Navigation in browser
-- Verify Settings view displays companies with allocation counts and allows adding/editing companies with name only.
-- Verify company deletion restriction error handling when allocations exist.
-- Verify navigation drawer displays "Export Manager" and routes correctly.
 
 ---
 
@@ -387,9 +350,6 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
 ### 11.6 Implement transaction approval toggle UI
 - Add approval toggle button or checkbox calling `PUT /api/transactions/{id}/approve`.
 
-### 11.7 Verify Ledger and Allocation Editor UI in browser
-- Verify table pagination, filtering, approval toggle, receipt upload, receipt download, split allocations creation, sum validation, lock state display, and allocation reversion in browser.
-
 ---
 
 ## Phase 12: Frontend Export Manager UI
@@ -409,5 +369,3 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
 - Build tab or expandable view displaying `SYNCED` allocations grouped by company.
 - Add "Revert to Pending" button calling `POST /api/companies/{id}/revert-synced` to return allocations to `PENDING` state if a Wave import was aborted or needs correction.
 
-### 12.5 Verify end-to-end CSV export and reconciliation workflow
-- In browser, verify exporting pending transactions to CSV, checking downloaded CSV file structure, marking allocations as synced, viewing synced history, and reverting synced allocations back to pending.

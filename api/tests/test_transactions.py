@@ -13,7 +13,6 @@ from main import app
 from models.allocation import Allocation, SyncStatus
 from models.company import Company
 from models.transaction import Transaction
-from models.wave_category import WaveCategory
 
 MOCK_ADMIN = "admin"
 MOCK_PASSWORD = "admin"
@@ -222,16 +221,9 @@ def test_approve_transaction(client, auth_headers, db_session):
 
 
 def test_update_allocations_success(client, auth_headers, db_session):
-    company = Company(name="Test Co", wave_equity_account_id="eq-123")
+    company = Company(name="Test Co")
     db_session.add(company)
     db_session.commit()
-
-    cat = WaveCategory(
-        company_id=company.id,
-        wave_account_id="wave-acc-1",
-        name="Office Supplies",
-    )
-    db_session.add(cat)
 
     tx = Transaction(
         source="manual",
@@ -246,13 +238,12 @@ def test_update_allocations_success(client, auth_headers, db_session):
         {
             "amount": "40.00",
             "is_personal": True,
-            "sync_status": "IGNORED",
+            "sync_status": "PENDING",
         },
         {
             "amount": "60.00",
             "is_personal": False,
             "company_id": str(company.id),
-            "wave_category_id": str(cat.id),
             "sync_status": "PENDING",
         },
     ]
@@ -265,7 +256,6 @@ def test_update_allocations_success(client, auth_headers, db_session):
     assert allocations[0]["company_id"] is None
     assert allocations[1]["is_personal"] is False
     assert allocations[1]["company_id"] == str(company.id)
-    assert allocations[1]["wave_category_id"] == str(cat.id)
 
 
 def test_update_allocations_validation_errors(client, auth_headers, db_session):
@@ -308,7 +298,6 @@ def test_immutability_validation_on_synced_allocations(client, auth_headers, db_
         amount=Decimal("200.00"),
         is_personal=False,
         sync_status=SyncStatus.SYNCED,
-        wave_transaction_id="wave_tx_999",
     )
     db_session.add(alloc)
     db_session.commit()

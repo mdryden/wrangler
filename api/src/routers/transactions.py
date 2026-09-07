@@ -11,7 +11,6 @@ from database import get_db
 from models.allocation import Allocation, SyncStatus
 from models.company import Company
 from models.transaction import Transaction
-from models.wave_category import WaveCategory
 from schemas.allocation import AllocationItem, AllocationResponse, AllocationUpdateRequest
 from schemas.transaction import (
     PaginatedTransactionsResponse,
@@ -275,7 +274,7 @@ def update_transaction_allocations(
 
     items = payload if isinstance(payload, list) else payload.allocations
 
-    # Foreign key validation for companies and wave categories
+    # Foreign key validation for companies
     for item in items:
         if not item.is_personal:
             if item.company_id is not None:
@@ -284,18 +283,6 @@ def update_transaction_allocations(
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=f"Company with ID '{item.company_id}' not found",
-                    )
-            if item.wave_category_id is not None:
-                cat = db.get(WaveCategory, item.wave_category_id)
-                if cat is None:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"WaveCategory with ID '{item.wave_category_id}' not found",
-                    )
-                if item.company_id is not None and cat.company_id != item.company_id:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"WaveCategory '{item.wave_category_id}' does not belong to company '{item.company_id}'",
                     )
 
     # Clear and replace existing allocations
@@ -309,9 +296,7 @@ def update_transaction_allocations(
             amount=item.amount,
             is_personal=item.is_personal,
             company_id=None if item.is_personal else item.company_id,
-            wave_category_id=None if item.is_personal else item.wave_category_id,
             sync_status=item.sync_status,
-            wave_transaction_id=item.wave_transaction_id,
         )
         transaction.allocations.append(alloc)
 

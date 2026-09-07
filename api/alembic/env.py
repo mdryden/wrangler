@@ -10,7 +10,6 @@ from database import Base
 from models.allocation import Allocation, SyncStatus  # noqa: F401
 from models.company import Company  # noqa: F401
 from models.transaction import Transaction  # noqa: F401
-from models.wave_category import WaveCategory  # noqa: F401
 
 # Ensure src directory is in sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
