@@ -24,12 +24,12 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 - [x] 2.5 Verify authentication and route protection using a REST client
 
 ## Phase 3: Company Management & Wave OAuth (Backend)
-- [ ] 3.1 Create Company CRUD endpoints (`GET`, `POST`, `PUT`, `DELETE` at `/api/companies`)
-- [ ] 3.2 Create Wave API client utility
-- [ ] 3.3 Implement `GET /api/wave/oauth/authorize` endpoint with signed JWT state parameter
-- [ ] 3.4 Implement `GET /api/wave/oauth/callback` endpoint and token persistence
-- [ ] 3.5 Implement Wave token refresh logic in client utility
-- [ ] 3.6 Verify company management and OAuth flow via REST client and browser
+- [x] 3.1 Create Company CRUD endpoints (`GET`, `POST`, `PUT`, `DELETE` at `/api/companies`)
+- [x] 3.2 Create Wave API client utility
+- [x] 3.3 Implement `GET /api/wave/oauth/authorize` endpoint with signed JWT state parameter
+- [x] 3.4 Implement `GET /api/wave/oauth/callback` endpoint and token persistence
+- [x] 3.5 Implement Wave token refresh logic in client utility
+- [x] 3.6 Verify company management and OAuth flow via REST client and browser
 
 ## Phase 4: Wave Chart of Accounts Sync
 - [ ] 4.1 Implement Wave Chart of Accounts GraphQL query (filter for Expense, Asset, Income)

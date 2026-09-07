@@ -1,0 +1,66 @@
+### 1. Authenticate as Admin to get Bearer Token
+# @name login
+POST http://localhost:8000/api/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "admin"
+}
+
+### Store Auth Token
+@authToken = {{login.response.body.access_token}}
+
+### 2. List All Companies (Initially empty or existing)
+GET http://localhost:8000/api/companies
+Authorization: Bearer {{authToken}}
+
+### 3. Create a New Company
+# @name createCompany
+POST http://localhost:8000/api/companies
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "name": "Family Farm LLC",
+  "wave_equity_account_id": "equity_account_farm_001",
+  "wave_business_id": "wave_biz_123"
+}
+
+### Store Created Company ID
+@companyId = {{createCompany.response.body.id}}
+
+### 4. Get Company by ID
+GET http://localhost:8000/api/companies/{{companyId}}
+Authorization: Bearer {{authToken}}
+
+### 5. Update Company Information
+PUT http://localhost:8000/api/companies/{{companyId}}
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "name": "Family Farm & Ranch LLC",
+  "wave_equity_account_id": "equity_account_farm_002"
+}
+
+### 6. Generate Wave OAuth Authorize URL
+# @name getAuthorizeUrl
+GET http://localhost:8000/api/wave/oauth/authorize?company_id={{companyId}}
+Authorization: Bearer {{authToken}}
+
+### 7. Generate Wave OAuth Authorize with Browser Redirect (HTTP 307)
+GET http://localhost:8000/api/wave/oauth/authorize?company_id={{companyId}}&redirect=true
+Authorization: Bearer {{authToken}}
+
+### 8. Simulate OAuth Callback (Browser redirect from Wave with code and state)
+# Note: Replace state and code with values from authorize URL or manual testing
+GET http://localhost:8000/api/wave/oauth/callback?code=simulated_auth_code&state={{getAuthorizeUrl.response.body.authorization_url}}
+
+### 9. Verify Company Token Persistence and Connection Status
+GET http://localhost:8000/api/companies/{{companyId}}
+Authorization: Bearer {{authToken}}
+
+### 10. Delete Company
+DELETE http://localhost:8000/api/companies/{{companyId}}
+Authorization: Bearer {{authToken}}

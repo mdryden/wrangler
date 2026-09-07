@@ -16,6 +16,7 @@ http_bearer = HTTPBearer(auto_error=False)
 ANONYMOUS_PATHS: set[str] = {
     "/api/health",
     "/api/login",
+    "/api/wave/oauth/callback",
     "/docs",
     "/redoc",
     "/openapi.json",
