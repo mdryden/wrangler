@@ -139,7 +139,7 @@ export interface ApiClient {
 }
 
 export function createApiClient(config: ApiClientConfig = {}): ApiClient {
-  const fetchFn = config.fetch || globalThis.fetch
+  const fetchFn = config.fetch || ((...args: Parameters<typeof fetch>) => globalThis.fetch(...args))
   const defaultBaseUrl = config.baseUrl ?? ""
   const getToken = config.getToken ?? defaultGetToken
   const onUnauthorized = config.onUnauthorized ?? defaultOnUnauthorized

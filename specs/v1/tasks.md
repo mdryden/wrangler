@@ -56,12 +56,12 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 - [x] 6.6 Verify frontend foundation in browser
 
 ## Phase 7: Frontend Company & Settings Management
-- [ ] 7.1 Create Company Management & Settings View
-- [ ] 7.2 Implement Company creation and editing forms (including `wave_equity_account_id`)
-- [ ] 7.3 Implement "Connect to Wave" OAuth action button
-- [ ] 7.4 Implement token status indicator (Connected/Disconnected/Expired)
-- [ ] 7.5 Implement "Sync Categories" button
-- [ ] 7.6 Verify Company Management UI in browser
+- [x] 7.1 Create Company Management & Settings View
+- [x] 7.2 Implement Company creation and editing forms (including `wave_equity_account_id`)
+- [x] 7.3 Implement "Connect to Wave" OAuth action button
+- [x] 7.4 Implement token status indicator (Connected/Disconnected/Expired)
+- [x] 7.5 Implement "Sync Categories" button
+- [x] 7.6 Verify Company Management UI in browser
 
 ## Phase 8: Frontend Ledger & Allocation Editor
 - [ ] 8.1 Create Ledger View with server-side paginated `QTable`
