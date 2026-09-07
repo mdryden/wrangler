@@ -68,8 +68,13 @@ def test_transactions_unauthenticated_requests_blocked(client):
     assert client.get("/api/receipts/some_file.pdf").status_code == 401
 
 
-def test_create_transaction_json_success(client, auth_headers):
+def test_create_transaction_json_success(client, auth_headers, db_session):
+    company = Company(name="General Goods Ltd")
+    db_session.add(company)
+    db_session.commit()
+
     payload = {
+        "company_id": str(company.id),
         "date": "2026-09-06",
         "description": "Office Supplies",
         "total_amount": "125.50",
@@ -85,13 +90,185 @@ def test_create_transaction_json_success(client, auth_headers):
     assert data["currency_code"] == "USD"
     assert data["source"] == "manual"
     assert data["external_id"] == "EXP-001"
-    assert data["is_approved"] is False
-    assert data["allocations"] == []
+    assert data["is_approved"] is True
     assert data["receipt_file_path"] is None
+    assert len(data["allocations"]) == 1
+    assert data["allocations"][0]["amount"] == "125.50"
+    assert data["allocations"][0]["company_id"] == str(company.id)
+    assert data["allocations"][0]["is_personal"] is False
+    assert data["allocations"][0]["sync_status"] == SyncStatus.PENDING
 
 
-def test_create_transaction_duplicate_prevention(client, auth_headers):
+def test_create_transaction_missing_company_id(client, auth_headers):
     payload = {
+        "date": "2026-09-06",
+        "description": "Missing Company",
+        "total_amount": "100.00",
+    }
+    resp = client.post("/api/transactions", json=payload, headers=auth_headers)
+    assert resp.status_code == 422
+
+
+def test_create_transaction_nonexistent_company_id(client, auth_headers):
+    payload = {
+        "company_id": str(uuid.uuid4()),
+        "date": "2026-09-06",
+        "description": "Invalid Company",
+        "total_amount": "100.00",
+    }
+    resp = client.post("/api/transactions", json=payload, headers=auth_headers)
+    assert resp.status_code == 400
+    assert "not found" in resp.json()["detail"]
+
+
+def test_create_transaction_zero_amount(client, auth_headers, db_session):
+    company = Company(name="Zero Test Co")
+    db_session.add(company)
+    db_session.commit()
+
+    payload = {
+        "company_id": str(company.id),
+        "date": "2026-09-06",
+        "description": "Zero Amount Expense",
+        "total_amount": "0.00",
+    }
+    resp = client.post("/api/transactions", json=payload, headers=auth_headers)
+    assert resp.status_code == 422
+
+
+def test_create_transaction_empty_description(client, auth_headers, db_session):
+    company = Company(name="Desc Test Co")
+    db_session.add(company)
+    db_session.commit()
+
+    payload = {
+        "company_id": str(company.id),
+        "date": "2026-09-06",
+        "description": "   ",
+        "total_amount": "50.00",
+    }
+    resp = client.post("/api/transactions", json=payload, headers=auth_headers)
+    assert resp.status_code == 422
+
+
+def test_create_transaction_negative_amount_refund(client, auth_headers, db_session):
+    company = Company(name="Refund Co")
+    db_session.add(company)
+    db_session.commit()
+
+    payload = {
+        "company_id": str(company.id),
+        "date": "2026-09-06",
+        "description": "Monitor Return",
+        "total_amount": "-75.50",
+    }
+    resp = client.post("/api/transactions", json=payload, headers=auth_headers)
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["total_amount"] == "-75.50"
+    assert len(data["allocations"]) == 1
+    assert data["allocations"][0]["amount"] == "-75.50"
+    assert data["allocations"][0]["company_id"] == str(company.id)
+    assert data["allocations"][0]["is_personal"] is False
+    assert data["allocations"][0]["sync_status"] == SyncStatus.PENDING
+
+
+def test_create_transaction_with_valid_multi_company_splits(client, auth_headers, db_session):
+    comp1 = Company(name="Enterprise A")
+    comp2 = Company(name="Enterprise B")
+    db_session.add_all([comp1, comp2])
+    db_session.commit()
+
+    payload = {
+        "company_id": str(comp1.id),
+        "date": "2026-09-06",
+        "description": "Shared Bulk Order",
+        "total_amount": "200.00",
+        "allocations": [
+            {"amount": "120.00", "company_id": str(comp1.id)},
+            {"amount": "80.00", "company_id": str(comp2.id)},
+        ],
+    }
+    resp = client.post("/api/transactions", json=payload, headers=auth_headers)
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["total_amount"] == "200.00"
+    assert len(data["allocations"]) == 2
+    assert data["allocations"][0]["amount"] == "120.00"
+    assert data["allocations"][0]["company_id"] == str(comp1.id)
+    assert data["allocations"][0]["is_personal"] is False
+    assert data["allocations"][1]["amount"] == "80.00"
+    assert data["allocations"][1]["company_id"] == str(comp2.id)
+    assert data["allocations"][1]["is_personal"] is False
+
+
+def test_create_transaction_with_unbalanced_splits(client, auth_headers, db_session):
+    company = Company(name="Unbalanced Co")
+    db_session.add(company)
+    db_session.commit()
+
+    payload = {
+        "company_id": str(company.id),
+        "date": "2026-09-06",
+        "description": "Split Mismatch",
+        "total_amount": "100.00",
+        "allocations": [
+            {"amount": "60.00", "company_id": str(company.id)},
+            {"amount": "30.00", "company_id": str(company.id)},
+        ],
+    }
+    resp = client.post("/api/transactions", json=payload, headers=auth_headers)
+    assert resp.status_code == 400
+    assert "does not equal transaction total amount" in resp.json()["detail"]
+
+
+def test_create_transaction_with_split_invalid_company(client, auth_headers, db_session):
+    company = Company(name="Valid Co")
+    db_session.add(company)
+    db_session.commit()
+
+    payload = {
+        "company_id": str(company.id),
+        "date": "2026-09-06",
+        "description": "Invalid Split Company",
+        "total_amount": "100.00",
+        "allocations": [
+            {"amount": "50.00", "company_id": str(company.id)},
+            {"amount": "50.00", "company_id": str(uuid.uuid4())},
+        ],
+    }
+    resp = client.post("/api/transactions", json=payload, headers=auth_headers)
+    assert resp.status_code == 400
+    assert "not found" in resp.json()["detail"]
+
+
+def test_create_transaction_with_split_personal_rejected(client, auth_headers, db_session):
+    company = Company(name="Business Only Co")
+    db_session.add(company)
+    db_session.commit()
+
+    payload = {
+        "company_id": str(company.id),
+        "date": "2026-09-06",
+        "description": "Personal Split Attempt",
+        "total_amount": "100.00",
+        "allocations": [
+            {"amount": "50.00", "company_id": str(company.id)},
+            {"amount": "50.00", "is_personal": True},
+        ],
+    }
+    resp = client.post("/api/transactions", json=payload, headers=auth_headers)
+    assert resp.status_code == 400
+    assert "business allocations" in resp.json()["detail"]
+
+
+def test_create_transaction_duplicate_prevention(client, auth_headers, db_session):
+    company = Company(name="Vendor Co")
+    db_session.add(company)
+    db_session.commit()
+
+    payload = {
+        "company_id": str(company.id),
         "date": "2026-09-06",
         "description": "Invoice 1",
         "total_amount": "50.00",
@@ -106,10 +283,15 @@ def test_create_transaction_duplicate_prevention(client, auth_headers):
     assert resp2.status_code == 409
 
 
-def test_create_transaction_multipart_with_receipt(client, auth_headers):
+def test_create_transaction_multipart_with_receipt(client, auth_headers, db_session):
+    company = Company(name="Receipt Test Co")
+    db_session.add(company)
+    db_session.commit()
+
     file_bytes = b"%PDF-1.4 test receipt file contents"
     files = {"receipt": ("invoice.pdf", io.BytesIO(file_bytes), "application/pdf")}
     data = {
+        "company_id": str(company.id),
         "date": "2026-09-06",
         "description": "Printed receipt manual entry",
         "total_amount": "78.25",
@@ -125,11 +307,46 @@ def test_create_transaction_multipart_with_receipt(client, auth_headers):
     assert res_data["is_approved"] is True
     assert res_data["receipt_file_path"] is not None
     assert res_data["receipt_file_path"].endswith("invoice.pdf")
+    assert len(res_data["allocations"]) == 1
+    assert res_data["allocations"][0]["amount"] == "78.25"
+    assert res_data["allocations"][0]["company_id"] == str(company.id)
 
     # Verify retrieval
     receipt_resp = client.get(f"/api/receipts/{res_data['receipt_file_path']}", headers=auth_headers)
     assert receipt_resp.status_code == 200
     assert receipt_resp.content == file_bytes
+
+
+def test_create_transaction_multipart_with_splits_json(client, auth_headers, db_session):
+    comp1 = Company(name="Multipart Co A")
+    comp2 = Company(name="Multipart Co B")
+    db_session.add_all([comp1, comp2])
+    db_session.commit()
+
+    file_bytes = b"image bytes jpeg simulation"
+    files = {"receipt": ("receipt.jpg", io.BytesIO(file_bytes), "image/jpeg")}
+    import json
+
+    splits = [
+        {"amount": "60.00", "company_id": str(comp1.id)},
+        {"amount": "40.00", "company_id": str(comp2.id)},
+    ]
+    data = {
+        "company_id": str(comp1.id),
+        "date": "2026-09-06",
+        "description": "Split receipt multipart",
+        "total_amount": "100.00",
+        "allocations": json.dumps(splits),
+    }
+    resp = client.post("/api/transactions", data=data, files=files, headers=auth_headers)
+    assert resp.status_code == 201
+    res_data = resp.json()
+    assert res_data["total_amount"] == "100.00"
+    assert res_data["is_approved"] is True
+    assert res_data["receipt_file_path"] is not None
+    assert len(res_data["allocations"]) == 2
+    assert res_data["allocations"][0]["amount"] == "60.00"
+    assert res_data["allocations"][1]["amount"] == "40.00"
 
 
 def test_get_transactions_pagination(client, auth_headers, db_session):

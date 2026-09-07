@@ -1,9 +1,13 @@
 import datetime
+import json
 import math
 import uuid
+from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, status
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
@@ -12,7 +16,11 @@ from database import get_db
 from models.allocation import Allocation, SyncStatus
 from models.company import Company
 from models.transaction import Transaction
-from schemas.allocation import AllocationItem, AllocationResponse, AllocationUpdateRequest
+from schemas.allocation import (
+    AllocationItem,
+    AllocationResponse,
+    AllocationUpdateRequest,
+)
 from schemas.transaction import (
     PaginatedTransactionsResponse,
     TransactionApproveRequest,
@@ -98,31 +106,72 @@ async def create_transaction(
     request: Request,
     db: Annotated[Session, Depends(get_db)],
 ) -> Transaction:
-    """Create a manual transaction, optionally with an uploaded receipt file."""
+    """Create a manual transaction, optionally with an uploaded receipt file and split allocations."""
     content_type = request.headers.get("content-type", "")
     uploaded_file: UploadFile | None = None
 
-    if "multipart/form-data" in content_type:
-        form = await request.form()
-        for _, val in form.items():
-            if hasattr(val, "filename") and getattr(val, "filename", None):
-                uploaded_file = val  # type: ignore[assignment]
-                break
+    try:
+        if "multipart/form-data" in content_type:
+            form = await request.form()
+            for _, val in form.items():
+                if hasattr(val, "filename") and getattr(val, "filename", None):
+                    uploaded_file = val  # type: ignore[assignment]
+                    break
 
-        clean_dict: dict[str, object] = {}
-        for k, v in form.items():
-            if hasattr(v, "filename"):
-                continue
-            if isinstance(v, str) and k in ("external_id", "receipt_file_path") and not v.strip():
-                clean_dict[k] = None
-            elif isinstance(v, str) and k == "is_approved":
-                clean_dict[k] = v.lower() in ("true", "1", "yes")
-            else:
-                clean_dict[k] = v
-        payload = TransactionCreate(**clean_dict)
-    else:
-        body = await request.json()
-        payload = TransactionCreate(**body)
+            clean_dict: dict[str, object] = {}
+            for k, v in form.items():
+                if hasattr(v, "filename"):
+                    continue
+                if isinstance(v, str) and k in ("external_id", "receipt_file_path", "company_id") and not v.strip():
+                    clean_dict[k] = None
+                elif isinstance(v, str) and k == "is_approved":
+                    clean_dict[k] = v.lower() in ("true", "1", "yes")
+                elif isinstance(v, str) and k == "allocations":
+                    if not v.strip():
+                        clean_dict[k] = None
+                    else:
+                        try:
+                            clean_dict[k] = json.loads(v)
+                        except Exception:
+                            clean_dict[k] = v
+                else:
+                    clean_dict[k] = v
+            payload = TransactionCreate(**clean_dict)
+        else:
+            body = await request.json()
+            payload = TransactionCreate(**body)
+    except ValidationError as exc:
+        raise RequestValidationError(exc.errors()) from exc
+
+    # Company attribution validation
+    company = db.get(Company, payload.company_id)
+    if company is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Company with ID '{payload.company_id}' not found",
+        )
+
+    # Split balance & allocation validation if splits are provided
+    if payload.allocations is not None:
+        split_sum = sum((alloc.amount for alloc in payload.allocations), Decimal("0"))
+        if split_sum != payload.total_amount:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Sum of split allocations ({split_sum}) does not equal transaction total amount ({payload.total_amount})",
+            )
+        for alloc_item in payload.allocations:
+            if alloc_item.is_personal:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Manual transaction allocations must be business allocations (is_personal=False)",
+                )
+            target_company_id = alloc_item.company_id or payload.company_id
+            target_company = db.get(Company, target_company_id)
+            if target_company is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Company with ID '{target_company_id}' not found",
+                )
 
     if payload.external_id is not None:
         existing = db.scalar(
@@ -154,6 +203,29 @@ async def create_transaction(
         is_approved=payload.is_approved,
     )
 
+    if payload.allocations is None:
+        # Default single business allocation
+        default_alloc = Allocation(
+            id=uuid.uuid4(),
+            transaction_id=tx_id,
+            amount=payload.total_amount,
+            is_personal=False,
+            company_id=payload.company_id,
+            sync_status=SyncStatus.PENDING,
+        )
+        transaction.allocations.append(default_alloc)
+    else:
+        for alloc_item in payload.allocations:
+            alloc = Allocation(
+                id=alloc_item.id or uuid.uuid4(),
+                transaction_id=tx_id,
+                amount=alloc_item.amount,
+                is_personal=False,
+                company_id=alloc_item.company_id or payload.company_id,
+                sync_status=SyncStatus.PENDING,
+            )
+            transaction.allocations.append(alloc)
+
     db.add(transaction)
     try:
         db.commit()
@@ -164,8 +236,9 @@ async def create_transaction(
             detail="Transaction duplicate constraint violation",
         ) from exc
 
-    db.refresh(transaction)
-    return transaction
+    stmt = select(Transaction).options(selectinload(Transaction.allocations)).where(Transaction.id == tx_id)
+    created_tx = db.scalar(stmt)
+    return created_tx if created_tx is not None else transaction
 
 
 @router.get("/{transaction_id}", response_model=TransactionResponse)

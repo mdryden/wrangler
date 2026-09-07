@@ -25,5 +25,13 @@ class AllocationItem(BaseModel):
     sync_status: SyncStatus = SyncStatus.PENDING
 
 
+class AllocationCreateItem(BaseModel):
+    id: uuid.UUID | None = None
+    amount: Decimal
+    is_personal: bool = False
+    company_id: uuid.UUID | None = None
+    sync_status: SyncStatus = SyncStatus.PENDING
+
+
 class AllocationUpdateRequest(BaseModel):
     allocations: list[AllocationItem]

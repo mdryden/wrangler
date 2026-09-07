@@ -54,7 +54,7 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
   - `total_amount`: Decimal / Float (supports negative values for refunds)
   - `currency_code`: String (default base currency)
   - `receipt_file_path`: String (nullable)
-  - `is_approved`: Boolean (default False)
+  - ~~`is_approved`: Boolean (default False)~~ *(Superseded: Approval removed)*
 - Enforce unique constraint on `(source, external_id)`.
 
 ### 1.8 Define Allocation ORM model
@@ -173,8 +173,8 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
 ### 5.3 Create `GET /api/transactions` endpoint with server-side pagination
 - Support pagination parameters (`page`, `page_size`), sort parameters, and return total count, page metadata, and transaction items with allocations.
 
-### 5.4 Create `PUT /api/transactions/{id}` and `PUT /api/transactions/{id}/approve` endpoints
-- Update transaction metadata and toggle `is_approved`.
+### 5.4 Create `PUT /api/transactions/{id}` and ~~`PUT /api/transactions/{id}/approve`~~ endpoints
+- Update transaction metadata. (Approval endpoint superseded and removed).
 
 ### 5.5 Create `PUT /api/transactions/{id}/allocations` endpoint
 - Accept a list of split allocations for a transaction, replacing or updating the allocations in the database.
@@ -272,7 +272,7 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
 *Goal: Implement server-side filtering, allocation status reversion, and Wave-compatible CSV generation and reconciliation endpoints.*
 
 ### 9.1 Implement transaction filtering on `GET /api/transactions`
-- Update `GET /api/transactions` in `routers/transactions.py` to support filtering query parameters: `source`, `is_approved`, `start_date`, `end_date` and `company_id`.
+- Update `GET /api/transactions` in `routers/transactions.py` to support filtering query parameters: `source`, `start_date`, `end_date` and `company_id` (~~`is_approved`~~ filter superseded).
 - Apply filters to database query alongside existing pagination (`page`, `page_size`) and sorting.
 
 ### 9.2 Implement single allocation reversion endpoint (`PUT /api/allocations/{id}/revert`)
@@ -328,7 +328,7 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
 *Goal: Implement the transaction ledger table, receipt downloads, and transaction split editor without Wave category dependencies.*
 
 ### 11.1 Build Ledger View with server-side pagination and filters
-- In `web/src/views/LedgerView.vue`, implement `QTable` connected to `GET /api/transactions` supporting server-side pagination, sorting, and filter controls (`source`, `is_approved`, date range, company).
+- In `web/src/views/LedgerView.vue`, implement `QTable` connected to `GET /api/transactions` supporting server-side pagination, sorting, and filter controls (`source`, date range, company; ~~`is_approved`~~ filter superseded).
 
 ### 11.2 Implement visual locking for synced transactions and reversion action
 - Display a locked indicator badge on transactions containing any `SYNCED` allocations, disabling split editing.
@@ -347,8 +347,8 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
 - Add receipt file upload button calling `POST /api/transactions/{id}/receipt`.
 - Add receipt download link/button for transactions with `receipt_file_path` calling `GET /api/receipts/{path}` so users can inspect and download receipt files for manual upload to Wave.
 
-### 11.6 Implement transaction approval toggle UI
-- Add approval toggle button or checkbox calling `PUT /api/transactions/{id}/approve`.
+### ~~11.6 Implement transaction approval toggle UI~~ (Superseded)
+- ~~Add approval toggle button or checkbox calling `PUT /api/transactions/{id}/approve`.~~ *(Superseded: Approval status and endpoint removed).*
 
 ---
 
@@ -379,7 +379,7 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
 - Update `POST /api/transactions` in `routers/transactions.py`:
   - Enforce split balance validation: if `allocations` list is provided, verify `sum(allocation.amount) == total_amount`.
   - In a single atomic database transaction:
-    1. Create `Transaction` record with `source = "manual"`, `company_id`, and `is_approved` (defaulting to `true`).
+    1. Create `Transaction` record with `source = "manual"` and `company_id`. (~~`is_approved`~~ superseded and removed).
     2. If a receipt file is uploaded in `multipart/form-data`, persist to `RECEIPT_STORAGE_DIR` and set `receipt_file_path`.
     3. Create `Allocation` records: if splits are omitted in the request, automatically generate a single default business allocation (`amount = total_amount`, `company_id = payload.company_id`, `is_personal = false`, `sync_status = PENDING`). If splits are provided, persist them as business allocations.
   - Return HTTP `201 Created` with `TransactionResponse` populated with the generated allocations.
@@ -391,7 +391,7 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
   - Total Amount: required numeric input formatted to two decimal places, strictly non-zero.
   - Company: required select dropdown populated with active businesses from `useCompanyStore`.
   - Receipt Attachment: optional file dropzone/picker accepting PDF, PNG, and JPEG.
-  - Approval Toggle: optional toggle (`is_approved`), defaults to `true`.
+  - ~~Approval Toggle: optional toggle (`is_approved`), defaults to `true`.~~
 
 ### 13.3 Implement inline allocation splitter with real-time balance validation
 - Within `ManualEntryView.vue`, build an inline split manager:
@@ -402,6 +402,7 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
 
 ### 13.4 Implement keyboard shortcuts, rapid continuous entry reset, and auto-focus
 - Attach a global `Ctrl + Enter` keydown shortcut within the form to trigger submission immediately.
+- Attach `Ctrl + ;` keydown shortcut within the date field to auto-fill today's date.
 - Integrate submission with `POST /api/transactions` (using `multipart/form-data` if receipt file attached, else JSON).
 - On HTTP `201 Created`:
   1. Show a success toast notification.
@@ -413,4 +414,35 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1). Checkbo
 - Verify multi-company split allocation creation and remainder validation.
 - Verify receipt file attachment and storage.
 - Verify `today-btn=true` one-click date selection, `Ctrl + Enter` shortcut submission, and post-submission form reset with Date field auto-focus.
+
+---
+
+## Phase 14: Removal of `is_approved` (Schema & Code Remediation)
+*Goal: Remove the superseded `is_approved` field and `/approve` endpoint across the database schema, backend code, frontend UI, and test suites.*
+
+### 14.1 Generate and apply Alembic migration to drop `is_approved`
+- Create a new Alembic migration script using `op.drop_column('transactions', 'is_approved')`.
+- Apply migration to update the SQLite database schema (`wrangler.db`).
+
+### 14.2 Remove `is_approved` and `TransactionApproveRequest` from backend schemas and ORM model
+- In `api/src/models/transaction.py`, remove the `is_approved` mapped column from `Transaction`.
+- In `api/src/schemas/transaction.py`, remove `is_approved` from `TransactionCreate`, `TransactionUpdate`, and `TransactionResponse`.
+- Remove `TransactionApproveRequest` schema entirely.
+
+### 14.3 Remove `/approve` endpoint and filter query from `routers/transactions.py`
+- In `api/src/routers/transactions.py`, remove `@router.put("/{transaction_id}/approve")`.
+- Remove `is_approved` query parameter and filtering logic from `GET /api/transactions`.
+- Remove `is_approved` form/json parsing from `POST /api/transactions` and `PUT /api/transactions/{id}`.
+
+### 14.4 Remove `is_approved` from frontend types, store, and views
+- In `web/src/types/transaction.ts`, remove `is_approved` from `Transaction` interface and filter interfaces.
+- In `web/src/stores/transactionStore.ts`, remove `is_approved` state and filter query serialization.
+- In `web/src/views/LedgerView.vue`, remove approval column and approval filter UI elements.
+- In `web/src/views/ManualEntryView.vue`, ensure no approval toggles or references exist.
+
+### 14.5 Update backend and frontend test suites
+- In `api/tests/test_transactions.py`, `test_models.py`, and `test_transaction_flow.py`, remove or update tests asserting `is_approved` or invoking `/approve`.
+- In `web/tests/transaction.test.ts`, update store and view tests to remove `is_approved` assertions.
+- Run all backend and frontend test suites to verify 100% pass rate.
+
 

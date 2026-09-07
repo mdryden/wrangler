@@ -257,3 +257,79 @@ describe("useTransactionStore & Ledger Integration", () => {
     expect(store.transactions[0].id).toBe("tx-1")
   })
 })
+
+describe("ManualEntryView Form Controls & Validation", () => {
+  it("initializes form state with empty date, description, amount, receipt, and default is_approved true", async () => {
+    const { createInitialManualEntryState } = await import("../src/views/manualEntry")
+    const state = createInitialManualEntryState()
+
+    expect(state.date).toBe("")
+    expect(state.company_id).toBe("")
+    expect(state.description).toBe("")
+    expect(state.total_amount).toBe("")
+    expect(state.receipt_file).toBeNull()
+    expect(state.is_approved).toBe(true)
+  })
+
+  it("validates date rules: required and YYYY-MM-DD format", async () => {
+    const { dateRules } = await import("../src/views/manualEntry")
+
+    // Empty date
+    expect(dateRules[0]("")).toBe("Date is required")
+    expect(dateRules[0]("   ")).toBe("Date is required")
+    expect(dateRules[0]("2026-09-06")).toBe(true)
+
+    // Format validation
+    expect(dateRules[1]("09-06-2026")).toBe("Date must be in YYYY-MM-DD format")
+    expect(dateRules[1]("2026/09/06")).toBe("Date must be in YYYY-MM-DD format")
+    expect(dateRules[1]("invalid-date")).toBe("Date must be in YYYY-MM-DD format")
+    expect(dateRules[1]("2026-09-06")).toBe(true)
+  })
+
+  it("validates company rules: required", async () => {
+    const { companyRules } = await import("../src/views/manualEntry")
+
+    expect(companyRules[0]("")).toBe("Company is required")
+    expect(companyRules[0]("   ")).toBe("Company is required")
+    expect(companyRules[0]("company-uuid-123")).toBe(true)
+  })
+
+  it("validates description rules: non-empty required", async () => {
+    const { descriptionRules } = await import("../src/views/manualEntry")
+
+    expect(descriptionRules[0]("")).toBe("Description / Payee is required")
+    expect(descriptionRules[0]("   ")).toBe("Description / Payee is required")
+    expect(descriptionRules[0]("Office Supplies")).toBe(true)
+  })
+
+  it("validates total amount rules: required, numeric, and strictly non-zero", async () => {
+    const { amountRules } = await import("../src/views/manualEntry")
+
+    // Required
+    expect(amountRules[0]("")).toBe("Total amount is required")
+
+    // Numeric
+    expect(amountRules[1]("abc")).toBe("Must be a valid number")
+    expect(amountRules[1]("12.50")).toBe(true)
+
+    // Strictly non-zero
+    expect(amountRules[2]("0")).toBe("Amount must be strictly non-zero")
+    expect(amountRules[2]("0.00")).toBe("Amount must be strictly non-zero")
+    expect(amountRules[2](0 as unknown as string)).toBe("Amount must be strictly non-zero")
+
+    // Valid positive and negative (refund) amounts
+    expect(amountRules[2]("45.99")).toBe(true)
+    expect(amountRules[2]("-25.50")).toBe(true)
+  })
+
+  it("formats amount on blur to two decimal places", async () => {
+    const { formatAmount } = await import("../src/views/manualEntry")
+
+    expect(formatAmount("125")).toBe("125.00")
+    expect(formatAmount("125.5")).toBe("125.50")
+    expect(formatAmount("125.556")).toBe("125.56")
+    expect(formatAmount("-50")).toBe("-50.00")
+    expect(formatAmount("0")).toBe("0")
+    expect(formatAmount("")).toBe("")
+  })
+})

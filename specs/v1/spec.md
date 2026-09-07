@@ -64,7 +64,7 @@ Represents the top-level transaction imported from an intake source or manually 
 - `total_amount`: Decimal / Float (Can be negative to support refunds/income).
 - `currency_code`: String (Defaults to base currency, e.g., "USD").
 - `receipt_file_path`: String (Nullable. Relative path to stored receipt file on disk).
-- `is_approved`: Boolean (Indicates ready for allocation/export).
+- ~~`is_approved`: Boolean (Indicates ready for allocation/export).~~ *(Removed).*
 
 ### 4.4 Allocation (Splits)
 A transaction must be able to be split across personal expenses or business entities.
@@ -115,7 +115,7 @@ A transaction must be able to be split across personal expenses or business enti
 - ~~**Wave Sync:**~~ *(Superseded)*
   - ~~`POST /api/companies/{id}/sync-categories`~~
 - **Transactions:** 
-  - `GET /api/transactions` (Must implement **server-side pagination**, filtering by source, approval, and date).
+  - `GET /api/transactions` (Must implement **server-side pagination**, filtering by source, company, and date range. ~~Approval filter~~ is superseded).
   - `POST /api/transactions` (Manual transaction creation with optional receipt file upload and initial split allocations):
     - **Payload:** Accepts `multipart/form-data` (when receipt file is uploaded) or `application/json`.
     - **Validation:**
@@ -123,7 +123,7 @@ A transaction must be able to be split across personal expenses or business enti
       - `date`: Required valid ISO date string (`YYYY-MM-DD`).
       - `description`: Required, non-empty string.
       - `company_id`: Required UUID for manual business transaction attribution.
-      - `is_approved`: Boolean (defaults to `true` for manual business entries).
+      - ~~`is_approved`: Boolean~~ *(Superseded).*
       - `allocations`: Optional list of splits. If provided, sum of `allocation.amount` must equal `total_amount`.
     - **Atomic Creation:** In a single database transaction:
       1. Creates the `Transaction` record with `source = "manual"`.
@@ -131,7 +131,7 @@ A transaction must be able to be split across personal expenses or business enti
       3. Creates `Allocation` record(s): If splits are omitted in the request, automatically creates a single default business allocation (`amount = total_amount`, `company_id = payload.company_id`, `is_personal = false`, `sync_status = PENDING`).
     - **Response:** `201 Created` with created `TransactionResponse` including its allocations.
   - `PUT /api/transactions/{id}` (Update transaction details).
-  - `PUT /api/transactions/{id}/approve` (Mark transaction as approved).
+  - ~~`PUT /api/transactions/{id}/approve` (Mark transaction as approved).~~ *(Superseded: Approval endpoint removed).*
 - **Allocations:**
   - `PUT /api/transactions/{id}/allocations` (Updates split allocations. **MUST** return a 400 error if any existing allocation is `SYNCED`).
   - `PUT /api/allocations/{id}/revert` (Reverts a single `SYNCED` allocation back to `PENDING`).
@@ -170,7 +170,7 @@ A dedicated form accessible via the persistent navigation drawer (`/manual-entry
   - **Total Amount:** Required numeric input formatted to two decimal places. Must be strictly non-zero (negative amounts denote returns/refunds).
   - **Company:** Required select dropdown populated from active `Company` records.
   - **Receipt Attachment:** Optional file dropzone/picker accepting PDF, PNG, and JPEG.
-  - **Approval Toggle:** Optional toggle (`is_approved`), defaults to `true`.
+  - ~~**Approval Toggle:** Optional toggle (`is_approved`), defaults to `true`.~~ *(Superseded).*
 - **Inline Allocation Splitter (All-in-One):**
   - Allows completing the ledger allocation directly within the entry form.
   - Defaults to a single split assigning 100% of `Total Amount` to the selected `Company` (`is_personal = false`, `sync_status = PENDING`).

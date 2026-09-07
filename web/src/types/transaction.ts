@@ -1,5 +1,25 @@
 export type SyncStatus = "PENDING" | "SYNCED"
 
+export interface AllocationCreateItem {
+  id?: string
+  amount: string | number
+  is_personal?: boolean
+  company_id?: string | null
+  sync_status?: SyncStatus
+}
+
+export interface TransactionCreatePayload {
+  company_id: string
+  date: string
+  description: string
+  total_amount: string | number
+  currency_code?: string
+  source?: string
+  external_id?: string | null
+  is_approved?: boolean
+  allocations?: AllocationCreateItem[]
+}
+
 export interface Allocation {
   id: string
   transaction_id: string

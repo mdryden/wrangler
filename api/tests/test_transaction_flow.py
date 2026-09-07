@@ -62,12 +62,14 @@ def test_transaction_allocation_receipt_lifecycle_flow(client, auth_headers, db_
 
     # 2. Create a manual transaction
     tx_payload = {
+        "company_id": str(company.id),
         "date": "2026-09-06",
         "description": "Hardware & Office Setup",
         "total_amount": "250.00",
         "currency_code": "USD",
         "source": "manual",
         "external_id": "INT-TX-001",
+        "is_approved": False,
     }
     tx_resp = client.post("/api/transactions", json=tx_payload, headers=auth_headers)
     assert tx_resp.status_code == 201
@@ -75,6 +77,10 @@ def test_transaction_allocation_receipt_lifecycle_flow(client, auth_headers, db_
     tx_id = tx_data["id"]
     assert tx_data["description"] == "Hardware & Office Setup"
     assert tx_data["is_approved"] is False
+    assert len(tx_data["allocations"]) == 1
+    assert tx_data["allocations"][0]["company_id"] == str(company.id)
+    assert tx_data["allocations"][0]["amount"] == "250.00"
+    assert tx_data["allocations"][0]["sync_status"] == "PENDING"
 
     # 3. Test duplicate creation rejected with 409
     dup_resp = client.post("/api/transactions", json=tx_payload, headers=auth_headers)

@@ -83,7 +83,7 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 - [ ] 11.3 Build Allocation Editor (Transaction Splitter) component without Wave categories
 - [ ] 11.4 Integrate Allocation Editor with backend API (`PUT /api/transactions/{id}/allocations`)
 - [ ] 11.5 Implement receipt file upload and direct download link
-- [ ] 11.6 Implement transaction approval toggle UI
+~~- [ ] 11.6 Implement transaction approval toggle UI~~ (Superseded: `is_approved` removed from system)
 
 ## Phase 12: Frontend Export Manager UI
 - [ ] 12.1 Build Export Manager View with Pending Exports Summary
@@ -92,9 +92,16 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 - [ ] 12.4 Build Reconciliation & History section with reversion
 
 ## Phase 13: Manual Expense Intake & Rapid Entry Form
-- [ ] 13.1 Update `POST /api/transactions` endpoint and schemas for company attribution and atomic allocations
-- [ ] 13.2 Build Manual Entry form controls and datepicker in `ManualEntryView.vue`
+- [x] 13.1 Update `POST /api/transactions` endpoint and schemas for company attribution and atomic allocations
+- [x] 13.2 Build Manual Entry form controls and datepicker in `ManualEntryView.vue`
 - [ ] 13.3 Implement inline allocation splitter with real-time balance validation
 - [ ] 13.4 Implement keyboard shortcuts, rapid continuous entry reset, and auto-focus
 - [ ] 13.5 Verify Manual Entry end-to-end in browser
+
+## Phase 14: Removal of `is_approved` (Schema & Code Remediation)
+- [ ] 14.1 Generate and apply Alembic migration to drop `is_approved` column from `transactions` table
+- [ ] 14.2 Remove `is_approved` and `TransactionApproveRequest` from backend schemas (`schemas/transaction.py`) and ORM model (`models/transaction.py`)
+- [ ] 14.3 Remove `PUT /api/transactions/{id}/approve` endpoint and remove `is_approved` query filter from `GET /api/transactions` in `routers/transactions.py`
+- [ ] 14.4 Remove `is_approved` from frontend types (`types/transaction.ts`), stores (`transactionStore.ts`), and views (`LedgerView.vue`, `ManualEntryView.vue`)
+- [ ] 14.5 Update backend and frontend test suites to remove `is_approved` assertions and verify all tests pass
 
