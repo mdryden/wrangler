@@ -1,7 +1,7 @@
 ---
 name: sdd-coder
 description: Autonomous implementation agent that works through tasks in tasks.md, cross-referencing plan.md and spec.md.
-model: gemini-flash-3.8
+model: flash
 tools:
   - run_command
   - manage_task
