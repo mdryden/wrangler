@@ -1,13 +1,39 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue"
-import type { QTableColumn } from "quasar"
+import { Notify, useQuasar, type QTableColumn } from "quasar"
+import TransactionEditDialog from "../components/TransactionEditDialog.vue"
 import { useCompanyStore } from "../stores/companies"
 import { useTransactionStore } from "../stores/transactions"
-import type { Transaction } from "../types/transaction"
-import { formatCurrency, getAllocationLabel, getSingleAllocationCompany } from "./ledger"
+import type { Allocation, Transaction } from "../types/transaction"
+import {
+  canDeleteTransaction,
+  DELETE_LOCKED_TOOLTIP,
+  formatCurrency,
+  getAllocationItemLabel,
+  getAllocationLabel,
+  getSingleAllocationCompany,
+  getTransactionLockBadge,
+  getTransactionLockStatus,
+  hasLockedAllocations,
+  isTransactionFullyLocked,
+  isTransactionPartiallyLocked,
+  UNLOCK_WARNING_MESSAGE,
+} from "./ledger"
 
 const companyStore = useCompanyStore()
 const transactionStore = useTransactionStore()
+
+const editDialogVisible = ref<boolean>(false)
+const selectedTransaction = ref<Transaction | null>(null)
+
+// Confirmation dialog state for unlocking an allocation or all allocations on a transaction
+const unlockConfirmVisible = ref<boolean>(false)
+const pendingUnlockTransaction = ref<Transaction | null>(null)
+const pendingUnlockAllocation = ref<Allocation | null>(null)
+
+// Confirmation dialog state for deleting a transaction
+const deleteConfirmVisible = ref<boolean>(false)
+const pendingDeleteTransaction = ref<Transaction | null>(null)
 
 const filters = ref({
   source: "",
@@ -15,6 +41,32 @@ const filters = ref({
   start_date: "",
   end_date: "",
 })
+
+function notifySuccess(message: string) {
+  try {
+    const q = useQuasar()
+    if (q?.notify) {
+      q.notify({ type: "positive", message, position: "top", timeout: 2500 })
+      return
+    }
+  } catch {
+    // fallback
+  }
+  Notify.create({ type: "positive", message, position: "top", timeout: 2500 })
+}
+
+function notifyError(message: string) {
+  try {
+    const q = useQuasar()
+    if (q?.notify) {
+      q.notify({ type: "negative", message, position: "top", timeout: 4000 })
+      return
+    }
+  } catch {
+    // fallback
+  }
+  Notify.create({ type: "negative", message, position: "top", timeout: 4000 })
+}
 
 const companyOptions = computed(() => [
   { label: "All Companies", value: null },
@@ -81,6 +133,13 @@ const columns = computed<QTableColumn[]>(() => [
     field: (row: Transaction) => (row.receipt_file_path ? "Yes" : "No"),
     sortable: false,
   },
+  {
+    name: "actions",
+    label: "Actions",
+    align: "right",
+    field: () => "",
+    sortable: false,
+  },
 ])
 
 async function onRequest(props: {
@@ -135,6 +194,137 @@ function refresh(): void {
   onRequest({ pagination: pagination.value })
 }
 
+function openEditDialog(row: Transaction): void {
+  selectedTransaction.value = row
+  editDialogVisible.value = true
+}
+
+function onTransactionSaved(): void {
+  refresh()
+}
+
+async function openReceipt(receiptPath: string | null): Promise<void> {
+  if (!receiptPath) return
+  try {
+    await transactionStore.openReceiptInNewTab(receiptPath)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Failed to open receipt"
+    notifyError(msg)
+  }
+}
+
+async function onToggleSingleAllocationLock(alloc: Allocation): Promise<void> {
+  if (alloc.is_locked) {
+    pendingUnlockAllocation.value = alloc
+    pendingUnlockTransaction.value = null
+    unlockConfirmVisible.value = true
+  } else {
+    try {
+      await transactionStore.lockAllocation(alloc.id, true)
+      notifySuccess("Allocation locked")
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to lock allocation"
+      notifyError(msg)
+    }
+  }
+}
+
+async function onToggleTransactionLock(row: Transaction): Promise<void> {
+  if (row.allocations.length > 1) {
+    // Handled by the per-allocation q-menu attached to the button
+    return
+  }
+  if (row.allocations.length === 1) {
+    await onToggleSingleAllocationLock(row.allocations[0])
+    return
+  }
+  try {
+    await transactionStore.lockTransaction(row.id, true)
+    notifySuccess("Transaction locked")
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Failed to lock transaction"
+    notifyError(msg)
+  }
+}
+
+async function onLockAllAllocations(row: Transaction): Promise<void> {
+  try {
+    await transactionStore.lockTransaction(row.id, true)
+    notifySuccess("All allocations locked")
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Failed to lock allocations"
+    notifyError(msg)
+  }
+}
+
+function onRequestUnlockAllAllocations(row: Transaction): void {
+  pendingUnlockTransaction.value = row
+  pendingUnlockAllocation.value = null
+  unlockConfirmVisible.value = true
+}
+
+async function confirmUnlockTransaction(): Promise<void> {
+  const alloc = pendingUnlockAllocation.value
+  const tx = pendingUnlockTransaction.value
+  unlockConfirmVisible.value = false
+  pendingUnlockAllocation.value = null
+  pendingUnlockTransaction.value = null
+
+  if (alloc) {
+    try {
+      await transactionStore.lockAllocation(alloc.id, false)
+      notifySuccess("Allocation unlocked")
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to unlock allocation"
+      notifyError(msg)
+    }
+    return
+  }
+
+  if (tx) {
+    try {
+      await transactionStore.lockTransaction(tx.id, false)
+      notifySuccess("All allocations unlocked")
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to unlock transaction"
+      notifyError(msg)
+    }
+  }
+}
+
+function cancelUnlockTransaction(): void {
+  unlockConfirmVisible.value = false
+  pendingUnlockAllocation.value = null
+  pendingUnlockTransaction.value = null
+}
+
+function onDeleteTransaction(row: Transaction): void {
+  if (!canDeleteTransaction(row)) return
+  pendingDeleteTransaction.value = row
+  deleteConfirmVisible.value = true
+}
+
+async function confirmDeleteTransaction(): Promise<void> {
+  const tx = pendingDeleteTransaction.value
+  deleteConfirmVisible.value = false
+  pendingDeleteTransaction.value = null
+  if (!tx) return
+
+  try {
+    await transactionStore.deleteTransaction(tx.id)
+    notifySuccess("Transaction deleted")
+    refresh()
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Failed to delete transaction"
+    notifyError(msg)
+  }
+}
+
+function cancelDeleteTransaction(): void {
+  deleteConfirmVisible.value = false
+  pendingDeleteTransaction.value = null
+}
+
 onMounted(() => {
   companyStore.fetchCompanies().catch(() => {})
   onRequest({ pagination: pagination.value })
@@ -145,12 +335,38 @@ defineExpose({
   pagination,
   columns,
   companyMap,
+  editDialogVisible,
+  selectedTransaction,
+  unlockConfirmVisible,
+  pendingUnlockTransaction,
+  pendingUnlockAllocation,
+  deleteConfirmVisible,
+  pendingDeleteTransaction,
   getAllocationDisplay,
+  getAllocationItemLabel,
   getSingleAllocationCompany,
+  getTransactionLockStatus,
+  getTransactionLockBadge,
+  isTransactionFullyLocked,
+  isTransactionPartiallyLocked,
+  hasLockedAllocations,
+  canDeleteTransaction,
   formatCurrency,
   applyFilters,
   resetFilters,
   refresh,
+  openEditDialog,
+  onTransactionSaved,
+  openReceipt,
+  onToggleTransactionLock,
+  onToggleSingleAllocationLock,
+  onLockAllAllocations,
+  onRequestUnlockAllAllocations,
+  confirmUnlockTransaction,
+  cancelUnlockTransaction,
+  onDeleteTransaction,
+  confirmDeleteTransaction,
+  cancelDeleteTransaction,
 })
 </script>
 
@@ -290,7 +506,21 @@ defineExpose({
       <!-- Date Column -->
       <template #body-cell-date="props">
         <q-td :props="props">
-          <div class="text-weight-medium">{{ props.row.date }}</div>
+          <div class="row items-center no-wrap q-gutter-x-xs">
+            <q-icon v-if="isTransactionFullyLocked(props.row)" name="lock" color="amber-9" size="16px" data-testid="icon-row-fully-locked">
+              <q-tooltip>Fully Locked</q-tooltip>
+            </q-icon>
+            <q-icon
+              v-else-if="isTransactionPartiallyLocked(props.row)"
+              name="lock_open"
+              color="orange-7"
+              size="16px"
+              data-testid="icon-row-partially-locked"
+            >
+              <q-tooltip>Partially Locked</q-tooltip>
+            </q-icon>
+            <span class="text-weight-medium">{{ props.row.date }}</span>
+          </div>
         </q-td>
       </template>
 
@@ -323,17 +553,179 @@ defineExpose({
       <!-- Allocations Column -->
       <template #body-cell-allocations="props">
         <q-td :props="props">
-          <div class="text-weight-medium" data-testid="allocation-cell">{{ getAllocationDisplay(props.row) }}</div>
+          <div class="row items-center no-wrap q-gutter-x-xs">
+            <span class="text-weight-medium" data-testid="allocation-cell">{{ getAllocationDisplay(props.row) }}</span>
+            <q-badge
+              v-if="isTransactionFullyLocked(props.row)"
+              color="amber-2"
+              text-color="amber-10"
+              class="q-px-xs"
+              data-testid="badge-fully-locked"
+            >
+              <q-icon name="lock" size="12px" class="q-mr-xs" />
+              Locked
+            </q-badge>
+            <q-badge
+              v-else-if="isTransactionPartiallyLocked(props.row)"
+              color="orange-2"
+              text-color="orange-10"
+              class="q-px-xs"
+              data-testid="badge-partially-locked"
+            >
+              <q-icon name="lock_open" size="12px" class="q-mr-xs" />
+              Partial Lock
+            </q-badge>
+          </div>
         </q-td>
       </template>
 
       <!-- Receipt Column -->
       <template #body-cell-receipt="props">
         <q-td :props="props" align="center">
-          <q-icon v-if="props.row.receipt_file_path" name="receipt" color="primary" size="20px">
-            <q-tooltip>Receipt attached</q-tooltip>
-          </q-icon>
+          <q-btn
+            v-if="props.row.receipt_file_path"
+            flat
+            round
+            dense
+            size="sm"
+            icon="receipt"
+            color="primary"
+            aria-label="View Receipt"
+            data-testid="btn-view-receipt"
+            @click="openReceipt(props.row.receipt_file_path)"
+          >
+            <q-tooltip>View receipt in new tab</q-tooltip>
+          </q-btn>
           <span v-else class="text-grey-5">—</span>
+        </q-td>
+      </template>
+
+      <!-- Actions Column -->
+      <template #body-cell-actions="props">
+        <q-td :props="props" align="right">
+          <div class="row items-center justify-end q-gutter-xs no-wrap">
+            <!-- Edit Button -->
+            <q-btn
+              flat
+              round
+              dense
+              size="sm"
+              color="grey-8"
+              icon="edit"
+              aria-label="Edit transaction"
+              data-testid="btn-edit-transaction"
+              @click="openEditDialog(props.row)"
+            >
+              <q-tooltip>Edit transaction</q-tooltip>
+            </q-btn>
+
+            <!-- Lock / Unlock Toggle Button -->
+            <q-btn
+              flat
+              round
+              dense
+              size="sm"
+              :color="isTransactionFullyLocked(props.row) ? 'amber-9' : isTransactionPartiallyLocked(props.row) ? 'orange-7' : 'grey-7'"
+              :icon="isTransactionFullyLocked(props.row) ? 'lock' : 'lock_open'"
+              :aria-label="
+                props.row.allocations.length > 1
+                  ? 'Manage split locks'
+                  : isTransactionFullyLocked(props.row)
+                    ? 'Unlock transaction'
+                    : 'Lock transaction'
+              "
+              data-testid="btn-toggle-lock"
+              @click="onToggleTransactionLock(props.row)"
+            >
+              <q-tooltip>
+                <template v-if="props.row.allocations.length > 1">Manage split locks</template>
+                <template v-else>{{ isTransactionFullyLocked(props.row) ? "Unlock transaction" : "Lock transaction" }}</template>
+              </q-tooltip>
+
+              <!-- Per-Allocation Lock Popup Menu for Multi-Split Transactions -->
+              <q-menu v-if="props.row.allocations.length > 1" anchor="bottom right" self="top right" data-testid="menu-allocation-locks">
+                <div style="min-width: 300px">
+                  <div class="q-px-md q-py-sm bg-grey-2">
+                    <div class="text-subtitle2 text-weight-bold text-grey-9">Manage Split Locks</div>
+                    <div class="text-caption text-grey-7 ellipsis">{{ props.row.description }}</div>
+                  </div>
+                  <q-separator />
+                  <q-list dense separator>
+                    <q-item v-for="(alloc, idx) in props.row.allocations" :key="alloc.id" class="q-py-xs">
+                      <q-item-section>
+                        <q-item-label class="text-weight-medium">
+                          {{ getAllocationItemLabel(alloc, companyMap) }}
+                        </q-item-label>
+                        <q-item-label caption>
+                          {{ formatCurrency(alloc.amount, props.row.currency_code) }}
+                        </q-item-label>
+                      </q-item-section>
+                      <q-item-section side>
+                        <q-btn
+                          flat
+                          dense
+                          no-wrap
+                          size="sm"
+                          :color="alloc.is_locked ? 'amber-9' : 'grey-7'"
+                          :icon="alloc.is_locked ? 'lock' : 'lock_open'"
+                          :label="alloc.is_locked ? 'Locked' : 'Unlocked'"
+                          :data-testid="`btn-toggle-alloc-lock-${idx}`"
+                          @click="onToggleSingleAllocationLock(alloc)"
+                        />
+                      </q-item-section>
+                    </q-item>
+                  </q-list>
+                  <q-separator />
+                  <div class="row items-center justify-end q-gutter-x-xs q-px-sm q-py-xs bg-grey-1">
+                    <q-btn
+                      flat
+                      dense
+                      no-wrap
+                      size="sm"
+                      color="amber-9"
+                      icon="lock"
+                      label="Lock All"
+                      :disable="isTransactionFullyLocked(props.row)"
+                      data-testid="btn-lock-all-splits"
+                      @click="onLockAllAllocations(props.row)"
+                    />
+                    <q-btn
+                      flat
+                      dense
+                      no-wrap
+                      size="sm"
+                      color="grey-8"
+                      icon="lock_open"
+                      label="Unlock All"
+                      :disable="!hasLockedAllocations(props.row)"
+                      v-close-popup
+                      data-testid="btn-unlock-all-splits"
+                      @click="onRequestUnlockAllAllocations(props.row)"
+                    />
+                  </div>
+                </div>
+              </q-menu>
+            </q-btn>
+
+            <!-- Delete Button -->
+            <div>
+              <q-btn
+                flat
+                round
+                dense
+                size="sm"
+                color="negative"
+                icon="delete"
+                aria-label="Delete transaction"
+                :disable="!canDeleteTransaction(props.row)"
+                data-testid="btn-delete-transaction"
+                @click="onDeleteTransaction(props.row)"
+              />
+              <q-tooltip>
+                {{ canDeleteTransaction(props.row) ? "Delete transaction" : DELETE_LOCKED_TOOLTIP }}
+              </q-tooltip>
+            </div>
+          </div>
         </q-td>
       </template>
 
@@ -345,5 +737,55 @@ defineExpose({
         </div>
       </template>
     </q-table>
+
+    <!-- Unified Transaction & Allocation Editor Dialog -->
+    <TransactionEditDialog v-model="editDialogVisible" :transaction="selectedTransaction" @saved="onTransactionSaved" />
+
+    <!-- Allocation / Transaction Unlock Warning Confirmation Dialog -->
+    <q-dialog v-model="unlockConfirmVisible" persistent>
+      <q-card style="max-width: 440px; width: 100%" data-testid="dialog-unlock-transaction-warning">
+        <q-card-section class="row items-center">
+          <q-avatar icon="warning" color="amber-9" text-color="white" class="q-mr-md" />
+          <div class="text-h6 text-weight-bold">
+            {{ pendingUnlockAllocation ? "Unlock Allocation" : "Unlock All Allocations" }}
+          </div>
+        </q-card-section>
+
+        <q-card-section class="q-pt-none" data-testid="unlock-transaction-warning-message">
+          {{ UNLOCK_WARNING_MESSAGE }}
+        </q-card-section>
+
+        <q-card-actions align="right">
+          <q-btn flat label="Cancel" color="grey-7" data-testid="btn-cancel-unlock-transaction" @click="cancelUnlockTransaction" />
+          <q-btn unelevated label="Unlock" color="amber-9" data-testid="btn-confirm-unlock-transaction" @click="confirmUnlockTransaction" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Transaction Delete Confirmation Dialog -->
+    <q-dialog v-model="deleteConfirmVisible" persistent>
+      <q-card style="max-width: 440px; width: 100%" data-testid="dialog-delete-transaction">
+        <q-card-section class="row items-center">
+          <q-avatar icon="delete" color="negative" text-color="white" class="q-mr-md" />
+          <div class="text-h6 text-weight-bold">Delete Transaction</div>
+        </q-card-section>
+
+        <q-card-section class="q-pt-none">
+          Are you sure you want to delete this transaction
+          <strong v-if="pendingDeleteTransaction">"{{ pendingDeleteTransaction.description }}"</strong>? This action cannot be undone.
+        </q-card-section>
+
+        <q-card-actions align="right">
+          <q-btn flat label="Cancel" color="grey-7" data-testid="btn-cancel-delete-transaction" @click="cancelDeleteTransaction" />
+          <q-btn
+            unelevated
+            label="Delete"
+            color="negative"
+            data-testid="btn-confirm-delete-transaction"
+            @click="confirmDeleteTransaction"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>

@@ -1,5 +1,19 @@
 import { describe, it, expect } from "vitest"
-import { formatCurrency, getAllocationBadgeInfo, getAllocationLabel, getSingleAllocationCompany } from "../src/views/ledger"
+import {
+  canDeleteTransaction,
+  DELETE_LOCKED_TOOLTIP,
+  formatCurrency,
+  getAllocationBadgeInfo,
+  getAllocationItemLabel,
+  getAllocationLabel,
+  getSingleAllocationCompany,
+  getTransactionLockBadge,
+  getTransactionLockStatus,
+  hasLockedAllocations,
+  isTransactionFullyLocked,
+  isTransactionPartiallyLocked,
+  UNLOCK_WARNING_MESSAGE,
+} from "../src/views/ledger"
 import type { Company } from "../src/types/company"
 import type { Transaction } from "../src/types/transaction"
 
@@ -32,7 +46,7 @@ describe("Ledger Allocations Display & Currency Formatting (ledger.ts)", () => {
             amount: "50.00",
             is_personal: false,
             company_id: "comp-1",
-            sync_status: "PENDING",
+            is_locked: false,
           },
         ],
       }
@@ -64,7 +78,7 @@ describe("Ledger Allocations Display & Currency Formatting (ledger.ts)", () => {
             amount: "30.00",
             is_personal: false,
             company_id: "comp-unknown",
-            sync_status: "PENDING",
+            is_locked: false,
           },
         ],
       }
@@ -90,7 +104,7 @@ describe("Ledger Allocations Display & Currency Formatting (ledger.ts)", () => {
             amount: "75.20",
             is_personal: true,
             company_id: null,
-            sync_status: "PENDING",
+            is_locked: false,
           },
         ],
       }
@@ -116,7 +130,7 @@ describe("Ledger Allocations Display & Currency Formatting (ledger.ts)", () => {
             amount: "60.00",
             is_personal: false,
             company_id: "comp-1",
-            sync_status: "PENDING",
+            is_locked: false,
           },
           {
             id: "alloc-4b",
@@ -124,7 +138,7 @@ describe("Ledger Allocations Display & Currency Formatting (ledger.ts)", () => {
             amount: "40.00",
             is_personal: false,
             company_id: "comp-2",
-            sync_status: "PENDING",
+            is_locked: false,
           },
         ],
       }
@@ -159,7 +173,7 @@ describe("Ledger Allocations Display & Currency Formatting (ledger.ts)", () => {
           amount: "120.00",
           is_personal: false,
           company_id: "comp-2",
-          sync_status: "PENDING" as const,
+          is_locked: false,
         },
       ]
 
@@ -183,6 +197,153 @@ describe("Ledger Allocations Display & Currency Formatting (ledger.ts)", () => {
     it("handles invalid number values gracefully", () => {
       expect(formatCurrency("invalid")).toBe("$0.00")
       expect(formatCurrency("")).toBe("$0.00")
+    })
+  })
+
+  describe("Visual Lock Indicators & Row Action Guards (Task 16.3)", () => {
+    const unlockedTx: Transaction = {
+      id: "tx-u1",
+      source: "manual",
+      external_id: null,
+      date: "2026-09-10",
+      description: "Unlocked Transaction",
+      total_amount: "45.00",
+      currency_code: "USD",
+      receipt_file_path: "tx-u1.pdf",
+      allocations: [
+        {
+          id: "alloc-u1",
+          transaction_id: "tx-u1",
+          amount: "45.00",
+          is_personal: false,
+          company_id: "comp-1",
+          is_locked: false,
+        },
+      ],
+    }
+
+    const partiallyLockedTx: Transaction = {
+      id: "tx-p1",
+      source: "manual",
+      external_id: null,
+      date: "2026-09-11",
+      description: "Partially Locked Transaction",
+      total_amount: "100.00",
+      currency_code: "USD",
+      receipt_file_path: null,
+      allocations: [
+        {
+          id: "alloc-p1",
+          transaction_id: "tx-p1",
+          amount: "60.00",
+          is_personal: false,
+          company_id: "comp-1",
+          is_locked: true,
+        },
+        {
+          id: "alloc-p2",
+          transaction_id: "tx-p1",
+          amount: "40.00",
+          is_personal: false,
+          company_id: "comp-2",
+          is_locked: false,
+        },
+      ],
+    }
+
+    const fullyLockedTx: Transaction = {
+      id: "tx-f1",
+      source: "manual",
+      external_id: null,
+      date: "2026-09-12",
+      description: "Fully Locked Transaction",
+      total_amount: "80.00",
+      currency_code: "USD",
+      receipt_file_path: "tx-f1.pdf",
+      allocations: [
+        {
+          id: "alloc-f1",
+          transaction_id: "tx-f1",
+          amount: "80.00",
+          is_personal: false,
+          company_id: "comp-1",
+          is_locked: true,
+        },
+      ],
+    }
+
+    it("accurately classifies unlocked, partially locked, and fully locked transactions", () => {
+      expect(getTransactionLockStatus(unlockedTx)).toBe("unlocked")
+      expect(isTransactionFullyLocked(unlockedTx)).toBe(false)
+      expect(isTransactionPartiallyLocked(unlockedTx)).toBe(false)
+      expect(hasLockedAllocations(unlockedTx)).toBe(false)
+
+      expect(getTransactionLockStatus(partiallyLockedTx)).toBe("partially_locked")
+      expect(isTransactionFullyLocked(partiallyLockedTx)).toBe(false)
+      expect(isTransactionPartiallyLocked(partiallyLockedTx)).toBe(true)
+      expect(hasLockedAllocations(partiallyLockedTx)).toBe(true)
+
+      expect(getTransactionLockStatus(fullyLockedTx)).toBe("fully_locked")
+      expect(isTransactionFullyLocked(fullyLockedTx)).toBe(true)
+      expect(isTransactionPartiallyLocked(fullyLockedTx)).toBe(false)
+      expect(hasLockedAllocations(fullyLockedTx)).toBe(true)
+
+      // Empty or null allocations default to unlocked
+      expect(getTransactionLockStatus([])).toBe("unlocked")
+      expect(getTransactionLockStatus(null)).toBe("unlocked")
+    })
+
+    it("returns appropriate lock badge metadata for each lock status", () => {
+      expect(getTransactionLockBadge(unlockedTx)).toEqual({
+        status: "unlocked",
+        label: "Unlocked",
+        icon: "lock_open",
+        color: "grey-6",
+      })
+      expect(getTransactionLockBadge(partiallyLockedTx)).toEqual({
+        status: "partially_locked",
+        label: "Partially Locked",
+        icon: "lock_open",
+        color: "orange-7",
+      })
+      expect(getTransactionLockBadge(fullyLockedTx)).toEqual({
+        status: "fully_locked",
+        label: "Locked",
+        icon: "lock",
+        color: "amber-9",
+      })
+    })
+
+    it("disables deletion when any allocation on the transaction is locked", () => {
+      expect(canDeleteTransaction(unlockedTx)).toBe(true)
+      expect(canDeleteTransaction(partiallyLockedTx)).toBe(false)
+      expect(canDeleteTransaction(fullyLockedTx)).toBe(false)
+      expect(DELETE_LOCKED_TOOLTIP).toContain("Unlock")
+    })
+
+    it("exposes the required external accounting system unlock warning message", () => {
+      expect(UNLOCK_WARNING_MESSAGE).toBe(
+        "If this transaction has already been imported into an external accounting system, you must also adjust or remove it there manually.",
+      )
+    })
+
+    it("resolves individual allocation labels for per-split lock menu", () => {
+      expect(getAllocationItemLabel(partiallyLockedTx.allocations[0], companyMap)).toBe("Alpha Consulting LLC")
+      expect(getAllocationItemLabel(partiallyLockedTx.allocations[1], sampleCompanies)).toBe("Beta Ventures")
+      expect(
+        getAllocationItemLabel(
+          {
+            id: "alloc-pers",
+            transaction_id: "tx-1",
+            amount: "10.00",
+            is_personal: true,
+            company_id: null,
+            is_locked: false,
+          },
+          companyMap,
+        ),
+      ).toBe("Personal")
+      expect(getAllocationItemLabel(null, companyMap)).toBe("Unassigned")
     })
   })
 })

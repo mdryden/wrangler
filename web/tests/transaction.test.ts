@@ -42,7 +42,7 @@ describe("useTransactionStore & Ledger Integration", () => {
           amount: "45.99",
           is_personal: false,
           company_id: "comp-1",
-          sync_status: "PENDING",
+          is_locked: false,
         },
       ],
     },
@@ -243,7 +243,7 @@ describe("useTransactionStore & Ledger Integration", () => {
           amount: "50.00",
           is_personal: false,
           company_id: "comp-1",
-          sync_status: "PENDING",
+          is_locked: false,
         },
       ],
     }
@@ -302,6 +302,220 @@ describe("useTransactionStore & Ledger Integration", () => {
       }),
     ).rejects.toThrow("Sum of split allocations does not equal transaction total amount")
     expect(store.error).toBe("Sum of split allocations does not equal transaction total amount")
+  })
+
+  it("updates a transaction via PUT /api/transactions/{id} and replaces item in state", async () => {
+    const store = useTransactionStore()
+    store.transactions = [...sampleTransactions]
+
+    const updatedTx: Transaction = {
+      ...sampleTransactions[0],
+      description: "Updated Office Supplies",
+      total_amount: "60.00",
+      allocations: [
+        {
+          id: "alloc-1",
+          transaction_id: "tx-1",
+          amount: "60.00",
+          is_personal: false,
+          company_id: "comp-1",
+          is_locked: false,
+        },
+      ],
+    }
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => updatedTx,
+    })
+
+    const res = await store.updateTransaction("tx-1", {
+      description: "Updated Office Supplies",
+      total_amount: "60.00",
+      allocations: [
+        {
+          id: "alloc-1",
+          amount: "60.00",
+          is_personal: false,
+          company_id: "comp-1",
+          is_locked: false,
+        },
+      ],
+    })
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/transactions/tx-1",
+      expect.objectContaining({
+        method: "PUT",
+      }),
+    )
+    expect(res).toEqual(updatedTx)
+    expect(store.transactions[0].description).toBe("Updated Office Supplies")
+  })
+
+  it("deletes a transaction via DELETE /api/transactions/{id} and removes item from state", async () => {
+    const store = useTransactionStore()
+    store.transactions = [...sampleTransactions]
+    store.total = 2
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 204,
+      headers: new Headers(),
+    })
+
+    await store.deleteTransaction("tx-1")
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/transactions/tx-1",
+      expect.objectContaining({
+        method: "DELETE",
+      }),
+    )
+    expect(store.transactions).toHaveLength(1)
+    expect(store.transactions[0].id).toBe("tx-2")
+    expect(store.total).toBe(1)
+  })
+
+  it("locks and unlocks all allocations on a transaction via PUT /api/transactions/{id}/lock", async () => {
+    const store = useTransactionStore()
+    store.transactions = [...sampleTransactions]
+
+    const lockedTx: Transaction = {
+      ...sampleTransactions[0],
+      allocations: [
+        {
+          ...sampleTransactions[0].allocations[0],
+          is_locked: true,
+        },
+      ],
+    }
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => lockedTx,
+    })
+
+    const res = await store.lockTransaction("tx-1", true)
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/transactions/tx-1/lock",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ is_locked: true }),
+      }),
+    )
+    expect(res.allocations[0].is_locked).toBe(true)
+    expect(store.transactions[0].allocations[0].is_locked).toBe(true)
+  })
+
+  it("locks or unlocks a single allocation via PUT /api/allocations/{id}/lock", async () => {
+    const store = useTransactionStore()
+    store.transactions = JSON.parse(JSON.stringify(sampleTransactions))
+
+    const updatedAlloc = {
+      ...sampleTransactions[0].allocations[0],
+      is_locked: true,
+    }
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => updatedAlloc,
+    })
+
+    const res = await store.lockAllocation("alloc-1", true)
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/allocations/alloc-1/lock",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ is_locked: true }),
+      }),
+    )
+    expect(res.is_locked).toBe(true)
+    expect(store.transactions[0].allocations[0].is_locked).toBe(true)
+  })
+
+  it("uploads and deletes a receipt via uploadReceipt and deleteReceipt", async () => {
+    const store = useTransactionStore()
+    store.transactions = JSON.parse(JSON.stringify(sampleTransactions))
+
+    const txWithReceipt: Transaction = {
+      ...sampleTransactions[1],
+      receipt_file_path: "tx-2_invoice.pdf",
+    }
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => txWithReceipt,
+    })
+
+    const file = new File(["pdf bytes"], "invoice.pdf", { type: "application/pdf" })
+    const uploaded = await store.uploadReceipt("tx-2", file)
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/transactions/tx-2/receipt",
+      expect.objectContaining({
+        method: "POST",
+      }),
+    )
+    expect(uploaded.receipt_file_path).toBe("tx-2_invoice.pdf")
+    expect(store.transactions[1].receipt_file_path).toBe("tx-2_invoice.pdf")
+
+    const txWithoutReceipt: Transaction = {
+      ...sampleTransactions[1],
+      receipt_file_path: null,
+    }
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => txWithoutReceipt,
+    })
+
+    const deleted = await store.deleteReceipt("tx-2")
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/transactions/tx-2/receipt",
+      expect.objectContaining({
+        method: "DELETE",
+      }),
+    )
+    expect(deleted.receipt_file_path).toBeNull()
+    expect(store.transactions[1].receipt_file_path).toBeNull()
+  })
+
+  it("fetches receipt blob and opens object URL in new tab via openReceiptInNewTab", async () => {
+    const store = useTransactionStore()
+    const mockBlob = new Blob(["pdf content"], { type: "application/pdf" })
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/pdf" }),
+      blob: async () => mockBlob,
+    })
+
+    const createObjectUrlSpy = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:http://localhost/receipt-123")
+    const openSpy = vi.fn()
+    Object.defineProperty(globalThis, "open", {
+      value: openSpy,
+      writable: true,
+    })
+
+    const blobUrl = await store.openReceiptInNewTab("receipts/tx-1.pdf")
+
+    expect(mockFetch).toHaveBeenCalledWith("/api/receipts/receipts/tx-1.pdf", expect.anything())
+    expect(createObjectUrlSpy).toHaveBeenCalledWith(mockBlob)
+    expect(openSpy).toHaveBeenCalledWith("blob:http://localhost/receipt-123", "_blank")
+    expect(blobUrl).toBe("blob:http://localhost/receipt-123")
   })
 })
 
@@ -512,8 +726,8 @@ describe("ManualEntryView Keyboard Shortcuts, Continuous Entry & Submission (Tas
     expect(json.description).toBe("Hardware Store")
     expect(json.total_amount).toBe("150.00")
     expect(json.allocations).toEqual([
-      { company_id: "comp-1", amount: "100.00", is_personal: false, sync_status: "PENDING" },
-      { company_id: "comp-2", amount: "50.00", is_personal: false, sync_status: "PENDING" },
+      { company_id: "comp-1", amount: "100.00", is_personal: false, is_locked: false },
+      { company_id: "comp-2", amount: "50.00", is_personal: false, is_locked: false },
     ])
   })
 
@@ -542,7 +756,7 @@ describe("ManualEntryView Keyboard Shortcuts, Continuous Entry & Submission (Tas
     expect(fd.get("receipt")).toBe(fakeFile)
 
     const parsedAllocations = JSON.parse(fd.get("allocations") as string)
-    expect(parsedAllocations).toEqual([{ company_id: "comp-1", amount: "85.20", is_personal: false, sync_status: "PENDING" }])
+    expect(parsedAllocations).toEqual([{ company_id: "comp-1", amount: "85.20", is_personal: false, is_locked: false }])
   })
 
   it("handles date keydown: sets today's date when Ctrl+; is pressed", async () => {
@@ -698,7 +912,7 @@ describe("ManualEntryView Keyboard Shortcuts, Continuous Entry & Submission (Tas
     const json = payload as import("../src/types/transaction").TransactionCreatePayload
     expect((json as unknown as { company_id?: unknown }).company_id).toBeUndefined()
     expect(json.total_amount).toBe("79.99")
-    expect(json.allocations).toEqual([{ company_id: "comp-only-in-split", amount: "79.99", is_personal: false, sync_status: "PENDING" }])
+    expect(json.allocations).toEqual([{ company_id: "comp-only-in-split", amount: "79.99", is_personal: false, is_locked: false }])
   })
 
   it("demonstrates allocation readonly logic: readonly when 1 split, writable when multiple splits", () => {
@@ -726,5 +940,258 @@ describe("ManualEntryView Keyboard Shortcuts, Continuous Entry & Submission (Tas
     expect(multiSplitForm.splits).toHaveLength(1)
     const isRevertedReadonly = multiSplitForm.splits.length === 1
     expect(isRevertedReadonly).toBe(true)
+  })
+})
+
+describe("Unified Transaction & Allocation Editor Dialog Logic (transactionEdit.ts)", () => {
+  const sampleUnlockedTx: Transaction = {
+    id: "tx-edit-1",
+    source: "manual",
+    external_id: null,
+    date: "2026-09-10",
+    description: "Office Desk",
+    total_amount: "200.00",
+    currency_code: "USD",
+    receipt_file_path: "tx-edit-1_desk.pdf",
+    allocations: [
+      {
+        id: "alloc-edit-1",
+        transaction_id: "tx-edit-1",
+        amount: "200.00",
+        is_personal: false,
+        company_id: "comp-1",
+        is_locked: false,
+      },
+    ],
+  }
+
+  const samplePartialLockTx: Transaction = {
+    id: "tx-edit-2",
+    source: "manual",
+    external_id: null,
+    date: "2026-09-12",
+    description: "Shared Server",
+    total_amount: "150.00",
+    currency_code: "USD",
+    receipt_file_path: null,
+    allocations: [
+      {
+        id: "alloc-locked",
+        transaction_id: "tx-edit-2",
+        amount: "100.00",
+        is_personal: false,
+        company_id: "comp-1",
+        is_locked: true,
+      },
+      {
+        id: "alloc-unlocked",
+        transaction_id: "tx-edit-2",
+        amount: "50.00",
+        is_personal: false,
+        company_id: "comp-2",
+        is_locked: false,
+      },
+    ],
+  }
+
+  const sampleFullyLockedTx: Transaction = {
+    id: "tx-edit-3",
+    source: "manual",
+    external_id: null,
+    date: "2026-09-15",
+    description: "Locked Expense",
+    total_amount: "90.00",
+    currency_code: "USD",
+    receipt_file_path: "tx-edit-3_receipt.png",
+    allocations: [
+      {
+        id: "alloc-full-1",
+        transaction_id: "tx-edit-3",
+        amount: "90.00",
+        is_personal: false,
+        company_id: "comp-1",
+        is_locked: true,
+      },
+    ],
+  }
+
+  it("initializes edit state from unlocked, partially locked, and unallocated transactions", async () => {
+    const { createTransactionEditState, getEditLockState } = await import("../src/components/transactionEdit")
+
+    const unlockedState = createTransactionEditState(sampleUnlockedTx)
+    expect(unlockedState.date).toBe("2026-09-10")
+    expect(unlockedState.description).toBe("Office Desk")
+    expect(unlockedState.total_amount).toBe("200.00")
+    expect(unlockedState.is_personal).toBe(false)
+    expect(unlockedState.existing_receipt_path).toBe("tx-edit-1_desk.pdf")
+    expect(unlockedState.splits).toHaveLength(1)
+
+    const unlockedLock = getEditLockState(unlockedState)
+    expect(unlockedLock.isFullyLocked).toBe(false)
+    expect(unlockedLock.isPartiallyLocked).toBe(false)
+    expect(unlockedLock.isDateDisabled).toBe(false)
+    expect(unlockedLock.isDescriptionDisabled).toBe(false)
+    expect(unlockedLock.isTotalAmountDisabled).toBe(false)
+
+    const partialState = createTransactionEditState(samplePartialLockTx)
+    const partialLock = getEditLockState(partialState)
+    expect(partialLock.isFullyLocked).toBe(false)
+    expect(partialLock.isPartiallyLocked).toBe(true)
+    expect(partialLock.isDateDisabled).toBe(true)
+    expect(partialLock.isDescriptionDisabled).toBe(true)
+    expect(partialLock.isTotalAmountDisabled).toBe(false)
+    expect(partialLock.isPersonalToggleDisabled).toBe(true)
+    expect(partialLock.isAddSplitDisabled).toBe(false)
+
+    const fullState = createTransactionEditState(sampleFullyLockedTx)
+    const fullLock = getEditLockState(fullState)
+    expect(fullLock.isFullyLocked).toBe(true)
+    expect(fullLock.isPartiallyLocked).toBe(false)
+    expect(fullLock.isDateDisabled).toBe(true)
+    expect(fullLock.isDescriptionDisabled).toBe(true)
+    expect(fullLock.isTotalAmountDisabled).toBe(true)
+    expect(fullLock.isPersonalToggleDisabled).toBe(true)
+    expect(fullLock.isAddSplitDisabled).toBe(true)
+  })
+
+  it("enforces personal expense toggle rules (disabled when splits.length > 1 or locked)", async () => {
+    const {
+      createTransactionEditState,
+      togglePersonalExpense,
+      addEditSplit,
+      canSaveTransactionEdit,
+      prepareTransactionEditPayload,
+      PERSONAL_SPLIT_TOOLTIP,
+    } = await import("../src/components/transactionEdit")
+
+    expect(PERSONAL_SPLIT_TOOLTIP).toBe("Remove extra splits before marking this transaction as personal.")
+
+    const state = createTransactionEditState(sampleUnlockedTx)
+    // Toggle personal = true on single unlocked split
+    const toggled = togglePersonalExpense(state, true)
+    expect(toggled).toBe(true)
+    expect(state.is_personal).toBe(true)
+    expect(state.splits[0].is_personal).toBe(true)
+    expect(state.splits[0].company_id).toBeNull()
+    expect(state.splits[0].amount).toBe("200.00")
+
+    // Cannot add split while personal is true
+    expect(addEditSplit(state)).toBe(false)
+    expect(canSaveTransactionEdit(state)).toBe(true)
+
+    const { payload } = prepareTransactionEditPayload(state)
+    const jsonPayload = payload as import("../src/types/transaction").TransactionUpdatePayload
+    expect(jsonPayload.allocations).toEqual([
+      {
+        id: "alloc-edit-1",
+        amount: "200.00",
+        is_personal: true,
+        company_id: null,
+        is_locked: false,
+      },
+    ])
+
+    // Toggle back to business
+    expect(togglePersonalExpense(state, false, "comp-1")).toBe(true)
+    expect(state.is_personal).toBe(false)
+    expect(state.splits[0].company_id).toBe("comp-1")
+
+    // Add a second split -> personal toggle must now fail
+    state.splits[0].amount = "120.00"
+    expect(addEditSplit(state, "comp-2")).toBe(true)
+    expect(state.splits).toHaveLength(2)
+    expect(state.splits[1].amount).toBe("80.00")
+    expect(togglePersonalExpense(state, true)).toBe(false)
+  })
+
+  it("supports partial lock editing: preserves locked split and allows splitting unlocked portion", async () => {
+    const { createTransactionEditState, addEditSplit, removeEditSplit, canSaveTransactionEdit, prepareTransactionEditPayload } =
+      await import("../src/components/transactionEdit")
+
+    const state = createTransactionEditState(samplePartialLockTx)
+
+    // Cannot remove the locked split at index 0
+    expect(removeEditSplit(state, 0)).toBe(false)
+    expect(state.splits).toHaveLength(2)
+
+    // Edit unlocked split at index 1 from $50.00 to $30.00 and add a third split for $20.00
+    state.splits[1].amount = "30.00"
+    expect(canSaveTransactionEdit(state)).toBe(false) // Unbalanced ($20.00 remaining)
+
+    expect(addEditSplit(state, "comp-3")).toBe(true)
+    expect(state.splits).toHaveLength(3)
+    expect(state.splits[2].amount).toBe("20.00")
+    expect(state.splits[2].company_id).toBe("comp-3")
+    expect(canSaveTransactionEdit(state)).toBe(true)
+
+    const { isMultipart, payload } = prepareTransactionEditPayload(state)
+    expect(isMultipart).toBe(false)
+    const jsonPayload = payload as import("../src/types/transaction").TransactionUpdatePayload
+    // Date and description are omitted when partially locked
+    expect(jsonPayload.date).toBeUndefined()
+    expect(jsonPayload.description).toBeUndefined()
+    expect(jsonPayload.total_amount).toBe("150.00")
+    expect(jsonPayload.allocations).toEqual([
+      {
+        id: "alloc-locked",
+        amount: "100.00",
+        is_personal: false,
+        company_id: "comp-1",
+        is_locked: true,
+      },
+      {
+        id: "alloc-unlocked",
+        amount: "30.00",
+        is_personal: false,
+        company_id: "comp-2",
+        is_locked: false,
+      },
+      {
+        amount: "20.00",
+        is_personal: false,
+        company_id: "comp-3",
+        is_locked: false,
+      },
+    ])
+  })
+
+  it("permits receipt replacement and removal even when transaction is Fully Locked", async () => {
+    const {
+      createTransactionEditState,
+      hasEffectiveReceipt,
+      hasReceiptChanges,
+      stageReceiptFile,
+      markReceiptForRemoval,
+      canSaveTransactionEdit,
+      prepareTransactionEditPayload,
+    } = await import("../src/components/transactionEdit")
+
+    const state = createTransactionEditState(sampleFullyLockedTx)
+    expect(hasEffectiveReceipt(state)).toBe(true)
+    expect(hasReceiptChanges(state)).toBe(false)
+    // Nothing changed on fully locked tx -> cannot save
+    expect(canSaveTransactionEdit(state)).toBe(false)
+
+    // Remove receipt on fully locked transaction
+    markReceiptForRemoval(state)
+    expect(hasEffectiveReceipt(state)).toBe(false)
+    expect(hasReceiptChanges(state)).toBe(true)
+    expect(canSaveTransactionEdit(state)).toBe(true)
+
+    const removeResult = prepareTransactionEditPayload(state)
+    expect(removeResult.isMultipart).toBe(false)
+    expect(removeResult.payload).toEqual({ remove_receipt: true })
+
+    // Stage a replacement receipt file on fully locked transaction
+    const replacementFile = new File(["new receipt"], "new.pdf", { type: "application/pdf" })
+    stageReceiptFile(state, replacementFile)
+    expect(hasEffectiveReceipt(state)).toBe(true)
+    expect(hasReceiptChanges(state)).toBe(true)
+    expect(canSaveTransactionEdit(state)).toBe(true)
+
+    const uploadResult = prepareTransactionEditPayload(state)
+    expect(uploadResult.isMultipart).toBe(true)
+    const fd = uploadResult.payload as FormData
+    expect(fd.get("file")).toBe(replacementFile)
   })
 })

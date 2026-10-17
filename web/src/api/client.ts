@@ -132,6 +132,7 @@ function isBinaryOrFormData(value: unknown): boolean {
 export interface ApiClient {
   <T = unknown>(endpoint: string, options?: RequestOptions): Promise<T>
   get<T = unknown>(endpoint: string, options?: RequestOptions): Promise<T>
+  getBlob(endpoint: string, options?: RequestOptions): Promise<Blob>
   post<T = unknown>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<T>
   put<T = unknown>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<T>
   patch<T = unknown>(endpoint: string, body?: unknown, options?: RequestOptions): Promise<T>
@@ -249,6 +250,9 @@ export function createApiClient(config: ApiClientConfig = {}): ApiClient {
   }
 
   request.get = <T = unknown>(endpoint: string, options: RequestOptions = {}) => request<T>(endpoint, { ...options, method: "GET" })
+
+  request.getBlob = (endpoint: string, options: RequestOptions = {}) =>
+    request<Blob>(endpoint, { ...options, method: "GET", responseType: "blob" })
 
   request.post = <T = unknown>(endpoint: string, body?: unknown, options: RequestOptions = {}) =>
     request<T>(endpoint, { ...options, method: "POST", body })

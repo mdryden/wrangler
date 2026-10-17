@@ -113,9 +113,9 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 - [x] 15.6 Update company export (`GET /api/companies/{id}/export-transactions` auto-locking, `include_locked`, date filters), batch lock/unlock endpoints, and company export summary statistics
 
 ## Phase 16: Frontend Ledger Lock Controls, Receipt Viewer & Unified Editor Dialog
-- [ ] 16.1 Update frontend types, API client blob support, Manual Entry payload, and Pinia stores for `is_locked`
-- [ ] 16.2 Build Unified Transaction & Allocation Editor Dialog (`TransactionEditDialog.vue`)
-- [ ] 16.3 Implement Ledger View visual lock indicators, receipt viewer button (open in new tab), and row actions (Edit, Lock/Unlock with warning, Delete)
+- [x] 16.1 Update frontend types, API client blob support, Manual Entry payload, and Pinia stores for `is_locked`
+- [x] 16.2 Build Unified Transaction & Allocation Editor Dialog (`TransactionEditDialog.vue`)
+- [x] 16.3 Implement Ledger View visual lock indicators, receipt viewer button (open in new tab), and row actions (Edit, Lock/Unlock with warning, Delete)
 
 ## Phase 17: Frontend Export Manager UI
 - [ ] 17.1 Add CSV export and lock/unlock methods to `useCompanyStore`

@@ -139,7 +139,7 @@ export function prepareTransactionPayload(form: ManualEntryFormState): {
     company_id: s.company_id,
     amount: s.amount,
     is_personal: false,
-    sync_status: "PENDING" as const,
+    is_locked: false,
   }))
 
   if (form.receipt_file) {

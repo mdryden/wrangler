@@ -1,11 +1,17 @@
-export type SyncStatus = "PENDING" | "SYNCED"
-
 export interface AllocationCreateItem {
   id?: string
   amount: string | number
   is_personal?: boolean
   company_id?: string | null
-  sync_status?: SyncStatus
+  is_locked?: boolean
+}
+
+export interface AllocationUpdateItem {
+  id?: string
+  amount: string | number
+  is_personal?: boolean
+  company_id?: string | null
+  is_locked?: boolean
 }
 
 export interface TransactionCreatePayload {
@@ -15,7 +21,20 @@ export interface TransactionCreatePayload {
   currency_code?: string
   source?: string
   external_id?: string | null
+  company_id?: string | null
   allocations: AllocationCreateItem[]
+}
+
+export interface TransactionUpdatePayload {
+  date?: string
+  description?: string
+  total_amount?: string | number
+  currency_code?: string
+  source?: string
+  external_id?: string | null
+  receipt_file_path?: string | null
+  allocations?: AllocationUpdateItem[]
+  remove_receipt?: boolean
 }
 
 export interface Allocation {
@@ -24,7 +43,7 @@ export interface Allocation {
   amount: string | number
   is_personal: boolean
   company_id: string | null
-  sync_status: SyncStatus
+  is_locked: boolean
 }
 
 export interface Transaction {

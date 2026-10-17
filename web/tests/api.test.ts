@@ -222,6 +222,24 @@ describe("apiClient", () => {
       expect(result).toBe(mockBlob)
     })
 
+    it("fetches binary blob with Authorization header via getBlob helper", async () => {
+      mockStorage.set("token", "receipt-jwt-token")
+      const mockBlob = new Blob(["test pdf bytes"], { type: "application/pdf" })
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "application/pdf" }),
+        blob: async () => mockBlob,
+      })
+
+      const client = createApiClient({ fetch: mockFetch as unknown as typeof fetch })
+      const result = await client.getBlob("/api/receipts/tx-1_receipt.pdf")
+      expect(result).toBe(mockBlob)
+      const [, init] = mockFetch.mock.calls[0]
+      const headers = init.headers as Headers
+      expect(headers.get("Authorization")).toBe("Bearer receipt-jwt-token")
+    })
+
     it("returns text when responseType is text", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
