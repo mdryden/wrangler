@@ -554,14 +554,22 @@ Each task is numbered by its phase and sequence number (e.g., Task 2.1).
   - `exportTransactionsCsv(companyId, options: { include_locked?: boolean; start_date?: string; end_date?: string })`: Calls `GET /api/companies/{id}/export-transactions` with query parameters, triggers browser file download of the returned CSV, and refreshes company summary counts (`fetchCompanies()`).
   - `lockCompanyAllocations(companyId, allocationIds?)` (`POST /api/companies/{id}/lock-allocations`) and `unlockCompanyAllocations(companyId, allocationIds?)` (`POST /api/companies/{id}/unlock-allocations`).
 
-### 17.2 Build Export Manager View (`ExportManagerView.vue`) with Company Export Summary and Controls
-- In `web/src/views/ExportManagerView.vue`, implement the Export Manager interface:
-  - **Export Options & Controls:**
+### 17.2 Build Export Manager View (`ExportManagerView.vue`) with Company Filter, Export Action Bar, and Allocations Preview Table
+- In `web/src/views/ExportManagerView.vue` (and `web/src/views/exportManager.ts`), implement the Export Manager interface:
+  - **Filter Bar:**
+    - **Company Select Dropdown (`company_id`):** Starts empty (`null`). Selecting a company queries and displays its matching business allocations.
+    - **Optional Date Range Filter (`start_date`, `end_date`):** Date inputs allowing the user to scope the preview and CSV export/re-export to a specific period.
     - **"Include locked transactions" Toggle (`include_locked`):** Boolean toggle defaulting to `false`.
-    - **Optional Date Range Filter (`start_date`, `end_date`):** Date inputs allowing the user to scope the export or re-export to a specific period.
-  - **Company Export Summary Table / Cards:** Grouped by `Company`, displaying for each company:
-    - Company Name
-    - Count of unlocked (`is_locked == false`) business allocations ready for export
-    - Total dollar amount of unlocked business allocations
-    - Count of locked (`is_locked == true`) business allocations
-    - **"Export CSV" Button per Company:** Invokes `exportTransactionsCsv` with `include_locked`, `start_date`, and `end_date`, triggers browser CSV download, and refreshes the summary counts in the UI to reflect newly locked allocations.
+  - **Export Action Bar (Under Filter Bar, Above Allocations Table):**
+    - Displays summary metrics for the selected company/filter and the **"Export CSV" Button** (disabled when no company is selected).
+    - Clicking **"Export CSV"** invokes `exportTransactionsCsv` with `company_id`, `include_locked`, `start_date`, and `end_date`, triggers browser CSV download, and refreshes the allocations table and company counts to reflect newly locked allocations.
+  - **Company Allocations Preview Table:**
+    - Displays the business allocations (`is_personal == false`) for the selected company matching the filter criteria.
+    - Default page size of `50` items (`rowsPerPage: 50`).
+    - Columns:
+      - `Date` (parent `transaction.date`)
+      - `Description` (parent `transaction.description`)
+      - `Amount` (`allocation.amount`)
+      - `Lock Status` (`Locked` / `Unlocked` badge based on `allocation.is_locked`)
+      - `Receipt` (interactive receipt icon button calling `openReceiptInNewTab(receipt_file_path)` when present)
+      - `Ledger Link` (link/button opening `/ledger?transaction_id={transaction_id}` in a new browser tab, with `LedgerView.vue` supporting `transaction_id` query filtering)

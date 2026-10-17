@@ -119,4 +119,4 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 
 ## Phase 17: Frontend Export Manager UI
 - [x] 17.1 Add CSV export and lock/unlock methods to `useCompanyStore`
-- [x] 17.2 Build Export Manager View (`ExportManagerView.vue`) with Company Export Summary and Controls (`include_locked` toggle, date range filters, Export CSV button)
+- [ ] 17.2 Build Export Manager View (`ExportManagerView.vue`) with Company filter dropdown, Export CSV action bar, and Allocations preview table (50 items/page, receipt viewer, and new-tab Ledger link)

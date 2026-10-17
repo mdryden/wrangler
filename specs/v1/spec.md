@@ -270,18 +270,23 @@ A unified modal dialog invoked from the Ledger View allowing the user to edit tr
       - Saving metadata/allocation changes is disabled whenever `remainderCents !== 0`.
 
 ### 6.5 Export Manager UI (Supersedes Sync Manager UI)
-Dedicated view (`/export-manager`) for generating Wave-compatible CSV exports per company:
-- **Company Export Summary:** Table or card list grouped by `Company`, showing:
-  - Company Name
-  - Count of unlocked (`is_locked == false`) business allocations ready for export
-  - Total dollar amount of unlocked business allocations
-  - Count of locked (`is_locked == true`) business allocations
-- **Export Options & Controls:**
-  - **"Include locked transactions" Toggle (`include_locked`):** Boolean toggle defaulting to `false`. When enabled (`true`), the CSV export includes already-locked allocations alongside unlocked allocations (useful if the user needs to re-export transactions for a given company or time period).
-  - **Optional Date Range Filter (`start_date`, `end_date`):** Allows scoping the export (or re-export) to a specific period.
-  - **"Export CSV" Button per Company:**
-    - Calls `GET /api/companies/{id}/export-transactions` (with `include_locked`, `start_date`, `end_date` query params) and triggers the browser CSV download.
-    - Automatically locks (`is_locked = true`) all exported allocations on the backend and refreshes the summary counts in the UI.
+Dedicated view (`/export-manager`) for reviewing and generating Wave-compatible CSV exports per company:
+- **Filter Bar:**
+  - **Company Select Dropdown (`company_id`):** Starts empty (`null`). Selecting a company loads the matching business allocations for preview and export.
+  - **Optional Date Range Filter (`start_date`, `end_date`):** Allows scoping the preview and CSV export (or re-export) to a specific period.
+  - **"Include locked transactions" Toggle (`include_locked`):** Boolean toggle defaulting to `false`. When `false`, displays and exports only unlocked (`is_locked == false`) business allocations for the selected company. When `true`, includes both unlocked and already-locked (`is_locked == true`) business allocations.
+- **Export Action Bar (Below Filter Bar, Above Allocations Table):**
+  - **"Export CSV" Button:** Disabled when no company is selected. When clicked, calls `GET /api/companies/{id}/export-transactions` (with `include_locked`, `start_date`, `end_date` query params), triggers the browser CSV download, automatically locks (`is_locked = true`) all exported allocations on the backend, and refreshes the allocations table and company statistics.
+- **Company Allocations Preview Table:**
+  - Displays the business allocations (`is_personal == false`) for the selected company matching the active filter criteria so the user can review what is being exported.
+  - **Pagination:** Default page size of `50` items (`rowsPerPage: 50`).
+  - **Columns:**
+    - **Date:** Parent transaction date (`YYYY-MM-DD`).
+    - **Description:** Parent transaction description.
+    - **Amount:** Allocation split amount formatted as currency.
+    - **Lock Status:** Visual badge indicating whether the allocation is `Locked` (`is_locked == true`) or `Unlocked` (`is_locked == false`).
+    - **Receipt:** Interactive receipt icon button (when `receipt_file_path != null`) that opens the receipt in a new browser tab.
+    - **Ledger Link:** Link/button that opens the parent transaction in the Ledger view (`/ledger?transaction_id={transaction_id}`) in a **new browser tab** (`target="_blank"`).
 
 ~~**Legacy Sync Manager UI (Superseded):**~~
 - ~~Dedicated view for Wave synchronization.~~
