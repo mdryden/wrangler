@@ -9,12 +9,12 @@ export type TransactionLockStatus = "unlocked" | "partially_locked" | "fully_loc
 /**
  * Formats a numeric amount or string into localized currency format.
  */
-export function formatCurrency(amount: string | number, currencyCode = "USD"): string {
+export function formatCurrency(amount: string | number, currencyCode = "CAD"): string {
   const num = typeof amount === "string" ? parseFloat(amount) : amount
   if (Number.isNaN(num)) return "$0.00"
   return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: currencyCode || "USD",
+    currency: currencyCode || "CAD",
   }).format(num)
 }
 

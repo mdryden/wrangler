@@ -71,7 +71,7 @@ def test_transaction_creation_defaults(db_session):
     assert tx.date == date(2026, 9, 6)
     assert tx.description == "Office lunch"
     assert tx.total_amount == Decimal("45.50")
-    assert tx.currency_code == "USD"
+    assert tx.currency_code == "CAD"
     assert tx.receipt_file_path is None
     assert tx.allocations == []
 
@@ -407,7 +407,7 @@ def test_staged_transaction_creation_defaults(db_session):
     assert staged_tx.date == date(2026, 10, 1)
     assert staged_tx.description == "Cloud hosting"
     assert staged_tx.total_amount == Decimal("29.99")
-    assert staged_tx.currency_code == "USD"
+    assert staged_tx.currency_code == "CAD"
     assert staged_tx.receipt_file_path is None
     assert staged_tx.status == "STAGED"
     assert staged_tx.is_marked_imported is False

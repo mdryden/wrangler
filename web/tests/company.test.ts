@@ -219,7 +219,7 @@ describe("useCompanyStore", () => {
     })
 
     const createObjectUrlSpy = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:http://localhost/csv-123")
-    const revokeObjectUrlSpy = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {})
+    const revokeObjectUrlSpy = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => { })
 
     const clickSpy = vi.fn()
     const fakeAnchor = {
@@ -439,7 +439,7 @@ describe("ExportManagerView & Export Controls Logic (exportManager.ts)", () => {
         date: "2026-09-10",
         description: "Multi-Company Invoice",
         total_amount: "150.00",
-        currency_code: "USD",
+        currency_code: "CAD",
         receipt_file_path: "tx-100.pdf",
         allocations: [
           {
@@ -467,7 +467,7 @@ describe("ExportManagerView & Export Controls Logic (exportManager.ts)", () => {
         date: "2026-09-12",
         description: "Already Exported Supply",
         total_amount: "40.00",
-        currency_code: "USD",
+        currency_code: "CAD",
         receipt_file_path: null,
         allocations: [
           {
@@ -487,7 +487,7 @@ describe("ExportManagerView & Export Controls Logic (exportManager.ts)", () => {
         date: "2026-09-13",
         description: "Personal Grocery",
         total_amount: "25.00",
-        currency_code: "USD",
+        currency_code: "CAD",
         receipt_file_path: null,
         allocations: [
           {
@@ -514,7 +514,7 @@ describe("ExportManagerView & Export Controls Logic (exportManager.ts)", () => {
         date: "2026-09-10",
         description: "Multi-Company Invoice",
         amount: "100.00",
-        currency_code: "USD",
+        currency_code: "CAD",
         is_locked: false,
         company_id: "comp-1",
         receipt_file_path: "tx-100.pdf",

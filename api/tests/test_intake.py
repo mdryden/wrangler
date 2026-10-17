@@ -22,7 +22,7 @@ class DummyCustomParser(BaseIntakeParser):
                     date=row["order_date"],
                     description=row["item_name"],
                     total_amount=Decimal(str(row["amount"])),
-                    currency_code=row.get("currency", "USD"),
+                    currency_code=row.get("currency", "CAD"),
                     receipt_file_path=row.get("invoice_pdf"),
                 )
             )
@@ -51,7 +51,7 @@ def test_manual_intake_parser_single_dict():
     assert item.date == date(2026, 9, 6)
     assert item.description == "Office supplies"
     assert item.total_amount == Decimal("42.50")
-    assert item.currency_code == "USD"
+    assert item.currency_code == "CAD"
     assert item.receipt_file_path is None
 
 
@@ -75,7 +75,7 @@ def test_manual_intake_parser_list_of_dicts():
     results = parser.parse(data)
     assert len(results) == 2
     assert results[0].external_id == "MAN-001"
-    assert results[0].currency_code == "USD"
+    assert results[0].currency_code == "CAD"
     assert results[1].external_id is None
     assert results[1].currency_code == "CAD"
     assert results[1].receipt_file_path == "receipts/item2.pdf"
@@ -111,7 +111,7 @@ def test_custom_intake_parser():
             "order_date": date(2026, 8, 15),
             "item_name": "USB-C Cable",
             "amount": "14.99",
-            "currency": "USD",
+            "currency": "CAD",
             "invoice_pdf": "receipts/amazon_111.pdf",
         }
     ]
@@ -123,5 +123,5 @@ def test_custom_intake_parser():
     assert item.date == date(2026, 8, 15)
     assert item.description == "USB-C Cable"
     assert item.total_amount == Decimal("14.99")
-    assert item.currency_code == "USD"
+    assert item.currency_code == "CAD"
     assert item.receipt_file_path == "receipts/amazon_111.pdf"

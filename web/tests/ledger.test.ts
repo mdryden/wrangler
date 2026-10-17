@@ -37,7 +37,7 @@ describe("Ledger Allocations Display & Currency Formatting (ledger.ts)", () => {
         date: "2026-09-01",
         description: "Software Subscription",
         total_amount: "50.00",
-        currency_code: "USD",
+        currency_code: "CAD",
         receipt_file_path: null,
         allocations: [
           {
@@ -69,7 +69,7 @@ describe("Ledger Allocations Display & Currency Formatting (ledger.ts)", () => {
         date: "2026-09-02",
         description: "Office Supplies",
         total_amount: "30.00",
-        currency_code: "USD",
+        currency_code: "CAD",
         receipt_file_path: null,
         allocations: [
           {
@@ -95,7 +95,7 @@ describe("Ledger Allocations Display & Currency Formatting (ledger.ts)", () => {
         date: "2026-09-03",
         description: "Groceries",
         total_amount: "75.20",
-        currency_code: "USD",
+        currency_code: "CAD",
         receipt_file_path: null,
         allocations: [
           {
@@ -121,7 +121,7 @@ describe("Ledger Allocations Display & Currency Formatting (ledger.ts)", () => {
         date: "2026-09-04",
         description: "Shared Cloud Hosting",
         total_amount: "100.00",
-        currency_code: "USD",
+        currency_code: "CAD",
         receipt_file_path: null,
         allocations: [
           {
@@ -155,7 +155,7 @@ describe("Ledger Allocations Display & Currency Formatting (ledger.ts)", () => {
         date: "2026-09-05",
         description: "Unallocated",
         total_amount: "10.00",
-        currency_code: "USD",
+        currency_code: "CAD",
         receipt_file_path: null,
         allocations: [],
       }
@@ -208,7 +208,7 @@ describe("Ledger Allocations Display & Currency Formatting (ledger.ts)", () => {
       date: "2026-09-10",
       description: "Unlocked Transaction",
       total_amount: "45.00",
-      currency_code: "USD",
+      currency_code: "CAD",
       receipt_file_path: "tx-u1.pdf",
       allocations: [
         {
@@ -229,7 +229,7 @@ describe("Ledger Allocations Display & Currency Formatting (ledger.ts)", () => {
       date: "2026-09-11",
       description: "Partially Locked Transaction",
       total_amount: "100.00",
-      currency_code: "USD",
+      currency_code: "CAD",
       receipt_file_path: null,
       allocations: [
         {
@@ -258,7 +258,7 @@ describe("Ledger Allocations Display & Currency Formatting (ledger.ts)", () => {
       date: "2026-09-12",
       description: "Fully Locked Transaction",
       total_amount: "80.00",
-      currency_code: "USD",
+      currency_code: "CAD",
       receipt_file_path: "tx-f1.pdf",
       allocations: [
         {

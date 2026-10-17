@@ -30,7 +30,7 @@ class ImportedTransactionData(BaseModel):
     date: date
     description: str
     total_amount: Decimal
-    currency_code: str = "USD"
+    currency_code: str = "CAD"
     receipt: ImporterReceiptData | None = None
 
     model_config = ConfigDict(from_attributes=True)

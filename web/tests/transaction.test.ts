@@ -33,7 +33,7 @@ describe("useTransactionStore & Ledger Integration", () => {
       date: "2026-09-01",
       description: "Office Supplies",
       total_amount: "45.99",
-      currency_code: "USD",
+      currency_code: "CAD",
       receipt_file_path: "receipts/tx-1.pdf",
       allocations: [
         {
@@ -53,7 +53,7 @@ describe("useTransactionStore & Ledger Integration", () => {
       date: "2026-09-03",
       description: "Cloud Hosting",
       total_amount: "120.00",
-      currency_code: "USD",
+      currency_code: "CAD",
       receipt_file_path: null,
       allocations: [],
     },
@@ -234,7 +234,7 @@ describe("useTransactionStore & Ledger Integration", () => {
       date: "2026-09-07",
       description: "Team Lunch",
       total_amount: "50.00",
-      currency_code: "USD",
+      currency_code: "CAD",
       receipt_file_path: null,
       allocations: [
         {
@@ -788,7 +788,7 @@ describe("ManualEntryView Keyboard Shortcuts, Continuous Entry & Submission (Tas
       preventDefault: () => {
         defaultPrevented = true
       },
-      stopPropagation: () => {},
+      stopPropagation: () => { },
     })
 
     expect(defaultPrevented).toBe(true)
@@ -805,7 +805,7 @@ describe("ManualEntryView Keyboard Shortcuts, Continuous Entry & Submission (Tas
       preventDefault: () => {
         defaultPrevented = true
       },
-      stopPropagation: () => {},
+      stopPropagation: () => { },
     })
 
     expect(defaultPrevented).toBe(false)
@@ -951,7 +951,7 @@ describe("Unified Transaction & Allocation Editor Dialog Logic (transactionEdit.
     date: "2026-09-10",
     description: "Office Desk",
     total_amount: "200.00",
-    currency_code: "USD",
+    currency_code: "CAD",
     receipt_file_path: "tx-edit-1_desk.pdf",
     allocations: [
       {
@@ -972,7 +972,7 @@ describe("Unified Transaction & Allocation Editor Dialog Logic (transactionEdit.
     date: "2026-09-12",
     description: "Shared Server",
     total_amount: "150.00",
-    currency_code: "USD",
+    currency_code: "CAD",
     receipt_file_path: null,
     allocations: [
       {
@@ -1001,7 +1001,7 @@ describe("Unified Transaction & Allocation Editor Dialog Logic (transactionEdit.
     date: "2026-09-15",
     description: "Locked Expense",
     total_amount: "90.00",
-    currency_code: "USD",
+    currency_code: "CAD",
     receipt_file_path: "tx-edit-3_receipt.png",
     allocations: [
       {

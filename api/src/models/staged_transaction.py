@@ -20,7 +20,7 @@ class StagedTransaction(Base):
     date: Mapped[datetime.date] = mapped_column(Date, nullable=False)
     description: Mapped[str] = mapped_column(String, nullable=False)
     total_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
-    currency_code: Mapped[str] = mapped_column(String, nullable=False, default="USD")
+    currency_code: Mapped[str] = mapped_column(String, nullable=False, default="CAD")
     receipt_file_path: Mapped[str | None] = mapped_column(String, nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=False, default="STAGED", index=True)
     is_marked_imported: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

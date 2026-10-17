@@ -53,7 +53,7 @@ describe("useStagingStore", () => {
     date: "2026-10-01",
     description: "Cloud Server",
     total_amount: "50.00",
-    currency_code: "USD",
+    currency_code: "CAD",
     receipt_file_path: null,
     status: "STAGED",
     is_marked_imported: false,
