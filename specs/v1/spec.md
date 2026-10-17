@@ -62,7 +62,7 @@ Represents the top-level transaction imported from an intake source or manually 
 - `date`: Date
 - `description`: String
 - `total_amount`: Decimal / Float (Can be negative to support refunds/income).
-- `currency_code`: String (Defaults to base currency, e.g., "USD").
+- `currency_code`: String (Defaults to base currency, e.g., "CAD").
 - `receipt_file_path`: String (Nullable. Relative path to stored receipt file on disk).
 - ~~`is_approved`: Boolean (Indicates ready for allocation/export).~~ *(Removed).*
 

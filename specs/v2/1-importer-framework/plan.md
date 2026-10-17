@@ -17,7 +17,7 @@ Each task is numbered by its phase and sequence number (e.g., `1.1`, `1.2`, `2.1
   - `date`: `Mapped[datetime.date]` (`Date`, `nullable=False`)
   - `description`: `Mapped[str]` (`String`, `nullable=False`)
   - `total_amount`: `Mapped[Decimal]` (`Numeric(12, 2)`, `nullable=False`)
-  - `currency_code`: `Mapped[str]` (`String`, `nullable=False`, `default="USD"`)
+  - `currency_code`: `Mapped[str]` (`String`, `nullable=False`, `default="CAD"`)
   - `receipt_file_path`: `Mapped[str | None]` (`String`, `nullable=True`)
   - `status`: `Mapped[str]` (`String`, `nullable=False`, `default="STAGED"`, `index=True`)
   - `is_marked_imported`: `Mapped[bool]` (`Boolean`, `nullable=False`, `default=False`)
@@ -55,7 +55,7 @@ Each task is numbered by its phase and sequence number (e.g., `1.1`, `1.2`, `2.1
   - `ImporterValidationError(Exception)` for signaling input/row validation failures (`400 Bad Request`).
   - `ImporterInputType(StrEnum)` with values `FILE = "file"` and `NONE = "none"`.
   - `ImporterReceiptData(BaseModel)` with `filename: str`, `content: bytes`, `content_type: str = "application/pdf"`.
-  - `ImportedTransactionData(BaseModel)` with `external_id: str | None = None`, `date: date`, `description: str`, `total_amount: Decimal`, `currency_code: str = "USD"`, `receipt: ImporterReceiptData | None = None`, `ConfigDict(from_attributes=True)`, and field validators ensuring `description` is stripped and non-empty and `total_amount` is strictly non-zero.
+  - `ImportedTransactionData(BaseModel)` with `external_id: str | None = None`, `date: date`, `description: str`, `total_amount: Decimal`, `currency_code: str = "CAD"`, `receipt: ImporterReceiptData | None = None`, `ConfigDict(from_attributes=True)`, and field validators ensuring `description` is stripped and non-empty and `total_amount` is strictly non-zero.
   - `BaseImporter(ABC)` defining:
     - Abstract properties: `importer_id: str`, `display_name: str`, `description: str`, `input_type: ImporterInputType`.
     - Concrete properties with defaults: `source_name: str` (returns `self.importer_id`), `accepted_file_types: list[str]` (returns `[]`), `supports_mark_imported: bool` (returns `False`).

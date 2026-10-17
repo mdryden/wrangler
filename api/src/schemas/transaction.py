@@ -12,7 +12,7 @@ class TransactionCreate(BaseModel):
     date: datetime.date
     description: str
     total_amount: Decimal
-    currency_code: str = "USD"
+    currency_code: str = "CAD"
     source: str = "manual"
     external_id: str | None = None
     receipt_file_path: str | None = None

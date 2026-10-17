@@ -25,7 +25,7 @@ Represents an imported transaction persisted in the staging area or historical i
 - `date`: `Date` (`nullable=False`)
 - `description`: `String` (`nullable=False`)
 - `total_amount`: `Numeric(12, 2)` (`nullable=False`, strictly non-zero; negative values denote refunds/credits)
-- `currency_code`: `String` (`nullable=False`, `default="USD"`)
+- `currency_code`: `String` (`nullable=False`, `default="CAD"`)
 - `receipt_file_path`: `String | None` (`nullable=True`, relative filename within `RECEIPT_STORAGE_DIR`)
 - `status`: `String` (`nullable=False`, `default="STAGED"`, indexed; allowed values: `"STAGED"`, `"ACCEPTED"`, `"DISMISSED"`)
 - `is_marked_imported`: `Boolean` (`nullable=False`, `default=False`; tracks whether `mark_as_imported` has been executed for this record)
@@ -108,7 +108,7 @@ class ImportedTransactionData(BaseModel):
     date: date
     description: str
     total_amount: Decimal
-    currency_code: str = "USD"
+    currency_code: str = "CAD"
     receipt: ImporterReceiptData | None = None
 
     model_config = ConfigDict(from_attributes=True)
