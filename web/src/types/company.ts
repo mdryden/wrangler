@@ -14,3 +14,9 @@ export interface CompanyCreatePayload {
 export interface CompanyUpdatePayload {
   name?: string
 }
+
+export interface CompanyExportOptions {
+  include_locked?: boolean
+  start_date?: string
+  end_date?: string
+}

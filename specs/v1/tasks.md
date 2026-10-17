@@ -118,5 +118,5 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 - [x] 16.3 Implement Ledger View visual lock indicators, receipt viewer button (open in new tab), and row actions (Edit, Lock/Unlock with warning, Delete)
 
 ## Phase 17: Frontend Export Manager UI
-- [ ] 17.1 Add CSV export and lock/unlock methods to `useCompanyStore`
-- [ ] 17.2 Build Export Manager View (`ExportManagerView.vue`) with Company Export Summary and Controls (`include_locked` toggle, date range filters, Export CSV button)
+- [x] 17.1 Add CSV export and lock/unlock methods to `useCompanyStore`
+- [x] 17.2 Build Export Manager View (`ExportManagerView.vue`) with Company Export Summary and Controls (`include_locked` toggle, date range filters, Export CSV button)

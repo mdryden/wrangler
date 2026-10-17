@@ -172,4 +172,323 @@ describe("useCompanyStore", () => {
     expect(store.companies).toHaveLength(1)
     expect(store.companies[0].id).toBe("2")
   })
+
+  it("exportTransactionsCsv fetches CSV with query parameters, triggers browser download, and refreshes companies", async () => {
+    const csvContent = "Date,Description,Amount\r\n2026-09-01,Office Supplies,45.99\r\n"
+    const csvBlob = new Blob([csvContent], { type: "text/csv" })
+
+    const initialCompanies: Company[] = [
+      {
+        id: "comp-1",
+        name: "Alpha Corp",
+        transaction_count: 1,
+        unlocked_allocation_count: 1,
+        unlocked_amount_total: "45.99",
+        locked_allocation_count: 0,
+      },
+    ]
+
+    const refreshedCompanies: Company[] = [
+      {
+        id: "comp-1",
+        name: "Alpha Corp",
+        transaction_count: 1,
+        unlocked_allocation_count: 0,
+        unlocked_amount_total: "0.00",
+        locked_allocation_count: 1,
+      },
+    ]
+
+    // First call: GET /api/companies/comp-1/export-transactions
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({
+        "content-type": "text/csv",
+        "content-disposition": 'attachment; filename="alpha_corp_transactions.csv"',
+      }),
+      blob: async () => csvBlob,
+    })
+
+    // Second call: GET /api/companies (refresh summary counts)
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => refreshedCompanies,
+    })
+
+    const createObjectUrlSpy = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:http://localhost/csv-123")
+    const revokeObjectUrlSpy = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {})
+
+    const clickSpy = vi.fn()
+    const fakeAnchor = {
+      href: "",
+      download: "",
+      click: clickSpy,
+      parentNode: { removeChild: vi.fn() },
+    }
+    const appendChildSpy = vi.fn()
+    Object.defineProperty(globalThis, "document", {
+      value: {
+        createElement: vi.fn(() => fakeAnchor),
+        body: {
+          appendChild: appendChildSpy,
+        },
+      },
+      writable: true,
+    })
+
+    const store = useCompanyStore()
+    store.companies = [...initialCompanies]
+
+    const resultBlob = await store.exportTransactionsCsv("comp-1", {
+      include_locked: true,
+      start_date: "2026-09-01",
+      end_date: "2026-09-30",
+    })
+
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+    const exportUrl = mockFetch.mock.calls[0][0] as string
+    expect(exportUrl).toContain("/api/companies/comp-1/export-transactions")
+    expect(exportUrl).toContain("include_locked=true")
+    expect(exportUrl).toContain("start_date=2026-09-01")
+    expect(exportUrl).toContain("end_date=2026-09-30")
+
+    expect(resultBlob).toBe(csvBlob)
+    expect(createObjectUrlSpy).toHaveBeenCalledWith(csvBlob)
+    expect(fakeAnchor.href).toBe("blob:http://localhost/csv-123")
+    expect(fakeAnchor.download).toBe("alpha_corp_transactions.csv")
+    expect(clickSpy).toHaveBeenCalledTimes(1)
+    expect(revokeObjectUrlSpy).toHaveBeenCalledWith("blob:http://localhost/csv-123")
+
+    // Summary counts refreshed via fetchCompanies()
+    expect(mockFetch.mock.calls[1][0]).toBe("/api/companies")
+    expect(store.companies[0].unlocked_allocation_count).toBe(0)
+    expect(store.companies[0].locked_allocation_count).toBe(1)
+  })
+
+  it("exportTransactionsCsv omits empty date parameters and records error on failure", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      statusText: "Not Found",
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({ detail: "Company with ID 'missing' not found" }),
+    })
+
+    const store = useCompanyStore()
+    await expect(
+      store.exportTransactionsCsv("missing", {
+        include_locked: false,
+        start_date: "",
+        end_date: "",
+      }),
+    ).rejects.toThrow("Company with ID 'missing' not found")
+
+    const calledUrl = mockFetch.mock.calls[0][0] as string
+    expect(calledUrl).toBe("/api/companies/missing/export-transactions?include_locked=false")
+    expect(store.error).toBe("Company with ID 'missing' not found")
+  })
+
+  it("lockCompanyAllocations sends POST to /api/companies/{id}/lock-allocations with optional allocationIds", async () => {
+    const lockedAllocations = [
+      {
+        id: "alloc-1",
+        transaction_id: "tx-1",
+        amount: "50.00",
+        is_personal: false,
+        company_id: "comp-1",
+        is_locked: true,
+      },
+    ]
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => lockedAllocations,
+    })
+
+    const store = useCompanyStore()
+    const resAll = await store.lockCompanyAllocations("comp-1")
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/companies/comp-1/lock-allocations",
+      expect.objectContaining({
+        method: "POST",
+        body: undefined,
+      }),
+    )
+    expect(resAll).toEqual(lockedAllocations)
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => lockedAllocations,
+    })
+
+    const resSubset = await store.lockCompanyAllocations("comp-1", ["alloc-1"])
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      "/api/companies/comp-1/lock-allocations",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ allocation_ids: ["alloc-1"] }),
+      }),
+    )
+    expect(resSubset).toEqual(lockedAllocations)
+  })
+
+  it("unlockCompanyAllocations sends POST to /api/companies/{id}/unlock-allocations with optional allocationIds", async () => {
+    const unlockedAllocations = [
+      {
+        id: "alloc-1",
+        transaction_id: "tx-1",
+        amount: "50.00",
+        is_personal: false,
+        company_id: "comp-1",
+        is_locked: false,
+      },
+    ]
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => unlockedAllocations,
+    })
+
+    const store = useCompanyStore()
+    const resAll = await store.unlockCompanyAllocations("comp-1")
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/companies/comp-1/unlock-allocations",
+      expect.objectContaining({
+        method: "POST",
+        body: undefined,
+      }),
+    )
+    expect(resAll).toEqual(unlockedAllocations)
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => unlockedAllocations,
+    })
+
+    const resSubset = await store.unlockCompanyAllocations("comp-1", ["alloc-1"])
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      "/api/companies/comp-1/unlock-allocations",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ allocation_ids: ["alloc-1"] }),
+      }),
+    )
+    expect(resSubset).toEqual(unlockedAllocations)
+  })
+})
+
+describe("ExportManagerView & Export Controls Logic (exportManager.ts)", () => {
+  it("initializes controls with include_locked = false and empty date range, and resets cleanly", async () => {
+    const { createInitialExportControlsState, resetExportControlsState, buildCompanyExportOptions } =
+      await import("../src/views/exportManager")
+
+    const state = createInitialExportControlsState()
+    expect(state.include_locked).toBe(false)
+    expect(state.start_date).toBe("")
+    expect(state.end_date).toBe("")
+
+    expect(buildCompanyExportOptions(state)).toEqual({
+      include_locked: false,
+      start_date: undefined,
+      end_date: undefined,
+    })
+
+    state.include_locked = true
+    state.start_date = "2026-09-01"
+    state.end_date = "2026-09-30"
+
+    expect(buildCompanyExportOptions(state)).toEqual({
+      include_locked: true,
+      start_date: "2026-09-01",
+      end_date: "2026-09-30",
+    })
+
+    resetExportControlsState(state)
+    expect(state).toEqual({
+      include_locked: false,
+      start_date: "",
+      end_date: "",
+    })
+  })
+
+  it("computes company export summary metrics and export eligibility", async () => {
+    const { getCompanyExportSummary, canExportCompany } = await import("../src/views/exportManager")
+
+    const companyWithUnlocked: Company = {
+      id: "comp-1",
+      name: "Alpha Consulting",
+      transaction_count: 5,
+      unlocked_allocation_count: 3,
+      unlocked_amount_total: "1250.75",
+      locked_allocation_count: 2,
+    }
+
+    const summary1 = getCompanyExportSummary(companyWithUnlocked)
+    expect(summary1).toEqual({
+      id: "comp-1",
+      name: "Alpha Consulting",
+      unlockedCount: 3,
+      unlockedTotalFormatted: "$1,250.75",
+      lockedCount: 2,
+      totalBusinessCount: 5,
+    })
+    expect(canExportCompany(companyWithUnlocked, false)).toBe(true)
+    expect(canExportCompany(companyWithUnlocked, true)).toBe(true)
+
+    const companyAllLocked: Company = {
+      id: "comp-2",
+      name: "Beta Properties",
+      transaction_count: 4,
+      unlocked_allocation_count: 0,
+      unlocked_amount_total: "0.00",
+      locked_allocation_count: 4,
+    }
+
+    const summary2 = getCompanyExportSummary(companyAllLocked)
+    expect(summary2).toEqual({
+      id: "comp-2",
+      name: "Beta Properties",
+      unlockedCount: 0,
+      unlockedTotalFormatted: "$0.00",
+      lockedCount: 4,
+      totalBusinessCount: 4,
+    })
+    expect(canExportCompany(companyAllLocked, false)).toBe(false)
+    expect(canExportCompany(companyAllLocked, true)).toBe(true)
+
+    const companyEmpty: Company = {
+      id: "comp-3",
+      name: "Gamma Ventures",
+      transaction_count: 0,
+      unlocked_allocation_count: 0,
+      unlocked_amount_total: "0.00",
+      locked_allocation_count: 0,
+    }
+    expect(canExportCompany(companyEmpty, false)).toBe(false)
+    expect(canExportCompany(companyEmpty, true)).toBe(false)
+  })
+
+  it("extracts filename from Content-Disposition header or falls back to company filename", async () => {
+    const { extractFilenameFromContentDisposition } = await import("../src/stores/companies")
+
+    expect(extractFilenameFromContentDisposition('attachment; filename="alpha_consulting_transactions.csv"', "fallback.csv")).toBe(
+      "alpha_consulting_transactions.csv",
+    )
+
+    expect(extractFilenameFromContentDisposition(null, "fallback.csv")).toBe("fallback.csv")
+    expect(extractFilenameFromContentDisposition("inline", "fallback.csv")).toBe("fallback.csv")
+  })
 })

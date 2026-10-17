@@ -1,7 +1,44 @@
 import { defineStore } from "pinia"
 import { ref } from "vue"
 import { apiClient } from "../api/client"
-import type { Company, CompanyCreatePayload, CompanyUpdatePayload } from "../types/company"
+import type { Company, CompanyCreatePayload, CompanyExportOptions, CompanyUpdatePayload } from "../types/company"
+import type { Allocation } from "../types/transaction"
+
+export function extractFilenameFromContentDisposition(header: string | null | undefined, fallbackFilename: string): string {
+  if (!header) return fallbackFilename
+  const match = /filename\*?=(?:UTF-8''|")?([^";\r\n]+)"?/i.exec(header)
+  if (match && match[1]) {
+    return match[1].trim()
+  }
+  return fallbackFilename
+}
+
+export function triggerBrowserDownload(blob: Blob, filename: string): void {
+  if (typeof URL === "undefined" || typeof URL.createObjectURL !== "function") {
+    return
+  }
+  const blobUrl = URL.createObjectURL(blob)
+  try {
+    if (typeof document !== "undefined" && typeof document.createElement === "function") {
+      const link = document.createElement("a")
+      link.href = blobUrl
+      link.download = filename
+      if (document.body && typeof document.body.appendChild === "function") {
+        document.body.appendChild(link)
+      }
+      if (typeof link.click === "function") {
+        link.click()
+      }
+      if (link.parentNode && typeof link.parentNode.removeChild === "function") {
+        link.parentNode.removeChild(link)
+      }
+    }
+  } finally {
+    if (typeof URL.revokeObjectURL === "function") {
+      URL.revokeObjectURL(blobUrl)
+    }
+  }
+}
 
 export const useCompanyStore = defineStore("companies", () => {
   const companies = ref<Company[]>([])
@@ -80,6 +117,100 @@ export const useCompanyStore = defineStore("companies", () => {
     }
   }
 
+  /**
+   * Export business allocations for a company as a Wave-compatible CSV file,
+   * trigger a browser file download, and refresh company summary counts.
+   */
+  async function exportTransactionsCsv(companyId: string, options: CompanyExportOptions = {}): Promise<Blob> {
+    error.value = null
+    const cleanParams: Record<string, unknown> = {}
+    if (options.include_locked !== undefined && options.include_locked !== null) {
+      cleanParams.include_locked = options.include_locked
+    }
+    if (options.start_date !== undefined && options.start_date !== null && options.start_date !== "") {
+      cleanParams.start_date = options.start_date
+    }
+    if (options.end_date !== undefined && options.end_date !== null && options.end_date !== "") {
+      cleanParams.end_date = options.end_date
+    }
+
+    try {
+      const response = await apiClient.get<Response>(`/api/companies/${companyId}/export-transactions`, {
+        params: cleanParams,
+        responseType: "raw",
+      })
+
+      let blob: Blob
+      if (response && typeof response.blob === "function") {
+        blob = await response.blob()
+      } else if (response && typeof response.text === "function") {
+        const text = await response.text()
+        blob = new Blob([text], { type: "text/csv;charset=utf-8;" })
+      } else if (typeof Blob !== "undefined" && response instanceof Blob) {
+        blob = response
+      } else {
+        blob = new Blob([String(response ?? "")], { type: "text/csv;charset=utf-8;" })
+      }
+
+      const company = companies.value.find(c => c.id === companyId)
+      const safeName = company
+        ? company.name
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9-_]/g, "_")
+        : companyId
+      const fallbackFilename = `${safeName}_transactions.csv`
+      const contentDisposition = response?.headers?.get?.("content-disposition") ?? null
+      const filename = extractFilenameFromContentDisposition(contentDisposition, fallbackFilename)
+
+      triggerBrowserDownload(blob, filename)
+
+      try {
+        await fetchCompanies()
+      } catch {
+        error.value = null
+      }
+
+      return blob
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to export company transactions"
+      error.value = msg
+      throw err
+    }
+  }
+
+  /**
+   * Lock business allocations for a company (optionally filtered by allocation_ids).
+   */
+  async function lockCompanyAllocations(companyId: string, allocationIds?: string[]): Promise<Allocation[]> {
+    error.value = null
+    try {
+      const body = allocationIds !== undefined ? { allocation_ids: allocationIds } : undefined
+      const locked = await apiClient.post<Allocation[]>(`/api/companies/${companyId}/lock-allocations`, body)
+      return locked
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to lock company allocations"
+      error.value = msg
+      throw err
+    }
+  }
+
+  /**
+   * Unlock business allocations for a company (optionally filtered by allocation_ids).
+   */
+  async function unlockCompanyAllocations(companyId: string, allocationIds?: string[]): Promise<Allocation[]> {
+    error.value = null
+    try {
+      const body = allocationIds !== undefined ? { allocation_ids: allocationIds } : undefined
+      const unlocked = await apiClient.post<Allocation[]>(`/api/companies/${companyId}/unlock-allocations`, body)
+      return unlocked
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to unlock company allocations"
+      error.value = msg
+      throw err
+    }
+  }
+
   return {
     companies,
     loading,
@@ -88,5 +219,8 @@ export const useCompanyStore = defineStore("companies", () => {
     createCompany,
     updateCompany,
     deleteCompany,
+    exportTransactionsCsv,
+    lockCompanyAllocations,
+    unlockCompanyAllocations,
   }
 })
