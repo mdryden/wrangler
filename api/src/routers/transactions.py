@@ -47,6 +47,8 @@ def list_transactions(
     start_date: Annotated[datetime.date | None, Query(description="Filter by start date (inclusive)")] = None,
     end_date: Annotated[datetime.date | None, Query(description="Filter by end date (inclusive)")] = None,
     company_id: Annotated[uuid.UUID | None, Query(description="Filter by company ID")] = None,
+    transaction_id: Annotated[uuid.UUID | None, Query(description="Filter by specific transaction ID")] = None,
+    include_locked: Annotated[bool | None, Query(description="When false, filter for unlocked allocations only")] = None,
 ) -> PaginatedTransactionsResponse:
     """Retrieve transactions with server-side pagination, sorting, and filtering."""
     effective_page_size = rowsPerPage if rowsPerPage is not None else page_size
@@ -67,6 +69,8 @@ def list_transactions(
     sort_expr = column.desc() if effective_descending else column.asc()
 
     filters = []
+    if transaction_id is not None:
+        filters.append(Transaction.id == transaction_id)
     if source is not None:
         filters.append(Transaction.source == source)
     if start_date is not None:
@@ -74,7 +78,14 @@ def list_transactions(
     if end_date is not None:
         filters.append(Transaction.date <= end_date)
     if company_id is not None:
-        filters.append(Transaction.allocations.any(Allocation.company_id == company_id))
+        if include_locked is False:
+            filters.append(
+                Transaction.allocations.any((Allocation.company_id == company_id) & (Allocation.is_personal.is_(False)) & (Allocation.is_locked.is_(False)))
+            )
+        else:
+            filters.append(Transaction.allocations.any(Allocation.company_id == company_id))
+    elif include_locked is False:
+        filters.append(Transaction.allocations.any(Allocation.is_locked.is_(False)))
 
     count_stmt = select(func.count()).select_from(Transaction)
     if filters:

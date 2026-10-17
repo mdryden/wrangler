@@ -71,6 +71,8 @@ export interface TransactionFilterParams {
   start_date?: string
   end_date?: string
   company_id?: string | null
+  transaction_id?: string | null
+  include_locked?: boolean
 }
 
 export interface TransactionQueryParams extends TransactionFilterParams {

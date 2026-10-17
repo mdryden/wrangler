@@ -391,11 +391,14 @@ describe("useCompanyStore", () => {
 })
 
 describe("ExportManagerView & Export Controls Logic (exportManager.ts)", () => {
-  it("initializes controls with include_locked = false and empty date range, and resets cleanly", async () => {
-    const { createInitialExportControlsState, resetExportControlsState, buildCompanyExportOptions } =
+  it("initializes controls with company_id = null, include_locked = false, empty date range, and default page size 50", async () => {
+    const { createInitialExportControlsState, resetExportControlsState, buildCompanyExportOptions, DEFAULT_EXPORT_PAGE_SIZE } =
       await import("../src/views/exportManager")
 
+    expect(DEFAULT_EXPORT_PAGE_SIZE).toBe(50)
+
     const state = createInitialExportControlsState()
+    expect(state.company_id).toBeNull()
     expect(state.include_locked).toBe(false)
     expect(state.start_date).toBe("")
     expect(state.end_date).toBe("")
@@ -406,6 +409,7 @@ describe("ExportManagerView & Export Controls Logic (exportManager.ts)", () => {
       end_date: undefined,
     })
 
+    state.company_id = "comp-1"
     state.include_locked = true
     state.start_date = "2026-09-01"
     state.end_date = "2026-09-30"
@@ -418,10 +422,125 @@ describe("ExportManagerView & Export Controls Logic (exportManager.ts)", () => {
 
     resetExportControlsState(state)
     expect(state).toEqual({
+      company_id: null,
       include_locked: false,
       start_date: "",
       end_date: "",
     })
+  })
+
+  it("extracts flattened business allocation rows for the selected company and include_locked setting", async () => {
+    const { extractCompanyAllocationRows } = await import("../src/views/exportManager")
+    const sampleTxs = [
+      {
+        id: "tx-100",
+        source: "manual",
+        external_id: null,
+        date: "2026-09-10",
+        description: "Multi-Company Invoice",
+        total_amount: "150.00",
+        currency_code: "USD",
+        receipt_file_path: "tx-100.pdf",
+        allocations: [
+          {
+            id: "alloc-100a",
+            transaction_id: "tx-100",
+            amount: "100.00",
+            is_personal: false,
+            company_id: "comp-1",
+            is_locked: false,
+          },
+          {
+            id: "alloc-100b",
+            transaction_id: "tx-100",
+            amount: "50.00",
+            is_personal: false,
+            company_id: "comp-2",
+            is_locked: false,
+          },
+        ],
+      },
+      {
+        id: "tx-101",
+        source: "manual",
+        external_id: null,
+        date: "2026-09-12",
+        description: "Already Exported Supply",
+        total_amount: "40.00",
+        currency_code: "USD",
+        receipt_file_path: null,
+        allocations: [
+          {
+            id: "alloc-101",
+            transaction_id: "tx-101",
+            amount: "40.00",
+            is_personal: false,
+            company_id: "comp-1",
+            is_locked: true,
+          },
+        ],
+      },
+      {
+        id: "tx-102",
+        source: "bank",
+        external_id: null,
+        date: "2026-09-13",
+        description: "Personal Grocery",
+        total_amount: "25.00",
+        currency_code: "USD",
+        receipt_file_path: null,
+        allocations: [
+          {
+            id: "alloc-102",
+            transaction_id: "tx-102",
+            amount: "25.00",
+            is_personal: true,
+            company_id: null,
+            is_locked: false,
+          },
+        ],
+      },
+    ]
+
+    // Starts empty when companyId is null
+    expect(extractCompanyAllocationRows(sampleTxs, null, false)).toEqual([])
+
+    // Unlocked only for comp-1
+    const unlockedRows = extractCompanyAllocationRows(sampleTxs, "comp-1", false)
+    expect(unlockedRows).toEqual([
+      {
+        id: "alloc-100a",
+        transaction_id: "tx-100",
+        date: "2026-09-10",
+        description: "Multi-Company Invoice",
+        amount: "100.00",
+        currency_code: "USD",
+        is_locked: false,
+        company_id: "comp-1",
+        receipt_file_path: "tx-100.pdf",
+      },
+    ])
+
+    // Include locked for comp-1
+    const allRows = extractCompanyAllocationRows(sampleTxs, "comp-1", true)
+    expect(allRows).toHaveLength(2)
+    expect(allRows.map(r => r.id)).toEqual(["alloc-100a", "alloc-101"])
+  })
+
+  it("builds Ledger transaction URL and opens parent transaction in a new tab", async () => {
+    const { getLedgerTransactionUrl, openTransactionInLedgerNewTab } = await import("../src/views/exportManager")
+
+    expect(getLedgerTransactionUrl("tx-abc-123")).toBe("/ledger?transaction_id=tx-abc-123")
+
+    const openSpy = vi.fn()
+    Object.defineProperty(globalThis, "open", {
+      value: openSpy,
+      writable: true,
+    })
+
+    const url = openTransactionInLedgerNewTab("tx-abc-123")
+    expect(url).toBe("/ledger?transaction_id=tx-abc-123")
+    expect(openSpy).toHaveBeenCalledWith("/ledger?transaction_id=tx-abc-123", "_blank", "noopener,noreferrer")
   })
 
   it("computes company export summary metrics and export eligibility", async () => {
@@ -447,6 +566,7 @@ describe("ExportManagerView & Export Controls Logic (exportManager.ts)", () => {
     })
     expect(canExportCompany(companyWithUnlocked, false)).toBe(true)
     expect(canExportCompany(companyWithUnlocked, true)).toBe(true)
+    expect(canExportCompany(null, false)).toBe(false)
 
     const companyAllLocked: Company = {
       id: "comp-2",

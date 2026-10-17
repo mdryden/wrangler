@@ -947,3 +947,39 @@ def test_get_transactions_filtering(client, auth_headers, db_session):
     data_comp = resp_comp.json()
     assert data_comp["total"] == 1
     assert data_comp["items"][0]["external_id"] == "TX-1"
+
+    # Add a locked allocation on tx2 for the same company and verify include_locked=false vs true
+    alloc_locked = Allocation(
+        transaction_id=tx2.id,
+        amount=Decimal("30.00"),
+        is_personal=False,
+        company_id=comp.id,
+        is_locked=True,
+    )
+    db_session.add(alloc_locked)
+    db_session.commit()
+
+    resp_unlocked_only = client.get(
+        f"/api/transactions?company_id={comp.id}&include_locked=false",
+        headers=auth_headers,
+    )
+    assert resp_unlocked_only.status_code == 200
+    data_unlocked_only = resp_unlocked_only.json()
+    assert data_unlocked_only["total"] == 1
+    assert data_unlocked_only["items"][0]["external_id"] == "TX-1"
+
+    resp_include_locked = client.get(
+        f"/api/transactions?company_id={comp.id}&include_locked=true",
+        headers=auth_headers,
+    )
+    assert resp_include_locked.status_code == 200
+    data_include_locked = resp_include_locked.json()
+    assert data_include_locked["total"] == 2
+    assert {item["external_id"] for item in data_include_locked["items"]} == {"TX-1", "TX-2"}
+
+    # Filter by specific transaction_id (for deep-linking from Export Manager to Ledger)
+    resp_tx_id = client.get(f"/api/transactions?transaction_id={tx3.id}", headers=auth_headers)
+    assert resp_tx_id.status_code == 200
+    data_tx_id = resp_tx_id.json()
+    assert data_tx_id["total"] == 1
+    assert data_tx_id["items"][0]["id"] == str(tx3.id)

@@ -20,8 +20,19 @@ import {
   UNLOCK_WARNING_MESSAGE,
 } from "./ledger"
 
+import { useRoute, useRouter } from "vue-router"
+
 const companyStore = useCompanyStore()
 const transactionStore = useTransactionStore()
+
+let route: ReturnType<typeof useRoute> | null = null
+let routerInstance: ReturnType<typeof useRouter> | null = null
+try {
+  route = useRoute()
+  routerInstance = useRouter()
+} catch {
+  // Outside router context in standalone unit tests
+}
 
 const editDialogVisible = ref<boolean>(false)
 const selectedTransaction = ref<Transaction | null>(null)
@@ -40,6 +51,7 @@ const filters = ref({
   company_id: null as string | null,
   start_date: "",
   end_date: "",
+  transaction_id: null as string | null,
 })
 
 function notifySuccess(message: string) {
@@ -162,6 +174,7 @@ async function onRequest(props: {
       company_id: filters.value.company_id || undefined,
       start_date: filters.value.start_date || undefined,
       end_date: filters.value.end_date || undefined,
+      transaction_id: filters.value.transaction_id || undefined,
     })
 
     pagination.value.page = transactionStore.page
@@ -185,6 +198,10 @@ function resetFilters(): void {
     company_id: null,
     start_date: "",
     end_date: "",
+    transaction_id: null,
+  }
+  if (routerInstance && route?.query?.transaction_id) {
+    routerInstance.replace({ query: { ...route.query, transaction_id: undefined } }).catch(() => {})
   }
   pagination.value.page = 1
   onRequest({ pagination: pagination.value })
@@ -326,6 +343,10 @@ function cancelDeleteTransaction(): void {
 }
 
 onMounted(() => {
+  const queryTxId = route?.query?.transaction_id
+  if (typeof queryTxId === "string" && queryTxId.trim()) {
+    filters.value.transaction_id = queryTxId.trim()
+  }
   companyStore.fetchCompanies().catch(() => {})
   onRequest({ pagination: pagination.value })
 })
