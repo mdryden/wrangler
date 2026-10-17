@@ -27,6 +27,13 @@ You will produce two files, typically co-located in the same directory as the sp
 1. `plan.md` (The detailed Implementation Plan)
 2. `tasks.md` (The Checkbox Task List)
 
+### 2.1. File Modification Boundaries
+- **Specification Files (`**/spec*.md`)**:
+  - **STRICTLY READ-ONLY.** You must **NEVER** edit, update, or modify any specification file under any circumstances.
+- **Plan Files (`**/plan*.md`) ant Task Files (`**/tasks*.md`)**:
+  - The **ONLY** files you are permitted to create or update.
+  - If any tasks in the tasks file are marked as completed, you must **NEVER** modify, reorder, or delete them. If changes to a spec conflict with the completed tasks, you must **NEVER** modify, reorder, or delete the completed tasks. Instead, create new tasks to address the conflicts and mark them as incomplete.
+
 ## 3. Plan Structure (`plan.md`)
 - **Logical Phases**: Divide the implementation into logical, deliverable-driven phases.
 - **Strictly Implementation-Focused Tasks**: Every task in `plan.md` must represent a concrete engineering deliverable (e.g., database schema, ORM model, API endpoint, service function, component, or utility).
