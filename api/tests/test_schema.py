@@ -48,7 +48,8 @@ def test_database_schema_setup():
     assert "amount" in alloc_cols
     assert "is_personal" in alloc_cols
     assert "company_id" in alloc_cols
-    assert "sync_status" in alloc_cols
+    assert "is_locked" in alloc_cols
+    assert "sync_status" not in alloc_cols
     assert "wave_category_id" not in alloc_cols
     assert "wave_transaction_id" not in alloc_cols
 

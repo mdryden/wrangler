@@ -5,7 +5,7 @@ from decimal import Decimal
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from models.allocation import Allocation, SyncStatus
+from models.allocation import Allocation
 from models.company import Company
 from models.transaction import Transaction
 
@@ -228,7 +228,7 @@ def test_allocation_creation_defaults(db_session):
     assert alloc.amount == Decimal("100.00")
     assert alloc.is_personal is False
     assert alloc.company_id is None
-    assert alloc.sync_status == SyncStatus.PENDING
+    assert alloc.is_locked is False
     assert alloc.transaction == tx
     assert alloc in tx.allocations
 
@@ -254,7 +254,7 @@ def test_allocation_creation_with_all_fields(db_session):
         amount=Decimal("500.00"),
         is_personal=False,
         company_id=company.id,
-        sync_status=SyncStatus.SYNCED,
+        is_locked=True,
     )
     db_session.add(alloc)
     db_session.commit()
@@ -265,7 +265,7 @@ def test_allocation_creation_with_all_fields(db_session):
     assert alloc.amount == Decimal("500.00")
     assert alloc.is_personal is False
     assert alloc.company_id == company.id
-    assert alloc.sync_status == SyncStatus.SYNCED
+    assert alloc.is_locked is True
     assert alloc.company == company
 
 
@@ -300,28 +300,26 @@ def test_allocation_missing_required_fields(db_session):
     db_session.rollback()
 
 
-def test_allocation_sync_status_enum(db_session):
+def test_allocation_is_locked_boolean(db_session):
     tx = Transaction(
         source="manual",
         date=date(2026, 9, 6),
-        description="Test Enum",
+        description="Test Lock State",
         total_amount=Decimal("20.00"),
     )
     db_session.add(tx)
     db_session.commit()
 
-    assert set(SyncStatus) == {SyncStatus.PENDING, SyncStatus.SYNCED}
-
-    for status in SyncStatus:
+    for lock_val in (False, True):
         alloc = Allocation(
             transaction_id=tx.id,
             amount=Decimal("10.00"),
-            sync_status=status,
+            is_locked=lock_val,
         )
         db_session.add(alloc)
         db_session.commit()
         db_session.refresh(alloc)
-        assert alloc.sync_status == status
+        assert alloc.is_locked is lock_val
 
 
 def test_allocation_foreign_key_constraint(db_session):

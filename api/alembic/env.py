@@ -7,7 +7,7 @@ from sqlalchemy import engine_from_config, pool
 from alembic import context
 from core.config import settings
 from database import Base
-from models.allocation import Allocation, SyncStatus  # noqa: F401
+from models.allocation import Allocation  # noqa: F401
 from models.company import Company  # noqa: F401
 from models.transaction import Transaction  # noqa: F401
 

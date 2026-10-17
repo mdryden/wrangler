@@ -1,3 +1,5 @@
+import mimetypes
+
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import FileResponse
 
@@ -5,10 +7,17 @@ from services.receipts import get_receipt_file_path
 
 router = APIRouter(prefix="/api/receipts", tags=["receipts"])
 
+MEDIA_TYPE_MAP = {
+    ".pdf": "application/pdf",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+}
+
 
 @router.get("/{file_path:path}")
-def get_receipt(file_path: str):
-    """Safely stream/serve receipt file from RECEIPT_STORAGE_DIR."""
+def get_receipt(file_path: str) -> FileResponse:
+    """Safely stream/serve receipt file from RECEIPT_STORAGE_DIR with inline disposition."""
     try:
         path = get_receipt_file_path(file_path)
     except ValueError as exc:
@@ -22,4 +31,12 @@ def get_receipt(file_path: str):
             detail=str(exc),
         ) from exc
 
-    return FileResponse(path)
+    ext = path.suffix.lower()
+    media_type = MEDIA_TYPE_MAP.get(ext) or mimetypes.guess_type(str(path))[0] or "application/octet-stream"
+
+    return FileResponse(
+        path,
+        media_type=media_type,
+        filename=path.name,
+        content_disposition_type="inline",
+    )

@@ -5,7 +5,7 @@ from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
-from .allocation import AllocationCreateItem, AllocationResponse
+from .allocation import AllocationCreateItem, AllocationItem, AllocationResponse
 
 
 class TransactionCreate(BaseModel):
@@ -16,7 +16,8 @@ class TransactionCreate(BaseModel):
     source: str = "manual"
     external_id: str | None = None
     receipt_file_path: str | None = None
-    allocations: list[AllocationCreateItem]
+    company_id: uuid.UUID | None = None
+    allocations: list[AllocationCreateItem] | None = None
 
     @field_validator("external_id", mode="before")
     @classmethod
@@ -42,10 +43,22 @@ class TransactionCreate(BaseModel):
     @model_validator(mode="after")
     def validate_allocations(self) -> Self:
         if not self.allocations:
-            raise ValueError("allocations list must not be empty")
+            if self.company_id is None:
+                raise ValueError("allocations list must not be empty")
+            self.allocations = [
+                AllocationCreateItem(
+                    amount=self.total_amount,
+                    company_id=self.company_id,
+                    is_personal=False,
+                    is_locked=False,
+                )
+            ]
         for i, alloc in enumerate(self.allocations):
             if not alloc.is_personal and alloc.company_id is None:
-                raise ValueError(f"Allocation at index {i} is missing company_id")
+                if self.company_id is not None:
+                    alloc.company_id = self.company_id
+                else:
+                    raise ValueError(f"Allocation at index {i} is missing company_id")
         return self
 
 
@@ -57,6 +70,8 @@ class TransactionUpdate(BaseModel):
     source: str | None = None
     external_id: str | None = None
     receipt_file_path: str | None = None
+    allocations: list[AllocationItem] | None = None
+    remove_receipt: bool = False
 
     @field_validator("external_id", mode="before")
     @classmethod

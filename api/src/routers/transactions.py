@@ -13,13 +13,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from database import get_db
-from models.allocation import Allocation, SyncStatus
+from models.allocation import Allocation
 from models.company import Company
 from models.transaction import Transaction
 from schemas.allocation import (
     AllocationItem,
     AllocationResponse,
     AllocationUpdateRequest,
+    LockUpdateRequest,
 )
 from schemas.transaction import (
     PaginatedTransactionsResponse,
@@ -27,7 +28,7 @@ from schemas.transaction import (
     TransactionResponse,
     TransactionUpdate,
 )
-from services.receipts import save_receipt_file
+from services.receipts import delete_receipt_file, save_receipt_file
 
 router = APIRouter(prefix="/api/transactions", tags=["transactions"])
 
@@ -117,7 +118,7 @@ async def create_transaction(
             for k, v in form.items():
                 if hasattr(v, "filename"):
                     continue
-                if isinstance(v, str) and k in ("external_id", "receipt_file_path") and not v.strip():
+                if isinstance(v, str) and k in ("external_id", "receipt_file_path", "company_id") and not v.strip():
                     clean_dict[k] = None
                 elif isinstance(v, str) and k == "allocations":
                     if not v.strip():
@@ -136,14 +137,16 @@ async def create_transaction(
     except ValidationError as exc:
         raise RequestValidationError(exc.errors()) from exc
 
+    alloc_list = payload.allocations or []
+
     # Split balance & allocation validation
-    split_sum = sum((alloc.amount for alloc in payload.allocations), Decimal("0"))
+    split_sum = sum((alloc.amount for alloc in alloc_list), Decimal("0"))
     if split_sum != payload.total_amount:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Sum of split allocations ({split_sum}) does not equal transaction total amount ({payload.total_amount})",
         )
-    for alloc_item in payload.allocations:
+    for alloc_item in alloc_list:
         if alloc_item.is_personal:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -185,14 +188,14 @@ async def create_transaction(
         receipt_file_path=receipt_path,
     )
 
-    for alloc_item in payload.allocations:
+    for alloc_item in alloc_list:
         alloc = Allocation(
             id=alloc_item.id or uuid.uuid4(),
             transaction_id=tx_id,
             amount=alloc_item.amount,
             is_personal=False,
             company_id=alloc_item.company_id,
-            sync_status=SyncStatus.PENDING,
+            is_locked=False,
         )
         transaction.allocations.append(alloc)
 
@@ -227,13 +230,151 @@ def get_transaction(
     return transaction
 
 
+def _allocations_match_existing(items: list[AllocationItem] | None, existing: list[Allocation]) -> bool:
+    if items is None or len(items) != len(existing):
+        return False
+    existing_by_id = {a.id: a for a in existing}
+    seen_ids: set[uuid.UUID] = set()
+    for item in items:
+        if item.id is None or item.id not in existing_by_id or item.id in seen_ids:
+            return False
+        seen_ids.add(item.id)
+        ex = existing_by_id[item.id]
+        effective_company_id = None if item.is_personal else item.company_id
+        if item.amount != ex.amount or item.is_personal != ex.is_personal or effective_company_id != ex.company_id or item.is_locked != ex.is_locked:
+            return False
+    return True
+
+
+def _validate_and_apply_allocations(
+    transaction: Transaction,
+    items: list[AllocationItem],
+    effective_total_amount: Decimal,
+    db: Session,
+) -> None:
+    existing_allocations = list(transaction.allocations)
+    is_fully_locked = len(existing_allocations) > 0 and all(a.is_locked for a in existing_allocations)
+    if is_fully_locked:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot modify transaction: all allocations are locked",
+        )
+
+    existing_locked = [a for a in existing_allocations if a.is_locked]
+    if existing_locked:
+        matched_ids: set[uuid.UUID] = set()
+        for locked_alloc in existing_locked:
+            matches = [item for item in items if item.id == locked_alloc.id]
+            if len(matches) != 1 or locked_alloc.id in matched_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot modify or remove locked allocations without unlocking them first",
+                )
+            matched_ids.add(locked_alloc.id)
+            match = matches[0]
+            effective_comp_id = None if match.is_personal else match.company_id
+            if (
+                match.amount != locked_alloc.amount
+                or match.is_personal != locked_alloc.is_personal
+                or effective_comp_id != locked_alloc.company_id
+                or not match.is_locked
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot modify or remove locked allocations without unlocking them first",
+                )
+
+    if not items:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one allocation is required",
+        )
+
+    if len(items) > 1 and any(item.is_personal for item in items):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only business transactions can be split. Remove extra splits before marking as personal.",
+        )
+
+    for item in items:
+        if item.is_personal:
+            item.company_id = None
+        else:
+            if item.company_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Business allocation requires a valid company_id",
+                )
+            company = db.get(Company, item.company_id)
+            if company is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Company with ID '{item.company_id}' not found",
+                )
+
+    split_sum = sum((item.amount for item in items), Decimal("0"))
+    if split_sum != effective_total_amount:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Sum of split allocations ({split_sum}) does not equal transaction total amount ({effective_total_amount})",
+        )
+
+    transaction.allocations.clear()
+    db.flush()
+
+    for item in items:
+        alloc = Allocation(
+            id=item.id or uuid.uuid4(),
+            transaction_id=transaction.id,
+            amount=item.amount,
+            is_personal=item.is_personal,
+            company_id=None if item.is_personal else item.company_id,
+            is_locked=item.is_locked,
+        )
+        transaction.allocations.append(alloc)
+
+
 @router.put("/{transaction_id}", response_model=TransactionResponse)
-def update_transaction(
+async def update_transaction(
     transaction_id: uuid.UUID,
-    payload: TransactionUpdate,
+    request: Request,
     db: Annotated[Session, Depends(get_db)],
 ) -> Transaction:
-    """Update transaction metadata. Fails if any allocation is SYNCED."""
+    """Unified update for transaction metadata, split allocations, and optional receipt replacement/removal."""
+    content_type = request.headers.get("content-type", "")
+    uploaded_file: UploadFile | None = None
+
+    try:
+        if "multipart/form-data" in content_type:
+            form = await request.form()
+            for _, val in form.items():
+                if hasattr(val, "filename") and getattr(val, "filename", None):
+                    uploaded_file = val  # type: ignore[assignment]
+                    break
+
+            clean_dict: dict[str, object] = {}
+            for k, v in form.items():
+                if hasattr(v, "filename"):
+                    continue
+                if isinstance(v, str) and k in ("external_id", "receipt_file_path") and not v.strip():
+                    clean_dict[k] = None
+                elif isinstance(v, str) and k == "allocations":
+                    if not v.strip():
+                        clean_dict[k] = None
+                    else:
+                        try:
+                            clean_dict[k] = json.loads(v)
+                        except Exception:
+                            clean_dict[k] = v
+                else:
+                    clean_dict[k] = v
+            payload = TransactionUpdate(**clean_dict)
+        else:
+            body = await request.json()
+            payload = TransactionUpdate(**body)
+    except ValidationError as exc:
+        raise RequestValidationError(exc.errors()) from exc
+
     stmt = select(Transaction).options(selectinload(Transaction.allocations)).where(Transaction.id == transaction_id)
     transaction = db.scalar(stmt)
     if transaction is None:
@@ -242,14 +383,28 @@ def update_transaction(
             detail=f"Transaction with ID '{transaction_id}' not found",
         )
 
-    for alloc in transaction.allocations:
-        if alloc.sync_status == SyncStatus.SYNCED:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot modify transaction: transaction contains SYNCED allocations",
-            )
-
+    existing_allocations = list(transaction.allocations)
+    is_fully_locked = len(existing_allocations) > 0 and all(a.is_locked for a in existing_allocations)
+    has_locked_allocations = any(a.is_locked for a in existing_allocations)
     update_data = payload.model_dump(exclude_unset=True)
+    is_receipt_only_op = uploaded_file is not None or payload.remove_receipt
+
+    date_modified = "date" in update_data and (payload.date != transaction.date or not is_receipt_only_op)
+    desc_modified = "description" in update_data and (payload.description != transaction.description or not is_receipt_only_op)
+    amount_modified = "total_amount" in update_data and (payload.total_amount != transaction.total_amount or not is_receipt_only_op)
+    allocs_modified = "allocations" in update_data and (not _allocations_match_existing(payload.allocations, existing_allocations) or not is_receipt_only_op)
+
+    if is_fully_locked and (date_modified or desc_modified or amount_modified or allocs_modified):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot modify transaction: all allocations are locked",
+        )
+
+    if has_locked_allocations and (date_modified or desc_modified):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot modify transaction date or description while allocations are locked",
+        )
 
     new_source = update_data.get("source", transaction.source)
     new_external_id = update_data.get("external_id", transaction.external_id)
@@ -267,8 +422,34 @@ def update_transaction(
                 detail=f"Transaction with source '{new_source}' and external_id '{new_external_id}' already exists",
             )
 
-    for key, val in update_data.items():
-        setattr(transaction, key, val)
+    effective_total_amount = payload.total_amount if payload.total_amount is not None else transaction.total_amount
+
+    if not is_fully_locked:
+        if "allocations" in update_data and payload.allocations is not None:
+            _validate_and_apply_allocations(transaction, payload.allocations, effective_total_amount, db)
+        elif "total_amount" in update_data and len(existing_allocations) > 0:
+            existing_sum = sum((a.amount for a in existing_allocations), Decimal("0"))
+            if existing_sum != effective_total_amount:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Sum of split allocations ({existing_sum}) does not equal transaction total amount ({effective_total_amount})",
+                )
+
+        scalar_fields = ("date", "description", "total_amount", "currency_code", "source", "external_id", "receipt_file_path")
+        for key in scalar_fields:
+            if key in update_data and getattr(payload, key) is not None or key == "external_id" and "external_id" in update_data:
+                setattr(transaction, key, getattr(payload, key))
+
+    if uploaded_file is not None:
+        old_path = transaction.receipt_file_path
+        saved_path = await save_receipt_file(uploaded_file, transaction.id)
+        if old_path and old_path != saved_path:
+            delete_receipt_file(old_path)
+        transaction.receipt_file_path = saved_path
+    elif payload.remove_receipt:
+        if transaction.receipt_file_path:
+            delete_receipt_file(transaction.receipt_file_path)
+            transaction.receipt_file_path = None
 
     db.add(transaction)
     try:
@@ -290,7 +471,7 @@ def update_transaction_allocations(
     payload: list[AllocationItem] | AllocationUpdateRequest,
     db: Annotated[Session, Depends(get_db)],
 ) -> list[Allocation]:
-    """Replace split allocations for a transaction. Fails if any existing allocation is SYNCED."""
+    """Replace split allocations for a transaction with partial/full lock and personal/business split validation."""
     stmt = select(Transaction).options(selectinload(Transaction.allocations)).where(Transaction.id == transaction_id)
     transaction = db.scalar(stmt)
     if transaction is None:
@@ -299,41 +480,8 @@ def update_transaction_allocations(
             detail=f"Transaction with ID '{transaction_id}' not found",
         )
 
-    # Immutability validation: HTTP 400 if any existing allocation is SYNCED
-    for alloc in transaction.allocations:
-        if alloc.sync_status == SyncStatus.SYNCED:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot modify allocations: transaction contains SYNCED allocations",
-            )
-
     items = payload if isinstance(payload, list) else payload.allocations
-
-    # Foreign key validation for companies
-    for item in items:
-        if not item.is_personal:
-            if item.company_id is not None:
-                company = db.get(Company, item.company_id)
-                if company is None:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Company with ID '{item.company_id}' not found",
-                    )
-
-    # Clear and replace existing allocations
-    transaction.allocations.clear()
-    db.flush()
-
-    for item in items:
-        alloc = Allocation(
-            id=item.id or uuid.uuid4(),
-            transaction_id=transaction.id,
-            amount=item.amount,
-            is_personal=item.is_personal,
-            company_id=None if item.is_personal else item.company_id,
-            sync_status=item.sync_status,
-        )
-        transaction.allocations.append(alloc)
+    _validate_and_apply_allocations(transaction, items, transaction.total_amount, db)
 
     db.add(transaction)
     db.commit()
@@ -347,7 +495,7 @@ async def upload_transaction_receipt(
     file: UploadFile,
     db: Annotated[Session, Depends(get_db)],
 ) -> Transaction:
-    """Upload a receipt file and attach it to the transaction."""
+    """Upload or replace a receipt file and attach it to the transaction."""
     stmt = select(Transaction).options(selectinload(Transaction.allocations)).where(Transaction.id == transaction_id)
     transaction = db.scalar(stmt)
     if transaction is None:
@@ -356,11 +504,38 @@ async def upload_transaction_receipt(
             detail=f"Transaction with ID '{transaction_id}' not found",
         )
 
+    old_path = transaction.receipt_file_path
     saved_path = await save_receipt_file(file, transaction.id)
+    if old_path and old_path != saved_path:
+        delete_receipt_file(old_path)
     transaction.receipt_file_path = saved_path
     db.add(transaction)
     db.commit()
     db.refresh(transaction)
+    return transaction
+
+
+@router.delete("/{transaction_id}/receipt", response_model=TransactionResponse)
+def delete_transaction_receipt(
+    transaction_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+) -> Transaction:
+    """Remove an attached receipt from a transaction and delete the file from disk."""
+    stmt = select(Transaction).options(selectinload(Transaction.allocations)).where(Transaction.id == transaction_id)
+    transaction = db.scalar(stmt)
+    if transaction is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Transaction with ID '{transaction_id}' not found",
+        )
+
+    if transaction.receipt_file_path:
+        delete_receipt_file(transaction.receipt_file_path)
+        transaction.receipt_file_path = None
+        db.add(transaction)
+        db.commit()
+        db.refresh(transaction)
+
     return transaction
 
 
@@ -369,7 +544,7 @@ def delete_transaction(
     transaction_id: uuid.UUID,
     db: Annotated[Session, Depends(get_db)],
 ) -> None:
-    """Delete a transaction and its allocations if not synced."""
+    """Delete a transaction, its allocations, and its receipt file if no allocations are locked."""
     stmt = select(Transaction).options(selectinload(Transaction.allocations)).where(Transaction.id == transaction_id)
     transaction = db.scalar(stmt)
     if transaction is None:
@@ -379,11 +554,39 @@ def delete_transaction(
         )
 
     for alloc in transaction.allocations:
-        if alloc.sync_status == SyncStatus.SYNCED:
+        if alloc.is_locked:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot delete transaction: transaction contains SYNCED allocations",
+                detail="Cannot delete transaction: transaction contains locked allocations",
             )
 
+    receipt_path = transaction.receipt_file_path
     db.delete(transaction)
     db.commit()
+    if receipt_path:
+        delete_receipt_file(receipt_path)
+
+
+@router.put("/{transaction_id}/lock", response_model=TransactionResponse)
+def update_transaction_lock(
+    transaction_id: uuid.UUID,
+    payload: LockUpdateRequest,
+    db: Annotated[Session, Depends(get_db)],
+) -> Transaction:
+    """Lock or unlock all allocations belonging to a transaction."""
+    stmt = select(Transaction).options(selectinload(Transaction.allocations)).where(Transaction.id == transaction_id)
+    transaction = db.scalar(stmt)
+    if transaction is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Transaction with ID '{transaction_id}' not found",
+        )
+
+    for alloc in transaction.allocations:
+        alloc.is_locked = payload.is_locked
+        db.add(alloc)
+
+    db.add(transaction)
+    db.commit()
+    db.refresh(transaction)
+    return transaction

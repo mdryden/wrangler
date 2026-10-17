@@ -5,18 +5,19 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models.allocation import Allocation, SyncStatus
-from schemas.allocation import AllocationResponse
+from models.allocation import Allocation
+from schemas.allocation import AllocationResponse, LockUpdateRequest
 
 router = APIRouter(prefix="/api/allocations", tags=["allocations"])
 
 
-@router.put("/{allocation_id}/revert", response_model=AllocationResponse)
-def revert_allocation(
+@router.put("/{allocation_id}/lock", response_model=AllocationResponse)
+def update_allocation_lock(
     allocation_id: uuid.UUID,
+    payload: LockUpdateRequest,
     db: Annotated[Session, Depends(get_db)],
 ) -> Allocation:
-    """Revert a single SYNCED allocation back to PENDING."""
+    """Lock or unlock a single allocation."""
     allocation = db.get(Allocation, allocation_id)
     if allocation is None:
         raise HTTPException(
@@ -24,10 +25,9 @@ def revert_allocation(
             detail=f"Allocation with ID '{allocation_id}' not found",
         )
 
-    if allocation.sync_status == SyncStatus.SYNCED:
-        allocation.sync_status = SyncStatus.PENDING
-        db.add(allocation)
-        db.commit()
-        db.refresh(allocation)
+    allocation.is_locked = payload.is_locked
+    db.add(allocation)
+    db.commit()
+    db.refresh(allocation)
 
     return allocation

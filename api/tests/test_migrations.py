@@ -1,7 +1,8 @@
+import uuid
 from pathlib import Path
 
 from alembic.config import Config
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 
 from alembic import command
 
@@ -33,6 +34,8 @@ def test_alembic_migrations_upgrade_and_downgrade(tmp_path):
     assert "wave_business_id" not in company_cols
 
     alloc_cols = {col["name"] for col in inspector.get_columns("allocations")}
+    assert "is_locked" in alloc_cols
+    assert "sync_status" not in alloc_cols
     assert "wave_category_id" not in alloc_cols
     assert "wave_transaction_id" not in alloc_cols
 
@@ -47,3 +50,45 @@ def test_alembic_migrations_upgrade_and_downgrade(tmp_path):
     assert "wave_categories" not in tables_after_downgrade
     assert "transactions" not in tables_after_downgrade
     assert "allocations" not in tables_after_downgrade
+
+
+def test_alembic_migration_sync_status_to_is_locked_data_preservation(tmp_path):
+    db_file = tmp_path / "test_data_migration.db"
+    db_url = f"sqlite:///{db_file.as_posix()}"
+
+    ini_path = Path(__file__).resolve().parent.parent / "alembic.ini"
+    alembic_cfg = Config(str(ini_path))
+    alembic_cfg.set_main_option("sqlalchemy.url", db_url)
+
+    # Upgrade to revision before is_locked migration
+    command.upgrade(alembic_cfg, "f92a4e1d7b38")
+
+    engine = create_engine(db_url)
+    tx_id = uuid.uuid4().hex
+    pending_id = uuid.uuid4().hex
+    synced_id = uuid.uuid4().hex
+
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO transactions (id, source, date, description, total_amount, currency_code) "
+                "VALUES (:id, 'manual', '2026-09-01', 'Migration Test', 100.00, 'USD')"
+            ),
+            {"id": tx_id},
+        )
+        conn.execute(
+            text("INSERT INTO allocations (id, transaction_id, amount, is_personal, sync_status) VALUES (:id, :tx_id, 40.00, 1, 'PENDING')"),
+            {"id": pending_id, "tx_id": tx_id},
+        )
+        conn.execute(
+            text("INSERT INTO allocations (id, transaction_id, amount, is_personal, sync_status) VALUES (:id, :tx_id, 60.00, 1, 'SYNCED')"),
+            {"id": synced_id, "tx_id": tx_id},
+        )
+
+    # Upgrade to head (a3c8d9e21f04)
+    command.upgrade(alembic_cfg, "head")
+
+    with engine.connect() as conn:
+        rows = dict(conn.execute(text("SELECT id, is_locked FROM allocations")).fetchall())
+        assert bool(rows[pending_id]) is False
+        assert bool(rows[synced_id]) is True

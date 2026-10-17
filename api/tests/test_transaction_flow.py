@@ -8,7 +8,6 @@ from core.config import settings
 from core.security import create_access_token
 from database import get_db
 from main import app
-from models.allocation import SyncStatus
 from models.company import Company
 
 MOCK_ADMIN = "admin"
@@ -54,10 +53,11 @@ def client(db_session):
 
 
 def test_transaction_allocation_receipt_lifecycle_flow(client, auth_headers, db_session):
-    """End-to-end integration flow testing transaction creation, pagination, approval, receipts, split allocations, and immutability locking."""
-    # 1. Set up company
+    """End-to-end integration flow testing transaction creation, pagination, receipts, split allocations, and immutability locking."""
+    # 1. Set up companies
     company = Company(name="Acme Consulting LLC")
-    db_session.add(company)
+    company2 = Company(name="Beta Ventures Inc")
+    db_session.add_all([company, company2])
     db_session.commit()
 
     # 2. Create a manual transaction
@@ -83,7 +83,7 @@ def test_transaction_allocation_receipt_lifecycle_flow(client, auth_headers, db_
     assert len(tx_data["allocations"]) == 1
     assert tx_data["allocations"][0]["company_id"] == str(company.id)
     assert tx_data["allocations"][0]["amount"] == "250.00"
-    assert tx_data["allocations"][0]["sync_status"] == "PENDING"
+    assert tx_data["allocations"][0]["is_locked"] is False
 
     # 3. Test duplicate creation rejected with 409
     dup_resp = client.post("/api/transactions", json=tx_payload, headers=auth_headers)
@@ -114,53 +114,50 @@ def test_transaction_allocation_receipt_lifecycle_flow(client, auth_headers, db_
     assert get_receipt_resp.status_code == 200
     assert get_receipt_resp.content == receipt_bytes
 
-    # 7. Update split allocations
+    # 7. Update split allocations across two businesses
     allocations_payload = [
         {
             "amount": "100.00",
-            "is_personal": True,
-            "sync_status": "PENDING",
+            "is_personal": False,
+            "company_id": str(company2.id),
+            "is_locked": False,
         },
         {
             "amount": "150.00",
             "is_personal": False,
             "company_id": str(company.id),
-            "sync_status": "PENDING",
+            "is_locked": False,
         },
     ]
     alloc_resp = client.put(f"/api/transactions/{tx_id}/allocations", json=allocations_payload, headers=auth_headers)
     assert alloc_resp.status_code == 200
     alloc_data = alloc_resp.json()
     assert len(alloc_data) == 2
-    assert alloc_data[0]["is_personal"] is True
+    assert alloc_data[0]["company_id"] == str(company2.id)
     assert alloc_data[1]["company_id"] == str(company.id)
 
-    # 8. Simulate sync to Wave: set business allocation sync_status to SYNCED
+    # 8. Simulate full lock: set all allocations is_locked to True
     tx = client.get(f"/api/transactions/{tx_id}", headers=auth_headers).json()
     assert len(tx["allocations"]) == 2
 
-    # Manually mark business allocation SYNCED in DB
     import uuid
 
     from models.transaction import Transaction
 
     db_tx = db_session.get(Transaction, uuid.UUID(tx_id))
-    business_alloc = [a for a in db_tx.allocations if not a.is_personal][0]
-    business_alloc.sync_status = SyncStatus.SYNCED
+    for a in db_tx.allocations:
+        a.is_locked = True
     db_session.commit()
 
-    # 9. Verify immutability validation:
-    # Cannot modify allocations when SYNCED
+    # 9. Verify immutability validation when fully locked:
     imm_resp1 = client.put(f"/api/transactions/{tx_id}/allocations", json=[], headers=auth_headers)
     assert imm_resp1.status_code == 400
-    assert "SYNCED" in imm_resp1.json()["detail"]
+    assert "locked" in imm_resp1.json()["detail"].lower()
 
-    # Cannot modify transaction metadata when SYNCED
     imm_resp2 = client.put(f"/api/transactions/{tx_id}", json={"description": "Try modifying"}, headers=auth_headers)
     assert imm_resp2.status_code == 400
-    assert "SYNCED" in imm_resp2.json()["detail"]
+    assert "locked" in imm_resp2.json()["detail"].lower()
 
-    # Cannot delete transaction when SYNCED
     imm_resp3 = client.delete(f"/api/transactions/{tx_id}", headers=auth_headers)
     assert imm_resp3.status_code == 400
-    assert "SYNCED" in imm_resp3.json()["detail"]
+    assert "locked" in imm_resp3.json()["detail"].lower()

@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -18,9 +19,15 @@ class CompanyUpdate(BaseModel):
 class CompanyResponse(CompanyBase):
     id: uuid.UUID
     transaction_count: int = 0
+    unlocked_allocation_count: int = 0
+    unlocked_amount_total: Decimal = Decimal("0.00")
+    locked_allocation_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 
 
-class CompanySyncStatusBatchRequest(BaseModel):
+class CompanyLockBatchRequest(BaseModel):
     allocation_ids: list[uuid.UUID] | None = None
+
+
+CompanySyncStatusBatchRequest = CompanyLockBatchRequest

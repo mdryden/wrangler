@@ -105,12 +105,12 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 - [x] 14.5 Update backend and frontend test suites to remove `is_approved` assertions and verify all tests pass
 
 ## Phase 15: Backend Lock State (`is_locked`), Unified Transaction Edit & Export Enhancements
-- [ ] 15.1 Replace `sync_status` with `is_locked` on `Allocation` model, schemas, and Alembic migration
-- [ ] 15.2 Implement receipt deletion (`DELETE /api/transactions/{id}/receipt`), replacement cleanup, and inline streaming media types (`GET /api/receipts/{path}`)
-- [ ] 15.3 Implement unified `PUT /api/transactions/{id}` and update `PUT /api/transactions/{id}/allocations` with partial/full lock and personal/business split validation
-- [ ] 15.4 Update `DELETE /api/transactions/{id}` with lock guard and receipt file cleanup
-- [ ] 15.5 Implement transaction-level (`PUT /api/transactions/{id}/lock`) and allocation-level (`PUT /api/allocations/{id}/lock`) lock/unlock endpoints
-- [ ] 15.6 Update company export (`GET /api/companies/{id}/export-transactions` auto-locking, `include_locked`, date filters), batch lock/unlock endpoints, and company export summary statistics
+- [x] 15.1 Replace `sync_status` with `is_locked` on `Allocation` model, schemas, and Alembic migration
+- [x] 15.2 Implement receipt deletion (`DELETE /api/transactions/{id}/receipt`), replacement cleanup, and inline streaming media types (`GET /api/receipts/{path}`)
+- [x] 15.3 Implement unified `PUT /api/transactions/{id}` and update `PUT /api/transactions/{id}/allocations` with partial/full lock and personal/business split validation
+- [x] 15.4 Update `DELETE /api/transactions/{id}` with lock guard and receipt file cleanup
+- [x] 15.5 Implement transaction-level (`PUT /api/transactions/{id}/lock`) and allocation-level (`PUT /api/allocations/{id}/lock`) lock/unlock endpoints
+- [x] 15.6 Update company export (`GET /api/companies/{id}/export-transactions` auto-locking, `include_locked`, date filters), batch lock/unlock endpoints, and company export summary statistics
 
 ## Phase 16: Frontend Ledger Lock Controls, Receipt Viewer & Unified Editor Dialog
 - [ ] 16.1 Update frontend types, API client blob support, Manual Entry payload, and Pinia stores for `is_locked`

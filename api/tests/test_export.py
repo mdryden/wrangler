@@ -4,7 +4,7 @@ import uuid
 from datetime import date
 from decimal import Decimal
 
-from models.allocation import Allocation, SyncStatus
+from models.allocation import Allocation
 from models.transaction import Transaction
 from services.export import generate_wave_csv
 
@@ -30,7 +30,7 @@ def test_generate_wave_csv_basic():
         company_id=cid,
         amount=Decimal("12.50"),
         is_personal=False,
-        sync_status=SyncStatus.PENDING,
+        is_locked=False,
     )
 
     t2 = Transaction(
@@ -47,7 +47,7 @@ def test_generate_wave_csv_basic():
         company_id=cid,
         amount=Decimal("-50.00"),
         is_personal=False,
-        sync_status=SyncStatus.PENDING,
+        is_locked=False,
     )
 
     csv_str = generate_wave_csv([a1, a2], company_id=cid)

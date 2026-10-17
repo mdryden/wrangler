@@ -48,3 +48,14 @@ def get_receipt_file_path(file_path: str) -> Path:
         raise FileNotFoundError(f"Receipt file not found: '{file_path}'")
 
     return target_path
+
+
+def delete_receipt_file(file_path: str | None) -> None:
+    """Safely resolve and delete a receipt file inside RECEIPT_STORAGE_DIR, ignoring FileNotFoundError."""
+    if not file_path:
+        return
+    try:
+        target_path = get_receipt_file_path(file_path)
+        target_path.unlink(missing_ok=True)
+    except FileNotFoundError, ValueError:
+        pass
