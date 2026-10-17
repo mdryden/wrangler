@@ -79,17 +79,17 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 
 ## Phase 11: Frontend Ledger & Allocation Editor
 - [x] 11.1 Build Ledger View with server-side pagination and filters
-- [ ] 11.2 Implement visual locking for synced transactions and reversion action
-- [ ] 11.3 Build Allocation Editor (Transaction Splitter) component without Wave categories
-- [ ] 11.4 Integrate Allocation Editor with backend API (`PUT /api/transactions/{id}/allocations`)
-- [ ] 11.5 Implement receipt file upload and direct download link
+~~- [ ] 11.2 Implement visual locking for synced transactions and reversion action~~ (Superseded by Phase 16)
+~~- [ ] 11.3 Build Allocation Editor (Transaction Splitter) component~~ (Superseded by Phase 16)
+~~- [ ] 11.4 Integrate Allocation Editor with backend API (`PUT /api/transactions/{id}/allocations`)~~ (Superseded by Phase 16)
+~~- [ ] 11.5 Implement receipt file upload and direct download link~~ (Superseded by Phase 16)
 ~~- [ ] 11.6 Implement transaction approval toggle UI~~ (Superseded: `is_approved` removed from system)
 
-## Phase 12: Frontend Export Manager UI
-- [ ] 12.1 Build Export Manager View with Pending Exports Summary
-- [ ] 12.2 Implement "Export CSV" download action per company
-- [ ] 12.3 Implement "Mark as Synced" action per company
-- [ ] 12.4 Build Reconciliation & History section with reversion
+## Phase 12: Frontend Export Manager UI (Superseded by Phase 17)
+~~- [ ] 12.1 Build Export Manager View with Pending Exports Summary~~ (Superseded by Phase 17)
+~~- [ ] 12.2 Implement "Export CSV" download action per company~~ (Superseded by Phase 17)
+~~- [ ] 12.3 Implement "Mark as Synced" action per company~~ (Superseded by Phase 17)
+~~- [ ] 12.4 Build Reconciliation & History section with reversion~~ (Superseded by Phase 17)
 
 ## Phase 13: Manual Expense Intake & Rapid Entry Form
 - [x] 13.1 Update `POST /api/transactions` endpoint and schemas for company attribution and atomic allocations
@@ -104,3 +104,19 @@ This file tracks the execution progress of the tasks defined in [plan.md](plan.m
 - [x] 14.4 Remove `is_approved` from frontend types (`types/transaction.ts`), stores (`transactionStore.ts`), and views (`LedgerView.vue`, `ManualEntryView.vue`)
 - [x] 14.5 Update backend and frontend test suites to remove `is_approved` assertions and verify all tests pass
 
+## Phase 15: Backend Lock State (`is_locked`), Unified Transaction Edit & Export Enhancements
+- [ ] 15.1 Replace `sync_status` with `is_locked` on `Allocation` model, schemas, and Alembic migration
+- [ ] 15.2 Implement receipt deletion (`DELETE /api/transactions/{id}/receipt`), replacement cleanup, and inline streaming media types (`GET /api/receipts/{path}`)
+- [ ] 15.3 Implement unified `PUT /api/transactions/{id}` and update `PUT /api/transactions/{id}/allocations` with partial/full lock and personal/business split validation
+- [ ] 15.4 Update `DELETE /api/transactions/{id}` with lock guard and receipt file cleanup
+- [ ] 15.5 Implement transaction-level (`PUT /api/transactions/{id}/lock`) and allocation-level (`PUT /api/allocations/{id}/lock`) lock/unlock endpoints
+- [ ] 15.6 Update company export (`GET /api/companies/{id}/export-transactions` auto-locking, `include_locked`, date filters), batch lock/unlock endpoints, and company export summary statistics
+
+## Phase 16: Frontend Ledger Lock Controls, Receipt Viewer & Unified Editor Dialog
+- [ ] 16.1 Update frontend types, API client blob support, Manual Entry payload, and Pinia stores for `is_locked`
+- [ ] 16.2 Build Unified Transaction & Allocation Editor Dialog (`TransactionEditDialog.vue`)
+- [ ] 16.3 Implement Ledger View visual lock indicators, receipt viewer button (open in new tab), and row actions (Edit, Lock/Unlock with warning, Delete)
+
+## Phase 17: Frontend Export Manager UI
+- [ ] 17.1 Add CSV export and lock/unlock methods to `useCompanyStore`
+- [ ] 17.2 Build Export Manager View (`ExportManagerView.vue`) with Company Export Summary and Controls (`include_locked` toggle, date range filters, Export CSV button)

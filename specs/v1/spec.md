@@ -74,7 +74,8 @@ A transaction must be able to be split across personal expenses or business enti
 - `is_personal`: Boolean (True if personal expense; False if allocated to a business)
 - `company_id`: Foreign Key to `Company` (Nullable; required if `is_personal` is False)
 - ~~`wave_category_id`: Foreign Key to WaveCategory (Nullable)~~ *(Superseded)*
-- `sync_status`: Enum (`PENDING`, `SYNCED` ~~, `FAILED`, `IGNORED`~~)
+- ~~`sync_status`: Enum (`PENDING`, `SYNCED`, `FAILED`, `IGNORED`)~~ *(Superseded: Replaced with `is_locked` boolean)*
+- `is_locked`: Boolean (Defaults to `False`. Set to `True` automatically when exported via CSV or manually locked by the user).
 - ~~`wave_transaction_id`: String (Nullable)~~ *(Superseded)*
 
 ## 5. Backend Architecture (FastAPI)
@@ -122,28 +123,66 @@ A transaction must be able to be split across personal expenses or business enti
       - `total_amount`: Numeric, strictly non-zero (supports positive for expenses, negative for returns/refunds).
       - `date`: Required valid ISO date string (`YYYY-MM-DD`).
       - `description`: Required, non-empty string.
-      - `company_id`: Required UUID for manual business transaction attribution.
+      - `company_id`: Required UUID for manual business transaction attribution (when default allocation is used).
       - ~~`is_approved`: Boolean~~ *(Superseded).*
-      - `allocations`: Optional list of splits. If provided, sum of `allocation.amount` must equal `total_amount`.
+      - `allocations`: Required/optional list of splits. Sum of `allocation.amount` must equal `total_amount`.
     - **Atomic Creation:** In a single database transaction:
       1. Creates the `Transaction` record with `source = "manual"`.
       2. If receipt is uploaded, saves to `RECEIPT_STORAGE_DIR` and populates `receipt_file_path`.
-      3. Creates `Allocation` record(s): If splits are omitted in the request, automatically creates a single default business allocation (`amount = total_amount`, `company_id = payload.company_id`, `is_personal = false`, `sync_status = PENDING`).
+      3. Creates `Allocation` record(s): If splits are omitted in the request, automatically creates a single default business allocation (`amount = total_amount`, `company_id = payload.company_id`, `is_personal = false`, `is_locked = false`).
     - **Response:** `201 Created` with created `TransactionResponse` including its allocations.
-  - `PUT /api/transactions/{id}` (Update transaction details).
+  - `PUT /api/transactions/{id}` (Unified update for transaction details, split allocations, and optional receipt replacement/removal):
+    - **Payload:** Accepts `application/json` or `multipart/form-data` (for inline receipt file upload or removal via `remove_receipt: bool`).
+    - **Lock Validation & Partial Lock Rules:**
+      - A parent transaction is considered **Fully Locked** only when **all** of its existing allocations have `is_locked == True` (`len(allocations) > 0 and all(a.is_locked for a in allocations)`). If Fully Locked, modifying transaction metadata or allocations (`date`, `description`, `total_amount`, `allocations`) **MUST** return `400 Bad Request` (`"Cannot modify transaction: all allocations are locked"`).
+      - If the transaction is **Partially Locked** (some allocations have `is_locked == True` and some have `is_locked == False`), the parent transaction remains unlocked so the user can edit or split the unlocked allocations without unlocking the already-exported ones. However:
+        1. Every existing locked allocation (`is_locked == True`) **MUST** be preserved in the `allocations` payload with its original `id`, `amount`, `is_personal`, `company_id`, and `is_locked = True` untouched; attempting to modify or remove a locked allocation without unlocking it first returns `400 Bad Request`.
+        2. Top-level `date` and `description` cannot be changed while any allocation is locked (`400 Bad Request`), or if `total_amount` is changed, the sum of all allocations (locked + unlocked) must equal the new `total_amount`.
+      - **Personal vs. Business Split Validation:**
+        - Only business transactions (`is_personal == False`) can be split into multiple allocations (`len(allocations) > 1`).
+        - If `len(allocations) > 1`, any allocation with `is_personal == True` is rejected with `400 Bad Request` (`"Only business transactions can be split. Remove extra splits before marking as personal."`).
+        - If `len(allocations) == 1` and `is_personal == True`, `company_id` is set to `None`.
+        - For any allocation with `is_personal == False`, a valid existing `company_id` is required.
+        - When `allocations` is provided (or when `total_amount` is updated), `sum(allocation.amount)` must strictly equal `Transaction.total_amount` (`400 Bad Request` if unbalanced).
+    - **Receipt Handling in Edit:**
+      - Receipt updates (`file` upload or `remove_receipt = True`) are permitted regardless of whether the transaction's allocations are locked.
+      - Replacing or removing an existing receipt deletes the old file from `RECEIPT_STORAGE_DIR` on disk.
+  - `DELETE /api/transactions/{id}` (Deletes a transaction, its allocations, and its on-disk receipt file):
+    - **Lock Validation:** **MUST** return `400 Bad Request` if **any** allocation on the transaction has `is_locked == True` (`"Cannot delete transaction: transaction contains locked allocations"`). The user must unlock all locked allocations before deleting the transaction.
+    - **File Cleanup:** If `transaction.receipt_file_path` is present, deletes the physical file from `RECEIPT_STORAGE_DIR` (ignoring `FileNotFoundError` if already absent) upon database commit.
+    - **Response:** `204 No Content`.
+  - `PUT /api/transactions/{id}/lock` (Intentional transaction-level lock/unlock):
+    - **Payload:** `{ "is_locked": bool }`
+    - Sets `is_locked = payload.is_locked` on all allocations belonging to `transaction_id` and returns the updated `TransactionResponse`.
   - ~~`PUT /api/transactions/{id}/approve` (Mark transaction as approved).~~ *(Superseded: Approval endpoint removed).*
 - **Allocations:**
-  - `PUT /api/transactions/{id}/allocations` (Updates split allocations. **MUST** return a 400 error if any existing allocation is `SYNCED`).
-  - `PUT /api/allocations/{id}/revert` (Reverts a single `SYNCED` allocation back to `PENDING`).
+  - `PUT /api/transactions/{id}/allocations` (Updates split allocations):
+    - Enforces the same partial/full lock rules and personal/business split validation as `PUT /api/transactions/{id}`: returns `400 Bad Request` if all allocations are locked or if any existing locked allocation is modified/removed, and validates that `sum(amount) == transaction.total_amount`.
+  - `PUT /api/allocations/{id}/lock` (Replaces ~~`PUT /api/allocations/{id}/revert`~~):
+    - **Payload:** `{ "is_locked": bool }`
+    - Locks or unlocks a single allocation (`Allocation.is_locked = payload.is_locked`) and returns `AllocationResponse`.
 - **Receipts:**
-  - `POST /api/transactions/{id}/receipt` (Uploads receipt file to `RECEIPT_STORAGE_DIR`).
-  - `GET /api/receipts/{path}` (Downloads receipt file for user inspection and manual upload into Wave).
+  - `POST /api/transactions/{id}/receipt` (Uploads or replaces a receipt file in `RECEIPT_STORAGE_DIR`):
+    - Permitted even when the transaction's allocations are locked (`is_locked == True`).
+    - If the transaction already had a `receipt_file_path` and the old file differs, removes the previous file from disk.
+  - `DELETE /api/transactions/{id}/receipt` (Removes an attached receipt from a transaction):
+    - Permitted even when the transaction's allocations are locked (`is_locked == True`).
+    - Deletes the file on disk from `RECEIPT_STORAGE_DIR` and sets `transaction.receipt_file_path = None`.
+    - Returns updated `TransactionResponse`.
+  - `GET /api/receipts/{path}` (Streams receipt file from `RECEIPT_STORAGE_DIR` with inline content disposition and detected media type (`application/pdf`, `image/png`, `image/jpeg`) for viewing in a new browser tab or downloading).
 - ~~**Wave Push:**~~ *(Superseded)*
   - ~~`POST /api/sync/wave` (Must spawn a background task to process PENDING transactions to avoid 504 timeouts. Returns 202 Accepted).~~
-- **Export & Sync Management:**
-  - `GET /api/companies/{id}/export-transactions` (Generates and downloads a CSV of business allocations. Query param `status`: defaults to `PENDING`, optional `SYNCED`).
-  - `POST /api/companies/{id}/mark-synced` (Marks business allocations for this company as `SYNCED`. Accepts optional list of allocation IDs in payload; if omitted, marks all currently `PENDING` allocations for the company).
-  - `POST /api/companies/{id}/revert-synced` (Reverts business allocations for this company back to `PENDING`. Accepts optional list of allocation IDs in payload; if omitted, reverts all `SYNCED` allocations).
+- **Export & Lock Management:**
+  - `GET /api/companies/{id}/export-transactions` (Generates and downloads a Wave-formatted CSV of business allocations for the company and **automatically locks** all exported allocations):
+    - **Query Parameters:**
+      - `include_locked`: Boolean (Defaults to `False`. When `False`, queries only unlocked business allocations `is_locked == False`. When `True`, includes both unlocked and already-locked business allocations).
+      - `start_date`: Optional ISO Date (`YYYY-MM-DD`, inclusive filter on `Transaction.date`).
+      - `end_date`: Optional ISO Date (`YYYY-MM-DD`, inclusive filter on `Transaction.date`).
+    - **Automatic Locking Side-Effect:** All matched allocations with `is_locked == False` are atomically updated to `is_locked = True` and committed to the database when the CSV export is generated.
+  - `POST /api/companies/{id}/lock-allocations` (Replaces ~~`POST /api/companies/{id}/mark-synced`~~):
+    - Locks business allocations (`is_locked = True`) for this company. Accepts optional `allocation_ids` list in payload; if omitted, locks all currently unlocked allocations for the company.
+  - `POST /api/companies/{id}/unlock-allocations` (Replaces ~~`POST /api/companies/{id}/revert-synced`~~):
+    - Unlocks business allocations (`is_locked = False`) for this company. Accepts optional `allocation_ids` list in payload; if omitted, unlocks all locked allocations for the company.
 
 ### 5.2 Abstraction Layer for Intake Sources
 The backend must include an abstraction layer for parsing transaction sources, enforcing the extraction of `external_id` for duplicate prevention.
@@ -154,9 +193,24 @@ The backend must include an abstraction layer for parsing transaction sources, e
 Persistent navigation drawer: **Ledger**, **Manual Entry**, **Export Manager** (replacing ~~Sync Manager~~), and **Settings**.
 
 ### 6.2 Ledger View
-- **Data Table:** Displays top-level `Transactions` using server-side pagination.
-- **Sync Status & Immutability:** Transactions with `SYNCED` allocations must be visually indicated with a badge and locked from allocation editing. Locked transactions can be unlocked by reverting their synced allocations to `PENDING`.
-- **Receipt Downloads:** Direct download button/link for transactions with attached receipts so the user can easily download files when preparing manual Wave uploads.
+- **Data Table:** Displays top-level `Transactions` using server-side pagination, sorting, and filtering (`source`, `company_id`, `start_date`, `end_date`).
+- **Visual Lock Indicators (Transaction & Allocation Level):**
+  - Each allocation displays its lock status visually (e.g., lock icon/badge when `allocation.is_locked == true`).
+  - A parent transaction row is visually indicated as **Fully Locked** when all of its allocations have `is_locked == true`, or **Partially Locked** when a subset of its splits are locked.
+- **Intentional Lock / Unlock Controls & Warning:**
+  - Users can intentionally **Lock** an unlocked transaction (or individual allocation) directly from the UI without exporting (supporting the workflow where a user adjusts a transaction locally, fixes it manually in Wave, and locks it so it won't be exported again).
+  - Users can intentionally **Unlock** a locked transaction or allocation.
+  - **Unlock Warning Confirmation:** Clicking **Unlock** on a locked transaction or allocation **MUST** display a confirmation warning dialog before unlocking:
+    > *"If this transaction has already been imported into an external accounting system, you must also adjust or remove it there manually."*
+- **Receipt Viewing (Open in New Tab):**
+  - Transactions with an attached receipt (`receipt_file_path != null`) display an interactive receipt icon button in the Receipt column.
+  - Clicking the receipt button fetches the file via the authenticated `apiClient` (`GET /api/receipts/{path}` with `responseType: "blob"`), generates a browser object URL (`URL.createObjectURL(blob)`), and opens the receipt in a **new browser tab** (`window.open(blobUrl, "_blank")`).
+- **Row Actions (Edit, Lock/Unlock, Delete):**
+  - **Edit Button:** Opens the **Unified Edit Transaction Dialog** (Section 6.4). If **all** allocations on the transaction are locked (`Fully Locked`), transaction metadata and allocation editing are disabled until unlocked, though the user can still upload, replace, or remove the receipt (or click **Edit** disabled / **Manage Receipt**).
+  - **Lock / Unlock Toggle Button:** Locks all allocations on the transaction, or prompts with the external-system warning to unlock them.
+  - **Delete Button:**
+    - Disabled if **any** allocation on the transaction has `is_locked == true` (with a tooltip explaining that locked allocations must be unlocked before deleting).
+    - When enabled and clicked, prompts the user with a confirmation dialog before calling `DELETE /api/transactions/{id}` and refreshing the table.
 
 ### 6.3 Manual Entry View
 A dedicated form accessible via the persistent navigation drawer (`/manual-entry`) optimized for rapid, keyboard-driven manual business expense intake.
@@ -173,7 +227,7 @@ A dedicated form accessible via the persistent navigation drawer (`/manual-entry
   - ~~**Approval Toggle:** Optional toggle (`is_approved`), defaults to `true`.~~ *(Superseded).*
 - **Inline Allocation Splitter (All-in-One):**
   - Allows completing the ledger allocation directly within the entry form.
-  - Defaults to a single split assigning 100% of `Total Amount` to the selected `Company` (`is_personal = false`, `sync_status = PENDING`).
+  - Defaults to a single split assigning 100% of `Total Amount` to the selected `Company` (`is_personal = false`, `is_locked = false`).
   - Supports adding additional splits across different businesses for multi-company receipts.
   - Enforces that all allocations are business splits (`is_personal = false` with a selected `company_id`).
   - Real-time balance validation: Unallocated remainder (`Total Amount - sum(splits)`) must be `0.00`. Form submission is disabled while unbalanced.
@@ -184,27 +238,50 @@ A dedicated form accessible via the persistent navigation drawer (`/manual-entry
     2. Completely resets the form: Clears the date field (returns to empty), clears description, clears amount, clears receipt, and restores a single 100% default allocation to the selected company.
     3. **Auto-focuses the first field (Date)** so the user can immediately type the next receipt without touching the mouse.
 
-### 6.4 Allocation Editor (Transaction Splitter)
-- Modal or expandable panel allowing user to split a parent transaction into `Allocations`.
-- Controls:
-  - Personal toggle (`is_personal`).
-  - Business Company select dropdown (disabled if `is_personal` is True).
-  - ~~Category select~~ *(Superseded: Categories removed).*
-  - Amount input per split, with validation ensuring sum of allocations equals `Transaction.total_amount`.
-- Editing is locked if any allocation has `sync_status == SYNCED`.
+### 6.4 Unified Transaction & Allocation Editor Dialog (`TransactionEditDialog.vue`)
+A unified modal dialog invoked from the Ledger View allowing the user to edit transaction metadata, manage receipt attachments, and split/edit allocations in one place.
+
+- **Transaction Metadata Controls:**
+  - **Date (`YYYY-MM-DD`):** Required input with Quasar datepicker (`today-btn=true`). Disabled if any allocation is locked (`is_locked == true`).
+  - **Description / Payee:** Required text input. Disabled if any allocation is locked (`is_locked == true`).
+  - **Total Amount:** Required non-zero numeric input formatted to two decimal places. Disabled if all allocations are locked.
+- **Receipt Management (Always Editable — Does Not Require Unlocking):**
+  - Displays current receipt status:
+    - If a receipt is attached (`receipt_file_path`), provides a **"View Receipt"** button (opens in a new tab), a **"Replace Receipt"** file picker (`.pdf`, `.png`, `.jpg`, `.jpeg`), and a **"Remove Receipt"** button.
+    - If no receipt is attached, provides an **"Upload Receipt"** file picker.
+  - Receipt changes can be saved even when the transaction's allocations are locked.
+- **Personal vs. Business & Split Allocation Controls:**
+  - **Personal Expense Toggle (`is_personal`):**
+    - **Rule:** Only business transactions (`is_personal == false`) can be split.
+    - If `splits.length > 1`, the `is_personal` toggle is **disabled** with a tooltip/message: *"Remove extra splits before marking this transaction as personal."*
+    - When `is_personal` is toggled to `true` (only allowed when `splits.length === 1` and the allocation is unlocked):
+      - The single allocation's `company_id` is cleared (`null`) and its amount is locked to `100%` of `Total Amount`.
+      - The Company select dropdown and **"Add Split"** button are disabled.
+  - **Business Splits (`is_personal == false`):**
+    - Each split row displays:
+      1. **Company Select Dropdown** (required).
+      2. **Split Amount Input** (readonly if `splits.length === 1`, editable when `splits.length > 1`).
+      3. **Allocation Lock Indicator & Toggle (`is_locked`):** Shows whether this specific split is locked (`is_locked == true`) or unlocked (`is_locked == false`). Users can lock an unlocked split, or click to unlock a locked split (which triggers the external-system warning confirmation).
+      4. **Remove Split Button:** Enabled when `splits.length > 1` and `!split.is_locked`.
+    - **Partial Lock Editing Behavior:**
+      - If a transaction is split across Company A (`is_locked == true`) and Company B (`is_locked == false`), the parent dialog remains open for editing: Company A's row inputs (`company_id`, `amount`, remove button) are disabled, while Company B's row can be freely edited or further split across additional companies as long as `Total Amount - sum(splits) == 0.00`.
+    - **Real-Time Balance Validation:**
+      - Displays the live remainder badge (`Balanced ($0.00 remaining)`, `Unallocated`, or `Overallocated`).
+      - Saving metadata/allocation changes is disabled whenever `remainderCents !== 0`.
 
 ### 6.5 Export Manager UI (Supersedes Sync Manager UI)
-Dedicated view replacing the legacy automated Sync Manager:
-- **Pending Exports Summary:** Table or card list grouped by `Company`, showing:
+Dedicated view (`/export-manager`) for generating Wave-compatible CSV exports per company:
+- **Company Export Summary:** Table or card list grouped by `Company`, showing:
   - Company Name
-  - Count of `PENDING` allocations
-  - Total dollar amount of pending allocations
-- **Actions per Company:**
-  - **"Export CSV" button:** Triggers CSV file download formatted for Wave import.
-  - **"Mark as Synced" button:** Becomes primary action after export, allowing the user to mark the exported allocations as `SYNCED`.
-- **Reconciliation & History Section:**
-  - Tab or expandable view showing `SYNCED` allocations per company.
-  - **"Revert to Pending" button:** Allows reverting allocations back to `PENDING` if an import into Wave was aborted, rejected, or needs correction.
+  - Count of unlocked (`is_locked == false`) business allocations ready for export
+  - Total dollar amount of unlocked business allocations
+  - Count of locked (`is_locked == true`) business allocations
+- **Export Options & Controls:**
+  - **"Include locked transactions" Toggle (`include_locked`):** Boolean toggle defaulting to `false`. When enabled (`true`), the CSV export includes already-locked allocations alongside unlocked allocations (useful if the user needs to re-export transactions for a given company or time period).
+  - **Optional Date Range Filter (`start_date`, `end_date`):** Allows scoping the export (or re-export) to a specific period.
+  - **"Export CSV" Button per Company:**
+    - Calls `GET /api/companies/{id}/export-transactions` (with `include_locked`, `start_date`, `end_date` query params) and triggers the browser CSV download.
+    - Automatically locks (`is_locked = true`) all exported allocations on the backend and refreshes the summary counts in the UI.
 
 ~~**Legacy Sync Manager UI (Superseded):**~~
 - ~~Dedicated view for Wave synchronization.~~
@@ -233,12 +310,19 @@ Wave's transaction import accepts standard 3-column CSV files. The exported CSV 
   - Each business `Allocation` (`is_personal == False`) linked to the requested `company_id` produces exactly one row in the CSV.
   - Personal allocations are excluded from company CSV exports.
 
-#### 7.1.2 Sync State Lifecycle & Rules
-- **States:** `PENDING` and `SYNCED`.
-- **Creation:** All new business allocations default to `PENDING`.
-- **Marking as Synced:** Completed manually by the user via the Export Manager after generating the CSV and importing it into Wave.
-- **Reversion:** Users can revert `SYNCED` allocations back to `PENDING`. This unlocks the parent transaction for editing or reallocation if an error occurred during Wave import.
-- **Transaction Safety:** Allocation modifications (`PUT /api/transactions/{id}/allocations`) remain strictly prohibited while any allocation in the transaction is `SYNCED`.
+#### 7.1.2 Lock State Lifecycle & Rules (`Allocation.is_locked`)
+- **State Representation:** Boolean `is_locked` on `Allocation` (replaces legacy `sync_status` enum).
+- **Creation:** All new allocations default to `is_locked = False`.
+- **Automatic Locking on Export:** Exporting business allocations for a company via `GET /api/companies/{id}/export-transactions` automatically sets `is_locked = True` on all exported allocations for that company.
+- **Re-Exporting Locked Allocations:** Passing `include_locked=true` (and optional `start_date` / `end_date`) to `GET /api/companies/{id}/export-transactions` includes already-locked allocations in the generated CSV.
+- **Intentional Manual Lock & Unlock:**
+  - Users can manually lock any unlocked allocation/transaction (e.g., after manually adjusting an entry in both Wrangler and Wave so it will be excluded from the next default CSV export).
+  - Users can manually unlock any locked allocation/transaction after acknowledging the external-system warning.
+- **Transaction Edit & Delete Safety:**
+  - **Partial Lock:** If a transaction has both locked (`is_locked == True`) and unlocked (`is_locked == False`) allocations, the parent transaction remains editable for the unlocked allocations, while the locked allocations cannot be modified or removed without unlocking them first.
+  - **Full Lock:** If **all** allocations on a transaction have `is_locked == True`, modifying transaction metadata or allocations is prohibited (`400 Bad Request`) until unlocked.
+  - **Deletion:** Deleting a transaction (`DELETE /api/transactions/{id}`) is prohibited (`400 Bad Request`) if **any** of its allocations has `is_locked == True`.
+  - **Receipt Independence:** Uploading, replacing, or removing a receipt (`POST /api/transactions/{id}/receipt` or `DELETE /api/transactions/{id}/receipt`) is always allowed regardless of `is_locked`.
 
 ### 7.2 Wave GraphQL API Integration Details (Superseded)
 > [!NOTE]
