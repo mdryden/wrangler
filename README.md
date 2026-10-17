@@ -94,3 +94,12 @@ The server will launch with auto-reload enabled:
 - **Interactive Swagger Docs**: `http://localhost:8000/docs`
 - **ReDoc Documentation**: `http://localhost:8000/redoc`
 - **Health Check**: `http://localhost:8000/api/health`
+
+## AI-Driven Development Workflow
+
+This project takes a spec-driven approach to development. The process is as follows:
+1. Use agy agent "sdd-architect" to create a new specification in `specs/<version>/N-short-name/<spec.md>`.
+2. Use agy agent "sdd-planner" to create a plan and tasks for the specification in `specs/<version>/N-short-name/<plan.md>`.
+3. Use agy agent "sdd-coder" to implement tasks defined in the plan.
+
+Once a spec has been fully implemented, remove the tasks.md file.  The spec.md and plan.md files are retained for future AI context.
