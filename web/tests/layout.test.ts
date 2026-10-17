@@ -2,10 +2,10 @@ import { describe, it, expect } from "vitest"
 import { navItems } from "../src/layouts/nav"
 
 describe("MainLayout Navigation Drawer", () => {
-  it("defines the 4 primary persistent navigation items", () => {
-    expect(navItems).toHaveLength(4)
+  it("defines the primary persistent navigation items including import", () => {
+    expect(navItems).toHaveLength(5)
     const itemNames = navItems.map(item => item.name)
-    expect(itemNames).toEqual(["ledger", "manual-entry", "export-manager", "settings"])
+    expect(itemNames).toEqual(["ledger", "import", "manual-entry", "export-manager", "settings"])
   })
 
   it("configures each navigation item with label, icon, and route path", () => {
@@ -15,6 +15,14 @@ describe("MainLayout Navigation Drawer", () => {
       label: "Ledger",
       icon: "receipt_long",
       path: "/ledger",
+    })
+
+    const importItem = navItems.find(item => item.name === "import")
+    expect(importItem).toEqual({
+      name: "import",
+      label: "Import",
+      icon: "cloud_upload",
+      path: "/import",
     })
 
     const manualEntry = navItems.find(item => item.name === "manual-entry")

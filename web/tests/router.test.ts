@@ -50,6 +50,7 @@ describe("Router Configuration & Navigation Guards", () => {
       const childNames = children.map(c => c.name).filter(Boolean)
 
       expect(childNames).toContain("ledger")
+      expect(childNames).toContain("import")
       expect(childNames).toContain("manual-entry")
       expect(childNames).toContain("export-manager")
       expect(childNames).toContain("settings")

@@ -7,6 +7,8 @@ from sqlalchemy.exc import IntegrityError
 
 from models.allocation import Allocation
 from models.company import Company
+from models.staged_allocation import StagedAllocation
+from models.staged_transaction import StagedTransaction
 from models.transaction import Transaction
 
 
@@ -386,3 +388,170 @@ def test_allocation_company_set_null_on_delete(db_session):
     db_session.refresh(alloc)
 
     assert alloc.company_id is None
+
+
+def test_staged_transaction_creation_defaults(db_session):
+    staged_tx = StagedTransaction(
+        source="wrangler_csv",
+        date=date(2026, 10, 1),
+        description="Cloud hosting",
+        total_amount=Decimal("29.99"),
+    )
+    db_session.add(staged_tx)
+    db_session.commit()
+    db_session.refresh(staged_tx)
+
+    assert isinstance(staged_tx.id, uuid.UUID)
+    assert staged_tx.source == "wrangler_csv"
+    assert staged_tx.external_id is None
+    assert staged_tx.date == date(2026, 10, 1)
+    assert staged_tx.description == "Cloud hosting"
+    assert staged_tx.total_amount == Decimal("29.99")
+    assert staged_tx.currency_code == "USD"
+    assert staged_tx.receipt_file_path is None
+    assert staged_tx.status == "STAGED"
+    assert staged_tx.is_marked_imported is False
+    assert staged_tx.ledger_transaction_id is None
+    assert staged_tx.created_at is not None
+    assert staged_tx.allocations == []
+
+
+def test_staged_transaction_unique_constraint(db_session):
+    stx1 = StagedTransaction(
+        source="amazon_csv",
+        external_id="ORDER-1",
+        date=date(2026, 10, 1),
+        description="First order",
+        total_amount=Decimal("19.99"),
+    )
+    db_session.add(stx1)
+    db_session.commit()
+
+    # Duplicate source + external_id must fail
+    stx2 = StagedTransaction(
+        source="amazon_csv",
+        external_id="ORDER-1",
+        date=date(2026, 10, 2),
+        description="Duplicate order",
+        total_amount=Decimal("19.99"),
+    )
+    db_session.add(stx2)
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+    db_session.rollback()
+
+    # Different source with same external_id must succeed
+    stx3 = StagedTransaction(
+        source="wrangler_csv",
+        external_id="ORDER-1",
+        date=date(2026, 10, 2),
+        description="Other source order",
+        total_amount=Decimal("19.99"),
+    )
+    db_session.add(stx3)
+    db_session.commit()
+
+
+def test_staged_allocation_relationships_and_cascade_delete(db_session):
+    company = Company(name="Staging Corp")
+    db_session.add(company)
+    db_session.commit()
+
+    staged_tx = StagedTransaction(
+        source="wrangler_csv",
+        date=date(2026, 10, 1),
+        description="Split item",
+        total_amount=Decimal("100.00"),
+    )
+    db_session.add(staged_tx)
+    db_session.commit()
+
+    s_alloc1 = StagedAllocation(
+        staged_transaction_id=staged_tx.id,
+        amount=Decimal("60.00"),
+        is_personal=False,
+        company_id=company.id,
+    )
+    s_alloc2 = StagedAllocation(
+        staged_transaction_id=staged_tx.id,
+        amount=Decimal("40.00"),
+        is_personal=False,
+        company_id=company.id,
+    )
+    db_session.add_all([s_alloc1, s_alloc2])
+    db_session.commit()
+    db_session.refresh(staged_tx)
+    db_session.refresh(s_alloc1)
+
+    assert len(staged_tx.allocations) == 2
+    assert s_alloc1.company == company
+    assert s_alloc1.staged_transaction == staged_tx
+
+    alloc1_id = s_alloc1.id
+    alloc2_id = s_alloc2.id
+
+    # Deleting StagedTransaction cascades to StagedAllocation
+    db_session.delete(staged_tx)
+    db_session.commit()
+
+    assert db_session.get(StagedAllocation, alloc1_id) is None
+    assert db_session.get(StagedAllocation, alloc2_id) is None
+
+
+def test_staged_transaction_ledger_tx_set_null_on_delete(db_session):
+    tx = Transaction(
+        source="wrangler_csv",
+        external_id="EXT-100",
+        date=date(2026, 10, 1),
+        description="Ledger tx",
+        total_amount=Decimal("50.00"),
+    )
+    db_session.add(tx)
+    db_session.commit()
+
+    staged_tx = StagedTransaction(
+        source="wrangler_csv",
+        external_id="EXT-100",
+        date=date(2026, 10, 1),
+        description="Ledger tx",
+        total_amount=Decimal("50.00"),
+        status="ACCEPTED",
+        ledger_transaction_id=tx.id,
+    )
+    db_session.add(staged_tx)
+    db_session.commit()
+
+    db_session.delete(tx)
+    db_session.commit()
+    db_session.refresh(staged_tx)
+
+    assert staged_tx.ledger_transaction_id is None
+
+
+def test_staged_allocation_company_restrict_on_delete(db_session):
+    company = Company(name="Restricted Corp")
+    db_session.add(company)
+    db_session.commit()
+
+    staged_tx = StagedTransaction(
+        source="wrangler_csv",
+        date=date(2026, 10, 1),
+        description="Test restrict",
+        total_amount=Decimal("50.00"),
+    )
+    db_session.add(staged_tx)
+    db_session.commit()
+
+    s_alloc = StagedAllocation(
+        staged_transaction_id=staged_tx.id,
+        amount=Decimal("50.00"),
+        is_personal=False,
+        company_id=company.id,
+    )
+    db_session.add(s_alloc)
+    db_session.commit()
+
+    db_session.delete(company)
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+    db_session.rollback()

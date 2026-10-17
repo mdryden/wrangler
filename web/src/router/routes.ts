@@ -30,6 +30,14 @@ export const routes: RouteRecordRaw[] = [
         },
       },
       {
+        path: "import",
+        name: "import",
+        component: () => import("../views/ImportView.vue"),
+        meta: {
+          requiresAuth: true,
+        },
+      },
+      {
         path: "manual-entry",
         name: "manual-entry",
         component: () => import("../views/ManualEntryView.vue"),

@@ -26,6 +26,8 @@ def test_alembic_migrations_upgrade_and_downgrade(tmp_path):
     assert "wave_categories" not in tables
     assert "transactions" in tables
     assert "allocations" in tables
+    assert "staged_transactions" in tables
+    assert "staged_allocations" in tables
     assert "alembic_version" in tables
 
     # Verify columns at head
@@ -42,6 +44,32 @@ def test_alembic_migrations_upgrade_and_downgrade(tmp_path):
     tx_cols = {col["name"] for col in inspector.get_columns("transactions")}
     assert "is_approved" not in tx_cols
 
+    staged_tx_cols = {col["name"] for col in inspector.get_columns("staged_transactions")}
+    assert {
+        "id",
+        "source",
+        "external_id",
+        "date",
+        "description",
+        "total_amount",
+        "currency_code",
+        "receipt_file_path",
+        "status",
+        "is_marked_imported",
+        "ledger_transaction_id",
+        "created_at",
+    } <= staged_tx_cols
+
+    staged_tx_indexes = {idx["name"] for idx in inspector.get_indexes("staged_transactions")}
+    assert "ix_staged_transactions_source" in staged_tx_indexes
+    assert "ix_staged_transactions_status" in staged_tx_indexes
+
+    staged_tx_unique = [u["column_names"] for u in inspector.get_unique_constraints("staged_transactions")]
+    assert ["source", "external_id"] in staged_tx_unique
+
+    staged_alloc_cols = {col["name"] for col in inspector.get_columns("staged_allocations")}
+    assert {"id", "staged_transaction_id", "amount", "is_personal", "company_id"} <= staged_alloc_cols
+
     # Downgrade to base
     command.downgrade(alembic_cfg, "base")
     inspector = inspect(engine)
@@ -50,6 +78,8 @@ def test_alembic_migrations_upgrade_and_downgrade(tmp_path):
     assert "wave_categories" not in tables_after_downgrade
     assert "transactions" not in tables_after_downgrade
     assert "allocations" not in tables_after_downgrade
+    assert "staged_transactions" not in tables_after_downgrade
+    assert "staged_allocations" not in tables_after_downgrade
 
 
 def test_alembic_migration_sync_status_to_is_locked_data_preservation(tmp_path):

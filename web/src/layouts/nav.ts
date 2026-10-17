@@ -7,6 +7,7 @@ export interface NavItem {
 
 export const navItems: NavItem[] = [
   { name: "ledger", label: "Ledger", icon: "receipt_long", path: "/ledger" },
+  { name: "import", label: "Import", icon: "cloud_upload", path: "/import" },
   { name: "manual-entry", label: "Manual Entry", icon: "post_add", path: "/manual-entry" },
   { name: "export-manager", label: "Export Manager", icon: "file_download", path: "/export-manager" },
   { name: "settings", label: "Settings", icon: "settings", path: "/settings" },

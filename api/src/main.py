@@ -13,7 +13,9 @@ from database import get_db
 from routers.allocations import router as allocations_router
 from routers.auth import router as auth_router
 from routers.companies import router as companies_router
+from routers.importers import router as importers_router
 from routers.receipts import router as receipts_router
+from routers.staging import router as staging_router
 from routers.transactions import router as transactions_router
 
 
@@ -45,6 +47,8 @@ app.include_router(companies_router)
 app.include_router(transactions_router)
 app.include_router(receipts_router)
 app.include_router(allocations_router)
+app.include_router(importers_router)
+app.include_router(staging_router)
 
 
 @app.get("/api/health")

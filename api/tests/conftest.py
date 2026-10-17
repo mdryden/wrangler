@@ -5,6 +5,8 @@ from sqlalchemy.pool import StaticPool
 
 import models.allocation  # noqa: F401
 import models.company  # noqa: F401
+import models.staged_allocation  # noqa: F401
+import models.staged_transaction  # noqa: F401
 import models.transaction  # noqa: F401
 from database import Base
 

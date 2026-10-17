@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session, contains_eager
 from database import get_db
 from models.allocation import Allocation
 from models.company import Company
+from models.staged_allocation import StagedAllocation
 from models.transaction import Transaction
 from schemas.allocation import AllocationResponse
 from schemas.company import CompanyCreate, CompanyLockBatchRequest, CompanyResponse, CompanyUpdate
@@ -179,7 +180,8 @@ def delete_company(
         )
 
     allocation_count = db.scalar(select(func.count(Allocation.id)).where(Allocation.company_id == company_id))
-    if allocation_count and allocation_count > 0:
+    staged_allocation_count = db.scalar(select(func.count(StagedAllocation.id)).where(StagedAllocation.company_id == company_id))
+    if (allocation_count and allocation_count > 0) or (staged_allocation_count and staged_allocation_count > 0):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Cannot delete company '{company.name}': linked to existing allocations",

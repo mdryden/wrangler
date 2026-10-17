@@ -9,6 +9,8 @@ from core.config import settings
 from database import Base
 from models.allocation import Allocation  # noqa: F401
 from models.company import Company  # noqa: F401
+from models.staged_allocation import StagedAllocation  # noqa: F401
+from models.staged_transaction import StagedTransaction  # noqa: F401
 from models.transaction import Transaction  # noqa: F401
 
 # Ensure src directory is in sys.path

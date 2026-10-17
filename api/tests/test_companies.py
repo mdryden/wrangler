@@ -13,6 +13,8 @@ from database import get_db
 from main import app
 from models.allocation import Allocation
 from models.company import Company
+from models.staged_allocation import StagedAllocation
+from models.staged_transaction import StagedTransaction
 from models.transaction import Transaction
 
 MOCK_ADMIN = "admin"
@@ -251,6 +253,46 @@ def test_delete_company_blocked_when_linked_to_allocations(client, auth_headers,
     # Verify company still exists
     db_company = db_session.get(Company, company_id)
     assert db_company is not None
+
+
+def test_delete_company_blocked_when_linked_to_staged_allocations(client, auth_headers, db_session):
+    create_res = client.post(
+        "/api/companies",
+        json={"name": "Staged Linked Company"},
+        headers=auth_headers,
+    )
+    company_id = uuid.UUID(create_res.json()["id"])
+
+    staged_tx = StagedTransaction(
+        source="wrangler_csv",
+        date=date(2026, 10, 1),
+        description="Staged Expense",
+        total_amount=Decimal("75.00"),
+    )
+    db_session.add(staged_tx)
+    db_session.commit()
+
+    staged_alloc = StagedAllocation(
+        staged_transaction_id=staged_tx.id,
+        amount=Decimal("75.00"),
+        is_personal=False,
+        company_id=company_id,
+    )
+    db_session.add(staged_alloc)
+    db_session.commit()
+
+    # Attempt to delete company -> 400 Bad Request
+    del_res = client.delete(f"/api/companies/{company_id}", headers=auth_headers)
+    assert del_res.status_code == 400
+    assert "linked to existing allocations" in del_res.json()["detail"]
+
+    # Remove staged allocation and verify deletion succeeds
+    db_session.delete(staged_alloc)
+    db_session.commit()
+
+    del_res_after = client.delete(f"/api/companies/{company_id}", headers=auth_headers)
+    assert del_res_after.status_code == 204
+    assert db_session.get(Company, company_id) is None
 
 
 def test_export_transactions_unauthenticated(client):

@@ -3,6 +3,8 @@ from sqlalchemy import create_engine, inspect
 from database import Base
 from models.allocation import Allocation  # noqa: F401
 from models.company import Company  # noqa: F401
+from models.staged_allocation import StagedAllocation  # noqa: F401
+from models.staged_transaction import StagedTransaction  # noqa: F401
 from models.transaction import Transaction  # noqa: F401
 
 
@@ -17,6 +19,8 @@ def test_database_schema_setup():
     assert "wave_categories" not in tables
     assert "transactions" in tables
     assert "allocations" in tables
+    assert "staged_transactions" in tables
+    assert "staged_allocations" in tables
 
     # 2. Verify columns in companies
     company_cols = {col["name"]: col for col in inspector.get_columns("companies")}
@@ -58,6 +62,10 @@ def test_database_schema_setup():
     tx_unique_cols = [u["column_names"] for u in tx_unique]
     assert ["source", "external_id"] in tx_unique_cols
 
+    staged_tx_unique = inspector.get_unique_constraints("staged_transactions")
+    staged_tx_unique_cols = [u["column_names"] for u in staged_tx_unique]
+    assert ["source", "external_id"] in staged_tx_unique_cols
+
     company_unique = inspector.get_unique_constraints("companies")
     company_unique_cols = [u["column_names"] for u in company_unique]
     assert ["name"] in company_unique_cols
@@ -68,3 +76,8 @@ def test_database_schema_setup():
     assert "transactions" in referred_tables
     assert "companies" in referred_tables
     assert "wave_categories" not in referred_tables
+
+    staged_alloc_fks = inspector.get_foreign_keys("staged_allocations")
+    staged_referred_tables = {fk["referred_table"] for fk in staged_alloc_fks}
+    assert "staged_transactions" in staged_referred_tables
+    assert "companies" in staged_referred_tables
