@@ -1,3 +1,4 @@
+from .amazon_csv import AmazonCsvImporter
 from .base import BaseImporter
 
 _IMPORTERS_BY_ID: dict[str, BaseImporter] = {}
@@ -24,3 +25,7 @@ def get_importer_by_source(source_name: str) -> BaseImporter | None:
         if importer.source_name == source_name:
             return importer
     return None
+
+
+# Register default system importers
+register_importer(AmazonCsvImporter())

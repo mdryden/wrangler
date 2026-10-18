@@ -1,6 +1,6 @@
 import asyncio
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 import pytest
 from pydantic import ValidationError
@@ -41,19 +41,60 @@ def test_imported_transaction_data_valid():
     assert item.receipt.content_type == "application/pdf"
 
 
-def test_imported_transaction_data_validation_errors():
-    with pytest.raises(ValidationError):
-        ImportedTransactionData(
-            date=date(2026, 10, 1),
-            description="   ",
-            total_amount=Decimal("10.00"),
-        )
+def test_imported_transaction_data_nullable_and_defaults():
+    # Whitespace-only description normalizes to None
+    item1 = ImportedTransactionData(
+        date=date(2026, 10, 1),
+        description="   ",
+        total_amount=Decimal("10.00"),
+    )
+    assert item1.description is None
 
-    with pytest.raises(ValidationError):
+    # description=None is accepted and remains None
+    item2 = ImportedTransactionData(
+        date=date(2026, 10, 1),
+        description=None,
+        total_amount=Decimal("10.00"),
+    )
+    assert item2.description is None
+
+    # Zero amount normalizes to None (both Decimal and str representations)
+    item3 = ImportedTransactionData(
+        date=date(2026, 10, 1),
+        description="Valid description",
+        total_amount=Decimal("0.00"),
+    )
+    assert item3.total_amount is None
+
+    item4 = ImportedTransactionData(
+        date=date(2026, 10, 1),
+        description="Valid description",
+        total_amount="0",
+    )
+    assert item4.total_amount is None
+
+    # total_amount=None is accepted and remains None
+    item5 = ImportedTransactionData(
+        date=date(2026, 10, 1),
+        description="Valid description",
+        total_amount=None,
+    )
+    assert item5.total_amount is None
+
+    # date=None is accepted and remains None; default instantiation has None for optional fields
+    item6 = ImportedTransactionData(date=None)
+    assert item6.date is None
+    assert item6.description is None
+    assert item6.total_amount is None
+    assert item6.external_id is None
+    assert item6.currency_code == "CAD"
+    assert item6.receipt is None
+
+
+def test_imported_transaction_data_validation_errors():
+    with pytest.raises((ValidationError, InvalidOperation)):
         ImportedTransactionData(
-            date=date(2026, 10, 1),
-            description="Valid description",
-            total_amount=Decimal("0.00"),
+            total_amount="invalid",
         )
 
 

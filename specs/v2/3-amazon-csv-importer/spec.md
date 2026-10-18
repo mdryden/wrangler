@@ -93,9 +93,14 @@ Some export tools concatenate monthly reports and repeat the CSV header row in t
 - **Action:** Return `None` to silently skip the row.
 
 #### 2. Unique Identifier (`external_id`)
-- **Rule:** Taken directly from `row.get("order ids", "").strip()`.
-- **Formatting:** Use the value **exactly as it comes in**, preserving multiple order IDs, digital IDs, or placeholders (e.g., `"702-6236836-4669054"`, `"D01-0626645-1689808, ??"`).
-- **Empty Check:** If the stripped string is empty, `external_id` is set to `None`.
+- **Rule:** A composite key formed from order ID, date, and amount:
+  - If `order ids` is empty, `external_id = None`.
+  - Otherwise, format as: `{order_id}_{date or 'nodate'}_{amount or 'noamount'}`
+    - `date`: ISO date string (e.g. `2026-10-16`) if parsed, otherwise `"nodate"`.
+    - `amount`: Inverted amount string (e.g. `96.04` or `-15.00`) if parsed and non-zero, otherwise `"noamount"`.
+  - Example: `"702-6236836-4669054_2026-10-16_96.04"` or `"702-1234567-8901234_2026-09-10_-15.00"`.
+  - Placeholders and multi-order ID strings are preserved as the order ID portion (e.g., `"D01-0626645-1689808, ??_2026-09-19_27.25"`).
+- **Rationale:** An Amazon order ID may contain multiple distinct charges, shipments, or refunds on different dates or amounts. This composite key allows each distinct transaction to be staged while ensuring re-uploading the same CSV remains idempotent.
 
 #### 3. Date Normalization (`date`)
 - **Rule:** Attempt to parse `row.get("date", "")` using [`BaseCsvImporter.parse_iso_or_common_date`](file:///D:/src/personal/wrangler/api/src/services/importers/csv_base.py#L64-L86) (supporting `YYYY-MM-DD`, `MM/DD/YYYY`, and ISO timestamps).

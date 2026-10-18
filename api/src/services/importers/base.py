@@ -1,7 +1,8 @@
+import datetime
 from abc import ABC, abstractmethod
-from datetime import date
 from decimal import Decimal
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -27,28 +28,31 @@ class ImportedTransactionData(BaseModel):
     """Normalized transaction item produced by an importer implementation."""
 
     external_id: str | None = None
-    date: date
-    description: str
-    total_amount: Decimal
+    date: datetime.date | None = None
+    description: str | None = None
+    total_amount: Decimal | None = None
     currency_code: str = "CAD"
     receipt: ImporterReceiptData | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
-    @field_validator("description")
+    @field_validator("description", mode="before")
     @classmethod
-    def validate_description(cls, v: str) -> str:
-        cleaned = v.strip()
-        if not cleaned:
-            raise ValueError("description must not be empty")
-        return cleaned
+    def clean_description(cls, v: Any) -> str | None:
+        if v is None:
+            return None
+        cleaned = str(v).strip()
+        return cleaned if cleaned else None
 
-    @field_validator("total_amount")
+    @field_validator("total_amount", mode="before")
     @classmethod
-    def validate_total_amount(cls, v: Decimal) -> Decimal:
-        if v == Decimal("0"):
-            raise ValueError("total_amount must be strictly non-zero")
-        return v
+    def validate_total_amount(cls, v: Any) -> Decimal | None:
+        if v is None:
+            return None
+        dec = Decimal(str(v))
+        if dec == Decimal("0"):
+            return None
+        return dec
 
 
 class BaseImporter(ABC):

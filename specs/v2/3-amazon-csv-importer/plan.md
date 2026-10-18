@@ -60,9 +60,6 @@ The plan is organized into sequential phases and atomic implementation tasks. Ea
     - **Duplicate Header Row Detection**:
       - Inspect `row.get("date", "").strip().lower()` and `row.get("order ids", "").strip().lower()`.
       - If either equals `"date"` or `"order ids"`, return `None` to skip the row.
-    - **External ID (`external_id`)**:
-      - Extract `raw_order_id = row.get("order ids", "").strip()`.
-      - Set `external_id = raw_order_id if raw_order_id else None` (preserving digital IDs, multiple order IDs, and placeholders).
     - **Date Parsing (`date`)**:
       - Extract `raw_date = row.get("date", "").strip()`.
       - If empty, set `tx_date = None`.
@@ -76,6 +73,10 @@ The plan is organized into sequential phases and atomic implementation tasks. Ea
       - If parsed successfully:
         - If parsed value equals `Decimal("0")`, set `total_amount = None`.
         - Otherwise, multiply by `-1` (`total_amount = (-parsed_amount).quantize(Decimal("0.01"))`).
+    - **External ID (`external_id`)**:
+      - Extract `raw_order_id = row.get("order ids", "").strip()`.
+      - If empty, set `external_id = None`.
+      - Otherwise, form composite key: `{raw_order_id}_{date_str}_{amount_str}`, where `date_str` is `tx_date.isoformat()` or `"nodate"`, and `amount_str` is `str(total_amount)` or `"noamount"`.
     - **Currency & Receipt**:
       - Set `currency_code = "CAD"`.
       - Set `receipt = None`.
