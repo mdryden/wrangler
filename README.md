@@ -66,6 +66,7 @@ The backend environment is configured via `api/.env`:
 | `WAVE_REDIRECT_URI` | Wave OAuth redirect URI | `http://localhost:8000/api/wave/oauth/callback` |
 | `RECEIPT_STORAGE_DIR` | Absolute or relative path for receipt files | `receipts` |
 | `DATABASE_URL` | SQLite database connection string | `sqlite:///./wrangler.db` |
+| `MCP_API_KEY` | Optional API key protecting MCP endpoints over SSE | `""` (Trust on local network) |
 
 ---
 
@@ -94,6 +95,70 @@ The server will launch with auto-reload enabled:
 - **Interactive Swagger Docs**: `http://localhost:8000/docs`
 - **ReDoc Documentation**: `http://localhost:8000/redoc`
 - **Health Check**: `http://localhost:8000/api/health`
+
+---
+
+## AI Agent Integration (Model Context Protocol / MCP)
+
+Wrangler exposes an authenticated **Model Context Protocol (MCP)** tool server over HTTP/SSE, allowing external desktop AI assistants (such as Goose, Claude Desktop, Askimo Desktop, or Cursor) to stage financial transactions directly into Wrangler's Staging Area.
+
+### Endpoints
+- **SSE Event Stream**: `http://<server-host>:8000/mcp/sse`
+- **Client Messages**: `http://<server-host>:8000/mcp/messages/`
+
+Wrangler binds to `0.0.0.0:8000`, enabling connections from `localhost` in local development or your server's LAN IP address (e.g. `http://192.168.1.50:8000/mcp/sse`) on a home network without requiring SSL/TLS.
+
+### Authentication
+If `MCP_API_KEY` is configured in `api/.env`, incoming requests must present the key via one of three channels:
+1. **URL Query Parameter**: `http://<server-host>:8000/mcp/sse?api_key=your_mcp_api_key`
+2. **HTTP Header**: `X-API-Key: your_mcp_api_key`
+3. **Authorization Header**: `Authorization: Bearer your_mcp_api_key`
+
+If `MCP_API_KEY` is left blank (default), authentication is disabled for trust-on-local-network operation.
+
+### Client Configuration
+
+#### Goose Configuration
+Add the Wrangler extension to your Goose configuration (`~/.config/goose/config.yaml`):
+
+```yaml
+extensions:
+  wrangler:
+    type: sse
+    uri: http://localhost:8000/mcp/sse
+    # If MCP_API_KEY is configured:
+    # uri: http://localhost:8000/mcp/sse?api_key=your_mcp_api_key
+    # Or using custom headers:
+    # headers:
+    #   x-api-key: your_mcp_api_key
+```
+
+#### Generic SSE MCP Client Configuration (JSON)
+For MCP clients using JSON configuration (e.g., Claude Desktop, Cursor):
+
+```json
+{
+  "mcpServers": {
+    "wrangler": {
+      "url": "http://localhost:8000/mcp/sse",
+      "headers": {
+        "x-api-key": "your_mcp_api_key"
+      }
+    }
+  }
+}
+```
+
+> **Note:** For LAN connections from other devices on your local network, replace `localhost:8000` with the server's IP address (e.g. `http://192.168.1.50:8000/mcp/sse`).
+
+### Available MCP Tools
+
+| Tool | Parameters | Description |
+| :--- | :--- | :--- |
+| `stage_transaction` | `source_label`: string (e.g. `'amazon'`)<br>`external_id`: string (e.g. `'114-1234567-8901234'`)<br>`date`: string (`YYYY-MM-DD` or ISO timestamp)<br>`total_amount`: float (non-zero; negative for refunds)<br>`description`: string<br>`currency_code`: string (default `'CAD'`) | Ingests a transaction into Wrangler's Staging Area (`source = "mcp"`). Performs automated dual-table deduplication against existing staged and ledger transactions, returning an idempotent skip confirmation if already recorded. |
+| `check_transaction_exists` | `source_label`: string<br>`external_id`: string | Pre-flight check to verify if a transaction exists in Wrangler before running scraping operations. Returns `{"exists": bool, "location": "staged"\|"ledger"\|null, "status": "STAGED"\|"ACCEPTED"\|"DISMISSED"\|"COMMITTED"\|null}`. |
+
+---
 
 ## AI-Driven Development Workflow
 

@@ -93,6 +93,36 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         if path in self.anonymous_paths or path.startswith(("/docs", "/redoc")):
             return await call_next(request)
 
+        if path == "/mcp" or path.startswith("/mcp/"):
+            if settings.MCP_API_KEY:
+                candidate_key: str | None = request.query_params.get("api_key")
+                if not candidate_key:
+                    candidate_key = request.headers.get("x-api-key")
+                if not candidate_key:
+                    auth_header = request.headers.get("Authorization")
+                    if auth_header:
+                        parts = auth_header.split()
+                        if len(parts) == 2 and parts[0].lower() == "bearer":
+                            candidate_key = parts[1]
+
+                if candidate_key:
+                    if not secrets.compare_digest(candidate_key, settings.MCP_API_KEY):
+                        return JSONResponse(
+                            status_code=status.HTTP_401_UNAUTHORIZED,
+                            content={"detail": "Invalid or missing MCP API key"},
+                        )
+                elif path.startswith("/mcp/messages") and request.query_params.get("session_id"):
+                    # session_id was generated during authenticated GET /mcp/sse handshake.
+                    # MCP clients (Goose, Claude, etc.) post to /mcp/messages/?session_id=...
+                    # without re-attaching query params or headers from the initial SSE request.
+                    return await call_next(request)
+                else:
+                    return JSONResponse(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        content={"detail": "Invalid or missing MCP API key"},
+                    )
+            return await call_next(request)
+
         auth_header = request.headers.get("Authorization")
         if not auth_header:
             return JSONResponse(

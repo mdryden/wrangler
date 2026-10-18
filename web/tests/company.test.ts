@@ -219,7 +219,7 @@ describe("useCompanyStore", () => {
     })
 
     const createObjectUrlSpy = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:http://localhost/csv-123")
-    const revokeObjectUrlSpy = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => { })
+    const revokeObjectUrlSpy = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {})
 
     const clickSpy = vi.fn()
     const fakeAnchor = {

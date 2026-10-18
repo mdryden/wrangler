@@ -13,6 +13,7 @@ import {
   getStagedAllocationSummary,
   MARK_IMPORTED_CAPABILITY_LABEL,
   PERSONAL_QUICK_ASSIGN_VALUE,
+  SOURCE_FILTER_OPTIONS,
   useStagingStore,
 } from "../stores/staging"
 import { useTransactionStore } from "../stores/transactions"
@@ -584,21 +585,19 @@ defineExpose({
 
             <!-- Source Filter -->
             <div class="col-12 col-sm-5">
-              <q-input
+              <q-select
                 v-model="filters.source"
                 dense
                 outlined
                 clearable
+                emit-value
+                map-options
                 bg-color="white"
                 label="Source"
-                placeholder="Filter by source..."
+                :options="SOURCE_FILTER_OPTIONS"
                 data-testid="filter-staging-source"
-                @keyup.enter="applyFilters"
-              >
-                <template #prepend>
-                  <q-icon name="search" />
-                </template>
-              </q-input>
+                @update:model-value="applyFilters"
+              />
             </div>
 
             <!-- Filter Buttons -->

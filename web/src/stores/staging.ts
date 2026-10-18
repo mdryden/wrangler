@@ -16,6 +16,15 @@ import type {
 export const MARK_IMPORTED_CAPABILITY_LABEL = "Automatically marks items as imported in source upon acceptance"
 export const PERSONAL_QUICK_ASSIGN_VALUE = "__personal__"
 
+export const SOURCE_FILTER_OPTIONS: { label: string; value: string }[] = [
+  { label: "All Sources", value: "" },
+  { label: "Manual", value: "manual" },
+  { label: "Wrangler CSV", value: "wrangler_csv" },
+  { label: "Amazon CSV", value: "amazon_csv" },
+  { label: "Google Groups", value: "google_groups" },
+  { label: "MCP", value: "mcp" },
+]
+
 export function formatImporterSummaryToast(result: ImporterRunResponse): string {
   return `Imported ${result.staged_count} new transactions into staging (${result.skipped_duplicates} duplicates skipped)`
 }

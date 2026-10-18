@@ -10,6 +10,7 @@ import {
   getStagedAllocationSummary,
   MARK_IMPORTED_CAPABILITY_LABEL,
   PERSONAL_QUICK_ASSIGN_VALUE,
+  SOURCE_FILTER_OPTIONS,
   useStagingStore,
 } from "../../stores/staging"
 import { apiClient } from "../../api/client"
@@ -272,6 +273,54 @@ describe("ImportView Logic & Workflow", () => {
       const acceptResult = await store.acceptStagedTransactions(["s-1"])
       expect(acceptResult.accepted_count).toBe(1)
       expect(acceptResult.mark_imported_errors).toEqual(["amazon: Connection refused"])
+    })
+  })
+
+  describe("Source filter options and MCP integration filtering", () => {
+    it("contains expected source options including mcp and standard channels", () => {
+      const optionValues = SOURCE_FILTER_OPTIONS.map(opt => opt.value)
+      expect(optionValues).toContain("")
+      expect(optionValues).toContain("manual")
+      expect(optionValues).toContain("wrangler_csv")
+      expect(optionValues).toContain("amazon_csv")
+      expect(optionValues).toContain("google_groups")
+      expect(optionValues).toContain("mcp")
+
+      expect(SOURCE_FILTER_OPTIONS).toContainEqual({ label: "MCP", value: "mcp" })
+    })
+
+    it("queries staged transactions filtered by mcp source", async () => {
+      const store = useStagingStore()
+      const mcpTx = makeStagedTx({
+        id: "s-mcp-1",
+        source: "mcp",
+        external_id: "amazon:114-1234567-8901234",
+        description: "[Amazon] Wireless Mouse",
+        total_amount: "24.99",
+      })
+
+      vi.mocked(apiClient.get).mockResolvedValueOnce({
+        items: [mcpTx],
+        total: 1,
+        page: 1,
+        page_size: 50,
+        total_pages: 1,
+      })
+
+      await store.fetchStagedTransactions({ status: "STAGED", source: "mcp" })
+
+      expect(apiClient.get).toHaveBeenCalledWith(
+        "/api/staging",
+        expect.objectContaining({
+          params: expect.objectContaining({
+            source: "mcp",
+            status: "STAGED",
+          }),
+        }),
+      )
+      expect(store.stagedTransactions).toHaveLength(1)
+      expect(store.stagedTransactions[0].source).toBe("mcp")
+      expect(store.stagedTransactions[0].external_id).toBe("amazon:114-1234567-8901234")
     })
   })
 })

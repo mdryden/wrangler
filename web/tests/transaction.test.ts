@@ -788,7 +788,7 @@ describe("ManualEntryView Keyboard Shortcuts, Continuous Entry & Submission (Tas
       preventDefault: () => {
         defaultPrevented = true
       },
-      stopPropagation: () => { },
+      stopPropagation: () => {},
     })
 
     expect(defaultPrevented).toBe(true)
@@ -805,7 +805,7 @@ describe("ManualEntryView Keyboard Shortcuts, Continuous Entry & Submission (Tas
       preventDefault: () => {
         defaultPrevented = true
       },
-      stopPropagation: () => { },
+      stopPropagation: () => {},
     })
 
     expect(defaultPrevented).toBe(false)

@@ -4,8 +4,10 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from mcp.server.transport_security import TransportSecuritySettings
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from starlette.types import Receive, Scope, Send
 
 from core.config import settings
 from core.security import AuthenticationMiddleware
@@ -17,13 +19,49 @@ from routers.importers import router as importers_router
 from routers.receipts import router as receipts_router
 from routers.staging import router as staging_router
 from routers.transactions import router as transactions_router
+from services.mcp import mcp
+
+_mcp_security = TransportSecuritySettings(enable_dns_rebinding_protection=False)
+# Streamable HTTP transport (POST/GET/DELETE on /sse), used by modern clients such as Goose
+mcp_stream_app = mcp.streamable_http_app(streamable_http_path="/sse", json_response=True, transport_security=_mcp_security)
+# Legacy HTTP+SSE transport (GET /sse, POST /messages/), used by clients configured with `type: sse`
+mcp_legacy_sse_app = mcp.sse_app(transport_security=_mcp_security)
+
+
+class MCPTransportDispatcher:
+    """Serve both MCP HTTP transports under one mount.
+
+    A GET on /sse without an Mcp-Session-Id header opens a legacy SSE stream and /messages/ receives its
+    posts; every other request goes to the Streamable HTTP transport.
+    """
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http":
+            path = scope["path"].removeprefix(scope.get("root_path", ""))
+            headers = {k.lower(): v for k, v in scope["headers"]}
+            legacy_stream = path == "/sse" and scope["method"] == "GET" and b"mcp-session-id" not in headers
+            if legacy_stream or path.startswith("/messages/"):
+                await mcp_legacy_sse_app(scope, receive, send)
+                return
+        await mcp_stream_app(scope, receive, send)
+
+
+mcp_app = MCPTransportDispatcher()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Ensure receipt storage directory exists on startup
     settings.RECEIPT_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
-    yield
+    session_mgr = getattr(mcp._lowlevel_server, "_session_manager", None)
+    if session_mgr is not None:
+        session_mgr._has_started = False
+    try:
+        async with mcp_stream_app.router.lifespan_context(mcp_stream_app):
+            yield
+    finally:
+        if session_mgr is not None:
+            session_mgr._has_started = False
 
 
 app = FastAPI(
@@ -41,6 +79,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.mount("/mcp", mcp_app)
 
 app.include_router(auth_router)
 app.include_router(companies_router)
@@ -83,4 +123,4 @@ def health_check(response: Response, db: Annotated[Session, Depends(get_db)]):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

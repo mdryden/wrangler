@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "sqlite:///./wrangler.db"
 
+    # MCP Integration
+    MCP_API_KEY: str = ""
+
     @field_validator("RECEIPT_STORAGE_DIR", mode="after")
     @classmethod
     def resolve_receipt_storage_dir(cls, v: Path | str) -> Path:
