@@ -18,7 +18,7 @@ import {
 } from "../stores/staging"
 import { useTransactionStore } from "../stores/transactions"
 import type { ImporterMetadata, StagedStatus, StagedTransaction } from "../types/staging"
-import { formatCurrency } from "./ledger"
+import { formatStagedAmount, stagingTableColumns } from "./importView"
 
 const companyStore = useCompanyStore()
 const stagingStore = useStagingStore()
@@ -123,67 +123,7 @@ const readyTransactionsToAccept = computed(() => getReadyToAcceptTransactions(st
 
 const readyAcceptCount = computed(() => readyTransactionsToAccept.value.length)
 
-const columns: QTableColumn[] = [
-  {
-    name: "select",
-    label: "",
-    align: "center",
-    field: (row: StagedTransaction) => row.id,
-    sortable: false,
-  },
-  {
-    name: "date",
-    required: true,
-    label: "Date",
-    align: "left",
-    field: (row: StagedTransaction) => row.date,
-    sortable: false,
-  },
-  {
-    name: "description",
-    required: true,
-    label: "Description",
-    align: "left",
-    field: (row: StagedTransaction) => row.description,
-    sortable: false,
-  },
-  {
-    name: "source",
-    label: "Source",
-    align: "left",
-    field: (row: StagedTransaction) => row.source,
-    sortable: false,
-  },
-  {
-    name: "total_amount",
-    required: true,
-    label: "Amount",
-    align: "right",
-    field: (row: StagedTransaction) => row.total_amount,
-    sortable: false,
-  },
-  {
-    name: "allocations",
-    label: "Allocation Status / Summary",
-    align: "left",
-    field: (row: StagedTransaction) => getStagedAllocationSummary(row, companyMap.value).label,
-    sortable: false,
-  },
-  {
-    name: "receipt",
-    label: "Receipt",
-    align: "center",
-    field: (row: StagedTransaction) => (row.receipt_file_path ? "Yes" : "No"),
-    sortable: false,
-  },
-  {
-    name: "actions",
-    label: "Actions",
-    align: "right",
-    field: () => "",
-    sortable: false,
-  },
-]
+const columns: QTableColumn[] = stagingTableColumns
 
 function onSelectImporter(importerId: string | null): void {
   selectedImporterId.value = importerId
@@ -671,17 +611,31 @@ defineExpose({
       <!-- Description Column -->
       <template #body-cell-description="props">
         <q-td :props="props">
-          <div class="text-weight-medium">{{ props.row.description }}</div>
-          <div v-if="props.row.external_id" class="text-caption text-grey-6">ID: {{ props.row.external_id }}</div>
-        </q-td>
-      </template>
-
-      <!-- Source Column -->
-      <template #body-cell-source="props">
-        <q-td :props="props">
-          <q-chip dense size="sm" color="blue-1" text-color="primary" class="text-weight-bold">
-            {{ props.row.source }}
-          </q-chip>
+          <div class="text-weight-medium">
+            <span v-if="props.row.description">{{ props.row.description }}</span>
+            <span v-else class="text-italic text-grey-6">Unlabeled transaction</span>
+          </div>
+          <div class="row items-center q-gutter-xs text-caption no-wrap">
+            <q-chip dense size="xs" color="blue-1" text-color="primary" class="text-weight-bold">
+              {{ props.row.source }}
+            </q-chip>
+            <span v-if="props.row.external_id" class="text-grey-6">ID: {{ props.row.external_id }}</span>
+            <q-btn
+              v-if="props.row.url"
+              flat
+              round
+              dense
+              size="xs"
+              icon="open_in_new"
+              color="primary"
+              :href="props.row.url"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="btn-open-url"
+            >
+              <q-tooltip>Open order in Amazon</q-tooltip>
+            </q-btn>
+          </div>
         </q-td>
       </template>
 
@@ -689,7 +643,7 @@ defineExpose({
       <template #body-cell-total_amount="props">
         <q-td :props="props" align="right">
           <span :class="Number(props.row.total_amount) < 0 ? 'text-negative text-weight-bold' : 'text-weight-bold'">
-            {{ formatCurrency(props.row.total_amount, props.row.currency_code) }}
+            {{ formatStagedAmount(props.row.total_amount, props.row.currency_code) }}
           </span>
         </q-td>
       </template>
@@ -717,7 +671,7 @@ defineExpose({
                 emit-value
                 map-options
                 options-dense
-                style="min-width: 170px"
+                style="min-width: 150px"
                 placeholder="Quick allocate..."
                 :options="quickAssignOptions"
                 :data-testid="`select-quick-assign-${props.row.id}`"
@@ -725,15 +679,16 @@ defineExpose({
               />
               <q-btn
                 flat
+                round
                 dense
-                no-wrap
                 size="sm"
                 color="primary"
                 icon="call_split"
-                label="Edit / Split"
-                :data-testid="`btn-inline-edit-split-${props.row.id}`"
+                data-testid="btn-split-allocations"
                 @click="openEditDialog(props.row)"
-              />
+              >
+                <q-tooltip>Split Allocations</q-tooltip>
+              </q-btn>
             </template>
           </div>
         </q-td>
@@ -789,15 +744,16 @@ defineExpose({
             <template v-else-if="props.row.status === 'STAGED'">
               <q-btn
                 flat
+                round
                 dense
-                no-wrap
                 size="sm"
                 icon="attach_file"
                 color="grey-8"
-                label="Attach Receipt"
                 data-testid="btn-attach-staged-receipt"
                 @click="openEditDialog(props.row)"
-              />
+              >
+                <q-tooltip>Attach Receipt</q-tooltip>
+              </q-btn>
             </template>
             <span v-else class="text-grey-5">—</span>
           </div>
@@ -811,39 +767,42 @@ defineExpose({
             <template v-if="props.row.status === 'STAGED'">
               <q-btn
                 flat
+                round
                 dense
-                no-wrap
                 size="sm"
                 color="primary"
                 icon="edit"
-                label="Edit / Split"
-                data-testid="btn-action-edit-split"
+                data-testid="btn-action-edit"
                 @click="openEditDialog(props.row)"
-              />
+              >
+                <q-tooltip>Edit Transaction</q-tooltip>
+              </q-btn>
               <q-btn
                 flat
+                round
                 dense
-                no-wrap
                 size="sm"
                 color="negative"
                 icon="block"
-                label="Dismiss"
                 data-testid="btn-action-dismiss"
                 @click="onDismissRow(props.row)"
-              />
+              >
+                <q-tooltip>Dismiss Transaction</q-tooltip>
+              </q-btn>
             </template>
             <template v-else-if="props.row.status === 'DISMISSED'">
               <q-btn
                 flat
+                round
                 dense
-                no-wrap
                 size="sm"
                 color="primary"
                 icon="restore"
-                label="Restore"
                 data-testid="btn-action-restore"
                 @click="onRestoreRow(props.row)"
-              />
+              >
+                <q-tooltip>Restore Transaction</q-tooltip>
+              </q-btn>
             </template>
           </div>
         </q-td>

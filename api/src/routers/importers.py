@@ -131,6 +131,7 @@ async def run_importer(
             total_amount=item.total_amount,
             currency_code=item.currency_code,
             receipt_file_path=receipt_file_path,
+            url=item.url,
             status="STAGED",
             is_marked_imported=False,
         )

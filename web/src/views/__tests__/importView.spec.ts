@@ -1,3 +1,5 @@
+import fs from "fs"
+import path from "path"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { createPinia, setActivePinia } from "pinia"
 import {
@@ -16,6 +18,7 @@ import {
 import { apiClient } from "../../api/client"
 import type { Company } from "../../types/company"
 import type { ImporterMetadata, StagedTransaction } from "../../types/staging"
+import { formatStagedAmount, stagingTableColumns } from "../importView"
 
 vi.mock("../../api/client", () => ({
   apiClient: {
@@ -41,6 +44,7 @@ function makeStagedTx(overrides: Partial<StagedTransaction> = {}): StagedTransac
     total_amount: "120.00",
     currency_code: "CAD",
     receipt_file_path: null,
+    url: null,
     status: "STAGED",
     is_marked_imported: false,
     ledger_transaction_id: null,
@@ -321,6 +325,85 @@ describe("ImportView Logic & Workflow", () => {
       expect(store.stagedTransactions).toHaveLength(1)
       expect(store.stagedTransactions[0].source).toBe("mcp")
       expect(store.stagedTransactions[0].external_id).toBe("amazon:114-1234567-8901234")
+    })
+  })
+
+  describe("Responsive Staging Review Table Redesign (~1200px Viewport)", () => {
+    it("does not include standalone source column and maintains required column configuration", () => {
+      const columnNames = stagingTableColumns.map(c => c.name)
+      expect(columnNames).not.toContain("source")
+      expect(columnNames).toEqual(["select", "date", "description", "total_amount", "allocations", "receipt", "actions"])
+
+      const selectCol = stagingTableColumns.find(c => c.name === "select")
+      expect(selectCol?.align).toBe("center")
+
+      const dateCol = stagingTableColumns.find(c => c.name === "date")
+      expect(dateCol?.align).toBe("left")
+
+      const descCol = stagingTableColumns.find(c => c.name === "description")
+      expect(descCol?.align).toBe("left")
+
+      const amountCol = stagingTableColumns.find(c => c.name === "total_amount")
+      expect(amountCol?.align).toBe("right")
+
+      const allocCol = stagingTableColumns.find(c => c.name === "allocations")
+      expect(allocCol?.align).toBe("left")
+
+      const receiptCol = stagingTableColumns.find(c => c.name === "receipt")
+      expect(receiptCol?.align).toBe("center")
+
+      const actionsCol = stagingTableColumns.find(c => c.name === "actions")
+      expect(actionsCol?.align).toBe("right")
+    })
+
+    it("formats CAD currency amounts without redundant 'CA$' prefix", () => {
+      expect(formatStagedAmount(96.04, "CAD")).toBe("$96.04")
+      expect(formatStagedAmount(-15.0, "CAD")).toBe("-$15.00")
+      expect(formatStagedAmount("1250.75", "CAD")).toBe("$1,250.75")
+      expect(formatStagedAmount("0", "CAD")).toBe("$0.00")
+      expect(formatStagedAmount(null, "CAD")).toBe("$0.00")
+    })
+
+    it("retains currency code for non-CAD currencies", () => {
+      expect(formatStagedAmount(15.0, "USD")).toBe("USD 15.00")
+      expect(formatStagedAmount(-15.0, "USD")).toBe("-USD 15.00")
+      expect(formatStagedAmount("99.99", "EUR")).toBe("EUR 99.99")
+    })
+
+    it("verifies template layout optimizations in ImportView.vue", () => {
+      const vueFilePath = path.resolve(__dirname, "../ImportView.vue")
+      const templateContent = fs.readFileSync(vueFilePath, "utf-8")
+
+      // Standalone source slot removed
+      expect(templateContent).not.toContain("#body-cell-source")
+
+      // Description slot contains source chip, external ID, and open_in_new button with tooltip
+      expect(templateContent).toContain("props.row.source")
+      expect(templateContent).toContain("ID: {{ props.row.external_id }}")
+      expect(templateContent).toContain('data-testid="btn-open-url"')
+      expect(templateContent).toContain("<q-tooltip>Open order in Amazon</q-tooltip>")
+      expect(templateContent).toContain('target="_blank"')
+      expect(templateContent).toContain('rel="noopener noreferrer"')
+
+      // Total amount slot uses formatStagedAmount
+      expect(templateContent).toContain("formatStagedAmount(props.row.total_amount, props.row.currency_code)")
+
+      // Allocations slot contains call_split icon button with tooltip
+      expect(templateContent).toContain('data-testid="btn-split-allocations"')
+      expect(templateContent).toContain('icon="call_split"')
+      expect(templateContent).toContain("<q-tooltip>Split Allocations</q-tooltip>")
+
+      // Receipt slot contains attach receipt icon button with tooltip and no text label
+      expect(templateContent).toContain('data-testid="btn-attach-staged-receipt"')
+      expect(templateContent).toContain("<q-tooltip>Attach Receipt</q-tooltip>")
+
+      // Actions slot contains edit, dismiss, and restore icon buttons with tooltips
+      expect(templateContent).toContain('data-testid="btn-action-edit"')
+      expect(templateContent).toContain("<q-tooltip>Edit Transaction</q-tooltip>")
+      expect(templateContent).toContain('data-testid="btn-action-dismiss"')
+      expect(templateContent).toContain("<q-tooltip>Dismiss Transaction</q-tooltip>")
+      expect(templateContent).toContain('data-testid="btn-action-restore"')
+      expect(templateContent).toContain("<q-tooltip>Restore Transaction</q-tooltip>")
     })
   })
 })

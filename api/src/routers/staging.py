@@ -209,6 +209,9 @@ async def update_staged_transaction(
         if key in update_data and getattr(payload, key) is not None:
             setattr(staged_tx, key, getattr(payload, key))
 
+    if "url" in update_data:
+        staged_tx.url = payload.url.strip() if payload.url else None
+
     if uploaded_file is not None:
         old_path = staged_tx.receipt_file_path
         saved_path = await save_receipt_file(uploaded_file, staged_tx.id)

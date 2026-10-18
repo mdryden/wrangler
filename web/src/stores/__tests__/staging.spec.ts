@@ -55,6 +55,7 @@ describe("useStagingStore", () => {
     total_amount: "50.00",
     currency_code: "CAD",
     receipt_file_path: null,
+    url: null,
     status: "STAGED",
     is_marked_imported: false,
     ledger_transaction_id: null,

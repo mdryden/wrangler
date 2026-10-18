@@ -28,9 +28,14 @@ class AmazonCsvImporter(BaseCsvImporter):
     def parse_row(self, row: dict[str, str], row_number: int) -> ImportedTransactionData | None:
         raw_date = row.get("date", "").strip()
         raw_order_id = row.get("order ids", "").strip()
+        raw_vendor = row.get("vendor", "")
 
         # Duplicate Header Row Detection
         if raw_date.lower() == "date" or raw_order_id.lower() == "order ids":
+            return None
+
+        # Vendor Filtering: Skip PrimeVideo and Audible (case-sensitive)
+        if "PrimeVideo" in raw_vendor or "Audible" in raw_vendor:
             return None
 
         # Date Parsing
@@ -65,6 +70,14 @@ class AmazonCsvImporter(BaseCsvImporter):
         else:
             external_id = None
 
+        # Order URL Extraction: Split on comma and take first URL
+        raw_urls = row.get("order urls", "").strip()
+        parsed_url: str | None = None
+        if raw_urls:
+            first_url = raw_urls.split(",")[0].strip().strip('"').strip("'").strip()
+            if first_url:
+                parsed_url = first_url
+
         return ImportedTransactionData(
             external_id=external_id,
             date=tx_date,
@@ -72,4 +85,5 @@ class AmazonCsvImporter(BaseCsvImporter):
             total_amount=total_amount,
             currency_code="CAD",
             receipt=None,
+            url=parsed_url,
         )

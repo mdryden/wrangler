@@ -54,6 +54,7 @@ def test_alembic_migrations_upgrade_and_downgrade(tmp_path):
         "total_amount",
         "currency_code",
         "receipt_file_path",
+        "url",
         "status",
         "is_marked_imported",
         "ledger_transaction_id",
@@ -64,6 +65,7 @@ def test_alembic_migrations_upgrade_and_downgrade(tmp_path):
     assert staged_tx_columns_dict["date"]["nullable"] is True
     assert staged_tx_columns_dict["description"]["nullable"] is True
     assert staged_tx_columns_dict["total_amount"]["nullable"] is True
+    assert staged_tx_columns_dict["url"]["nullable"] is True
 
     staged_tx_indexes = {idx["name"] for idx in inspector.get_indexes("staged_transactions")}
     assert "ix_staged_transactions_source" in staged_tx_indexes

@@ -36,8 +36,17 @@ class StagedTransactionUpdate(BaseModel):
     date: datetime.date | None = None
     description: str | None = None
     total_amount: Decimal | None = None
+    url: str | None = None
     allocations: list[StagedAllocationItem] | None = None
     remove_receipt: bool = False
+
+    @field_validator("url")
+    @classmethod
+    def clean_url(cls, v: str | None) -> str | None:
+        if v is not None:
+            cleaned = v.strip().strip('"').strip("'").strip()
+            return cleaned if cleaned else None
+        return v
 
     @field_validator("description")
     @classmethod
@@ -66,6 +75,7 @@ class StagedTransactionResponse(BaseModel):
     total_amount: Decimal | None = None
     currency_code: str
     receipt_file_path: str | None = None
+    url: str | None = None
     status: str
     is_marked_imported: bool
     ledger_transaction_id: uuid.UUID | None = None
@@ -142,6 +152,7 @@ def serialize_staged_transaction(
         total_amount=staged_tx.total_amount,
         currency_code=staged_tx.currency_code,
         receipt_file_path=staged_tx.receipt_file_path,
+        url=staged_tx.url,
         status=staged_tx.status,
         is_marked_imported=staged_tx.is_marked_imported,
         ledger_transaction_id=staged_tx.ledger_transaction_id,

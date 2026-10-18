@@ -33,8 +33,17 @@ class ImportedTransactionData(BaseModel):
     total_amount: Decimal | None = None
     currency_code: str = "CAD"
     receipt: ImporterReceiptData | None = None
+    url: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("url", mode="before")
+    @classmethod
+    def clean_url(cls, v: Any) -> str | None:
+        if v is None:
+            return None
+        cleaned = str(v).strip().strip('"').strip("'").strip()
+        return cleaned if cleaned else None
 
     @field_validator("description", mode="before")
     @classmethod

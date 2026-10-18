@@ -36,6 +36,7 @@ export interface StagedTransaction {
   total_amount: string | number
   currency_code: string
   receipt_file_path: string | null
+  url: string | null
   status: StagedStatus
   is_marked_imported: boolean
   ledger_transaction_id: string | null
@@ -66,6 +67,7 @@ export interface StagedTransactionUpdatePayload {
   date?: string
   description?: string
   total_amount?: string | number
+  url?: string | null
   allocations?: StagedAllocationInput[]
   remove_receipt?: boolean
 }

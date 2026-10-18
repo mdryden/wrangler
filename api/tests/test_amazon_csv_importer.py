@@ -506,3 +506,129 @@ def test_amazon_csv_importer_staging_readiness_and_acceptance(client, auth_heade
     assert ledger_tx.total_amount == Decimal("45.50")
     assert len(ledger_tx.allocations) == 1
     assert ledger_tx.allocations[0].company_id == company.id
+
+
+def test_amazon_csv_importer_vendor_filtering():
+    importer = AmazonCsvImporter()
+    base_row = {
+        "date": "2026-10-18",
+        "order ids": "702-VENDOR-1",
+        "order urls": "https://amazon.ca/orders/1",
+        "vendor": "Amazon.ca",
+        "card_details": "Mastercard ****1234",
+        "amount": "-50.00",
+    }
+
+    # PrimeVideo variations
+    assert importer.parse_row({**base_row, "vendor": "PrimeVideo"}, 2) is None
+    assert importer.parse_row({**base_row, "vendor": "Amazon PrimeVideo CA"}, 3) is None
+
+    # Audible variations
+    assert importer.parse_row({**base_row, "vendor": "Audible"}, 4) is None
+    assert importer.parse_row({**base_row, "vendor": "Audible.ca"}, 5) is None
+
+    # Permitted vendors parse normally
+    item_amzn = importer.parse_row({**base_row, "vendor": "Amazon.ca"}, 6)
+    assert item_amzn is not None
+    assert item_amzn.total_amount == Decimal("50.00")
+
+    item_mktp = importer.parse_row({**base_row, "vendor": "AMZN Mktp CA"}, 7)
+    assert item_mktp is not None
+    assert item_mktp.total_amount == Decimal("50.00")
+
+    # Case sensitivity: lowercase "primevideo" is NOT skipped
+    item_lower = importer.parse_row({**base_row, "vendor": "primevideo"}, 8)
+    assert item_lower is not None
+    assert item_lower.total_amount == Decimal("50.00")
+
+
+def test_amazon_csv_importer_url_extraction():
+    importer = AmazonCsvImporter()
+    base_row = {
+        "date": "2026-10-18",
+        "order ids": "702-URL-1",
+        "vendor": "Amazon.ca",
+        "card_details": "Mastercard ****1234",
+        "amount": "-25.00",
+    }
+
+    # Single URL
+    row1 = {**base_row, "order urls": "https://www.amazon.ca/gp/your-account/order-details?orderID=702-123"}
+    item1 = importer.parse_row(row1, 2)
+    assert item1 is not None
+    assert item1.url == "https://www.amazon.ca/gp/your-account/order-details?orderID=702-123"
+
+    # Comma-separated URLs: first URL extracted
+    row2 = {**base_row, "order urls": "https://amazon.ca/order1, https://amazon.ca/order2"}
+    item2 = importer.parse_row(row2, 3)
+    assert item2 is not None
+    assert item2.url == "https://amazon.ca/order1"
+
+    # Quoted comma-separated URLs: first URL extracted without quotes
+    row3 = {**base_row, "order urls": '"https://amazon.ca/order1", "https://amazon.ca/order2"'}
+    item3 = importer.parse_row(row3, 4)
+    assert item3 is not None
+    assert item3.url == "https://amazon.ca/order1"
+
+    # Empty and whitespace-only URLs normalize to None
+    row4 = {**base_row, "order urls": ""}
+    item4 = importer.parse_row(row4, 5)
+    assert item4 is not None
+    assert item4.url is None
+
+    row5 = {**base_row, "order urls": "    "}
+    item5 = importer.parse_row(row5, 6)
+    assert item5 is not None
+    assert item5.url is None
+
+
+def test_amazon_csv_importer_pipeline_url_persistence_and_vendor_filtering(client, auth_headers, db_session):
+    csv_bytes = (
+        b"date,order ids,order urls,vendor,card_details,amount\n"
+        b"2026-10-18,702-KEEP-1,https://amazon.ca/orders/702-KEEP-1,Amazon.ca,Mastercard ****1234,-10.00\n"
+        b'2026-10-18,702-KEEP-2,"https://amazon.ca/orders/702-KEEP-2, https://amazon.ca/orders/702-KEEP-ALT",AMZN Mktp CA,Mastercard ****1234,-20.00\n'
+        b"2026-10-18,702-SKIP-PV,https://amazon.ca/orders/pv,PrimeVideo,Mastercard ****1234,-14.99\n"
+        b"2026-10-18,702-SKIP-AUD,https://amazon.ca/orders/aud,Audible.ca,Mastercard ****1234,-16.95\n"
+    )
+
+    resp = client.post(
+        "/api/importers/amazon_csv/run",
+        headers=auth_headers,
+        files={"file": ("amazon_enhanced.csv", io.BytesIO(csv_bytes), "text/csv")},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["staged_count"] == 2
+    assert data["skipped_duplicates"] == 0
+
+    staged_items = data["items"]
+    assert len(staged_items) == 2
+    assert staged_items[0]["url"] == "https://amazon.ca/orders/702-KEEP-1"
+    assert staged_items[1]["url"] == "https://amazon.ca/orders/702-KEEP-2"
+
+    # Verify persisted in database
+    st1 = db_session.query(StagedTransaction).filter_by(external_id="702-KEEP-1_2026-10-18_10.00").first()
+    assert st1 is not None
+    assert st1.url == "https://amazon.ca/orders/702-KEEP-1"
+
+    st2 = db_session.query(StagedTransaction).filter_by(external_id="702-KEEP-2_2026-10-18_20.00").first()
+    assert st2 is not None
+    assert st2.url == "https://amazon.ca/orders/702-KEEP-2"
+
+    # Confirm skipped rows do not exist in database
+    pv_tx = db_session.query(StagedTransaction).filter(StagedTransaction.external_id.like("%702-SKIP-PV%")).first()
+    assert pv_tx is None
+    aud_tx = db_session.query(StagedTransaction).filter(StagedTransaction.external_id.like("%702-SKIP-AUD%")).first()
+    assert aud_tx is None
+
+    # Re-upload same CSV: verify deduplication behavior
+    # Skipped rows should not count towards duplicates because they were skipped before deduplication
+    resp_reup = client.post(
+        "/api/importers/amazon_csv/run",
+        headers=auth_headers,
+        files={"file": ("amazon_enhanced.csv", io.BytesIO(csv_bytes), "text/csv")},
+    )
+    assert resp_reup.status_code == 200
+    reup_data = resp_reup.json()
+    assert reup_data["staged_count"] == 0
+    assert reup_data["skipped_duplicates"] == 2

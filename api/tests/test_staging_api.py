@@ -126,6 +126,7 @@ def test_list_staged_transactions_filtering_and_pagination(client, auth_headers,
         date=date(2026, 10, 1),
         description="Older staged",
         total_amount=Decimal("20.00"),
+        url="https://amazon.ca/orders/S-1",
         status="STAGED",
     )
     st2 = StagedTransaction(
@@ -154,8 +155,10 @@ def test_list_staged_transactions_filtering_and_pagination(client, auth_headers,
     assert data["total"] == 2
     assert len(data["items"]) == 2
     assert data["items"][0]["description"] == "Newer staged"
+    assert data["items"][0]["url"] is None
     assert data["items"][0]["supports_mark_imported"] is False
     assert data["items"][1]["description"] == "Older staged"
+    assert data["items"][1]["url"] == "https://amazon.ca/orders/S-1"
     assert data["items"][1]["supports_mark_imported"] is True
 
     # Filter by status=DISMISSED
@@ -243,7 +246,43 @@ def test_update_staged_transaction_metadata_and_allocations(client, auth_headers
     assert res_clear.json()["allocations"] == []
     assert res_clear.json()["is_ready"] is False
 
-    # 5. Validation errors: unbalanced sum, personal in multi-split, unknown company
+    # 5. URL update and clear
+    res_url = client.put(
+        f"/api/staging/{stx.id}",
+        json={"url": "https://amazon.ca/orders/U-1"},
+        headers=auth_headers,
+    )
+    assert res_url.status_code == 200
+    assert res_url.json()["url"] == "https://amazon.ca/orders/U-1"
+
+    # URL update with whitespace clears to None
+    res_url_ws = client.put(
+        f"/api/staging/{stx.id}",
+        json={"url": "   "},
+        headers=auth_headers,
+    )
+    assert res_url_ws.status_code == 200
+    assert res_url_ws.json()["url"] is None
+
+    # URL update to another URL
+    res_url_2 = client.put(
+        f"/api/staging/{stx.id}",
+        json={"url": "https://amazon.ca/orders/U-2"},
+        headers=auth_headers,
+    )
+    assert res_url_2.status_code == 200
+    assert res_url_2.json()["url"] == "https://amazon.ca/orders/U-2"
+
+    # URL update to None clears to None
+    res_url_none = client.put(
+        f"/api/staging/{stx.id}",
+        json={"url": None},
+        headers=auth_headers,
+    )
+    assert res_url_none.status_code == 200
+    assert res_url_none.json()["url"] is None
+
+    # 6. Validation errors: unbalanced sum, personal in multi-split, unknown company
     res_unbal = client.put(
         f"/api/staging/{stx.id}",
         json={"allocations": [{"amount": "10.00", "is_personal": True}]},
@@ -420,6 +459,7 @@ def test_batch_accept_staged_transactions_and_mark_imported_hooks(client, auth_h
         date=date(2026, 10, 1),
         description="Ready Split Tx",
         total_amount=Decimal("100.00"),
+        url="https://amazon.ca/orders/ACC-1",
         status="STAGED",
     )
     # Ready item 2 (personal allocation)
@@ -477,10 +517,12 @@ def test_batch_accept_staged_transactions_and_mark_imported_hooks(client, auth_h
     assert refreshed_1.status == "ACCEPTED"
     assert refreshed_1.is_marked_imported is True
     assert refreshed_1.ledger_transaction_id is not None
+    assert refreshed_1.url == "https://amazon.ca/orders/ACC-1"
 
     ledger_tx_1 = db_session.get(Transaction, refreshed_1.ledger_transaction_id)
     assert ledger_tx_1 is not None
     assert ledger_tx_1.external_id == "ACC-1"
+    assert not hasattr(ledger_tx_1, "url")
     assert len(ledger_tx_1.allocations) == 2
     assert all(not a.is_locked for a in ledger_tx_1.allocations)
 

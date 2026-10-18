@@ -12,6 +12,7 @@ export interface StagedTransactionEditFormState {
   date: string
   description: string
   total_amount: string
+  url: string
   is_personal: boolean
   existing_receipt_path: string | null
   staged_receipt_file: File | null
@@ -36,6 +37,7 @@ export function createStagedTransactionEditState(staged: StagedTransaction): Sta
     date: staged.date || "",
     description: staged.description || "",
     total_amount: formattedTotal,
+    url: staged.url || "",
     is_personal: isPersonal,
     existing_receipt_path: staged.receipt_file_path ?? null,
     staged_receipt_file: null,
@@ -201,6 +203,7 @@ export function prepareStagedTransactionEditPayload(state: StagedTransactionEdit
     description: state.description.trim(),
     total_amount: formattedTotal,
     allocations,
+    url: state.url?.trim() || null,
   }
 
   if (state.remove_receipt) {

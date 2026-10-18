@@ -52,6 +52,7 @@ const form = ref<StagedTransactionEditFormState>({
   date: "",
   description: "",
   total_amount: "",
+  url: "",
   is_personal: false,
   existing_receipt_path: null,
   staged_receipt_file: null,
@@ -333,6 +334,27 @@ defineExpose({
               >
                 <template #prepend>
                   <q-icon name="edit_note" />
+                </template>
+              </q-input>
+            </div>
+          </div>
+
+          <div class="row q-col-gutter-md q-mb-sm">
+            <div class="col-12">
+              <q-input
+                v-model="form.url"
+                dense
+                outlined
+                label="Investigation URL"
+                placeholder="https://..."
+                data-testid="input-staged-url"
+                class="q-mb-sm"
+              >
+                <template #prepend>
+                  <q-icon name="link" />
+                </template>
+                <template #append v-if="form.url">
+                  <q-btn flat round dense size="sm" icon="open_in_new" :href="form.url" target="_blank" />
                 </template>
               </q-input>
             </div>

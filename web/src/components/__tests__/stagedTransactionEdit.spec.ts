@@ -24,6 +24,7 @@ describe("stagedTransactionEdit", () => {
     total_amount: "100.00",
     currency_code: "CAD",
     receipt_file_path: "stx-1_receipt.pdf",
+    url: null,
     status: "STAGED",
     is_marked_imported: false,
     ledger_transaction_id: null,
@@ -38,6 +39,7 @@ describe("stagedTransactionEdit", () => {
     expect(state.date).toBe("2026-10-01")
     expect(state.description).toBe("Unallocated Staged Item")
     expect(state.total_amount).toBe("100.00")
+    expect(state.url).toBe("")
     expect(state.is_personal).toBe(false)
     expect(state.splits).toEqual([])
     expect(canSaveStagedTransactionEdit(state)).toBe(true)
@@ -49,6 +51,7 @@ describe("stagedTransactionEdit", () => {
       description: "Unallocated Staged Item",
       total_amount: "100.00",
       allocations: [],
+      url: null,
     })
   })
 
@@ -126,5 +129,25 @@ describe("stagedTransactionEdit", () => {
     const { payload, stagedReceiptFile } = prepareStagedTransactionEditPayload(state)
     expect(stagedReceiptFile).toBe(newFile)
     expect(payload.remove_receipt).toBeUndefined()
+  })
+
+  it("initializes and prepares investigation URL properly", () => {
+    const stagedWithUrl: StagedTransaction = {
+      ...unallocatedStaged,
+      url: "https://amazon.ca/orders/123",
+    }
+    const state = createStagedTransactionEditState(stagedWithUrl)
+    expect(state.url).toBe("https://amazon.ca/orders/123")
+
+    // Trimmed URL in payload
+    state.url = "   https://amazon.ca/orders/456   "
+    expect(prepareStagedTransactionEditPayload(state).payload.url).toBe("https://amazon.ca/orders/456")
+
+    // Empty or whitespace URL converted to null in payload
+    state.url = "   "
+    expect(prepareStagedTransactionEditPayload(state).payload.url).toBeNull()
+
+    state.url = ""
+    expect(prepareStagedTransactionEditPayload(state).payload.url).toBeNull()
   })
 })

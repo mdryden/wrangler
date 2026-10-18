@@ -89,6 +89,20 @@ def test_imported_transaction_data_nullable_and_defaults():
     assert item6.external_id is None
     assert item6.currency_code == "CAD"
     assert item6.receipt is None
+    assert item6.url is None
+
+
+def test_imported_transaction_data_url_cleaning():
+    # Null and whitespace
+    assert ImportedTransactionData(url=None).url is None
+    assert ImportedTransactionData(url="   ").url is None
+    assert ImportedTransactionData(url='""').url is None
+    assert ImportedTransactionData(url="''").url is None
+
+    # Normalization of quotes and surrounding whitespace
+    assert ImportedTransactionData(url='  "https://amazon.ca/orders/123"  ').url == "https://amazon.ca/orders/123"
+    assert ImportedTransactionData(url="  'https://amazon.ca/orders/123'  ").url == "https://amazon.ca/orders/123"
+    assert ImportedTransactionData(url="https://amazon.ca/orders/123").url == "https://amazon.ca/orders/123"
 
 
 def test_imported_transaction_data_validation_errors():

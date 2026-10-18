@@ -409,11 +409,28 @@ def test_staged_transaction_creation_defaults(db_session):
     assert staged_tx.total_amount == Decimal("29.99")
     assert staged_tx.currency_code == "CAD"
     assert staged_tx.receipt_file_path is None
+    assert staged_tx.url is None
     assert staged_tx.status == "STAGED"
     assert staged_tx.is_marked_imported is False
     assert staged_tx.ledger_transaction_id is None
     assert staged_tx.created_at is not None
     assert staged_tx.allocations == []
+
+
+def test_staged_transaction_with_url(db_session):
+    staged_tx = StagedTransaction(
+        source="amazon_csv",
+        external_id="ORDER-URL-1",
+        date=date(2026, 10, 1),
+        description="Office supplies",
+        total_amount=Decimal("45.50"),
+        url="https://amazon.ca/orders/123",
+    )
+    db_session.add(staged_tx)
+    db_session.commit()
+    db_session.refresh(staged_tx)
+
+    assert staged_tx.url == "https://amazon.ca/orders/123"
 
 
 def test_staged_transaction_unique_constraint(db_session):
