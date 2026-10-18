@@ -90,26 +90,30 @@ To maintain conceptual clarity across Wrangler:
 
 The primary intake tool supporting any AI agent scraper or merchant source.
 
+**Staged transactions are flexible.** An agent frequently cannot determine every value (an unreadable receipt, a missing total, an ambiguous date). The agent must never invent a value and must never be forced to resolve the gap in its own chat. Instead it sends `null` (or omits the argument) for anything it cannot determine, and the user completes the record in the Wrangler web UI (see §5). Only the identity fields (`source_label`, `external_id`) are mandatory, because they drive deduplication.
+
 ```python
 @mcp.tool()
 async def stage_transaction(
     source_label: str,
     external_id: str,
-    date: str,
-    total_amount: float,
-    description: str,
-    currency_code: str = "CAD",
+    date: str | None = None,
+    total_amount: float | None = None,
+    description: str | None = None,
+    currency_code: str | None = None,
 ) -> str:
     """Stage a transaction in Wrangler for user review and allocation.
-    
+
+    Any value that cannot be determined should be passed as null (never guessed); the user completes it in Wrangler.
+
     Args:
-        source_label: Merchant or source platform identifier (e.g., 'amazon', 'target', 'homedepot').
-        external_id: Unique order ID or transaction reference from the merchant.
-        date: Transaction date in ISO format (YYYY-MM-DD or ISO timestamp).
-        total_amount: Transaction amount. Non-zero float; positive for purchases, negative for returns/refunds.
-        description: Item title, summary, or vendor notes.
-        currency_code: Three-letter ISO currency code (defaults to 'CAD').
-        
+        source_label: Intake source identifier (e.g., 'amazon', 'receipts@mmjm.ca'). Required.
+        external_id: Unique order ID or reference from the source. Required.
+        date: Transaction date in ISO format (YYYY-MM-DD or ISO timestamp), or null if unknown.
+        total_amount: Non-zero amount; positive for purchases, negative for returns/refunds, or null if unknown.
+        description: Item title, summary, or vendor notes, or null if unknown.
+        currency_code: Three-letter ISO currency code, or null (defaults to 'CAD').
+
     Returns:
         A human-readable confirmation string detailing whether the transaction was staged
         or skipped as a duplicate.
@@ -121,34 +125,36 @@ async def stage_transaction(
    - `source_label`: Trimmed and lowercased (`source_label.strip().lower()`). Must not be empty.
    - `raw_external_id`: Trimmed (`external_id.strip()`). Must not be empty.
    - `namespaced_external_id`: Constructed as `f"{source_label}:{raw_external_id}"`.
-   - `description`: Trimmed. If not already prefixed with `f"[{source_label.title()}]"`, the tool prepends `f"[{source_label.title()}] "` to guarantee vendor clarity in the Ledger and Wave CSV exports.
-   - `currency_code`: Trimmed and uppercased (`currency_code.strip().upper()`), defaulting to `"CAD"`.
-   - `total_amount`: Converted to `Decimal(f"{total_amount:.2f}")`. Must be strictly non-zero (`Decimal("0.00")` is rejected with an error message). Negative values are permitted to represent refunds, returns, or credits.
-   - `date`: Parsed to Python `datetime.date`. Accepts `YYYY-MM-DD` or full ISO 8601 timestamps (extracting the date component).
+   - `description`: Null, omitted, or blank is stored as `NULL`. Otherwise it is trimmed and prefixed with a source tag so vendor identity is clear in the Ledger and Wave CSV exports. The tag is `f"[{source_label.title()}]"` for plain labels, and the label exactly as written (`f"[{source_label}]"`) when the label contains `@` (e.g., `[receipts@mmjm.ca]`). An existing tag is not duplicated.
+   - `currency_code`: Null, omitted, or blank defaults to `"CAD"`. Otherwise trimmed and uppercased.
+   - `total_amount`: Null or omitted is stored as `NULL`. A provided value is converted to `Decimal(f"{total_amount:.2f}")` and must be strictly non-zero (a provided zero is rejected with an error). Negative values are permitted to represent refunds, returns, or credits.
+   - `date`: Null, omitted, or blank is stored as `NULL`. A provided value is parsed to a Python `datetime.date`, accepting `YYYY-MM-DD` or full ISO 8601 timestamps (extracting the date component). A provided but malformed date is rejected with an error (a supplied-but-wrong value is an agent error and should be reported; a missing value is not).
 2. **Idempotency & Deduplication Check:**
    Before inserting, the tool performs a deduplication query across two tables:
    - Queries `StagedTransaction` where `source == "mcp"` and `external_id == namespaced_external_id`.
    - Queries `Transaction` where `source == "mcp"` and `external_id == namespaced_external_id`.
    - **If a match exists:** The tool **does not raise an exception**. Instead, it returns an idempotent skip confirmation:
      > `"Transaction '[mcp] {namespaced_external_id}' already exists in Wrangler (status: <STAGED|ACCEPTED|DISMISSED|LEDGER>). Skipped."`
-     *(This allows the scraping agent to loop through order pages without aborting the batch).*
+      *(This allows the scraping agent to loop through order pages without aborting the batch).*
+    - **Existing records are never modified.** A re-run that supplies values for a record previously staged with `NULL`s does not fill them in or overwrite anything; the user's edits in Wrangler always win.
 3. **Record Creation:**
-   - Creates a new `StagedTransaction` record with:
-     - `id`: `uuid.uuid4()`
-     - `source`: `"mcp"`
-     - `external_id`: `namespaced_external_id`
-     - `date`: `parsed_date`
-     - `description`: `formatted_description`
-     - `total_amount`: `amount_decimal`
-     - `currency_code`: `currency_code`
-     - `status`: `"STAGED"`
-     - `is_marked_imported`: `False`
-     - `receipt_file_path`: `None`
-   - **No initial allocations:** Per the Importer Framework specification ([`specs/v2/1-importer-framework/spec.md`](file:///D:/src/personal/wrangler/specs/v2/1-importer-framework/spec.md#L40-L46)), a staged transaction starts with zero `StagedAllocation` records (`"Unallocated"`) so the user can assign personal vs. business allocations or multi-company splits in the UI.
+    - Creates a new `StagedTransaction` record with:
+      - `id`: `uuid.uuid4()`
+      - `source`: `"mcp"`
+      - `external_id`: `namespaced_external_id`
+      - `date`: `parsed_date` or `NULL`
+      - `description`: `formatted_description` or `NULL`
+      - `total_amount`: `amount_decimal` or `NULL`
+      - `currency_code`: `currency_code`
+      - `status`: `"STAGED"`
+      - `is_marked_imported`: `False`
+      - `receipt_file_path`: `None`
+    - **No initial allocations:** Per the Importer Framework specification ([`specs/v2/1-importer-framework/spec.md`](file:///D:/src/personal/wrangler/specs/v2/1-importer-framework/spec.md#L40-L46)), a staged transaction starts with zero `StagedAllocation` records (`"Unallocated"`) so the user can assign personal vs. business allocations or multi-company splits in the UI.
 4. **Commit & Return:**
-   - Commits the database transaction.
-   - Returns a success string:
-     > `"Successfully staged transaction: [mcp] amazon:114-1234567-8901234 - [Amazon] Wireless Keyboard ($29.99 CAD)."`
+    - Commits the database transaction.
+    - Returns a success string:
+      > `"Successfully staged transaction: [mcp] amazon:114-1234567-8901234 - [Amazon] Wireless Keyboard ($29.99 CAD)."`
+    - When any of `date`, `total_amount` or `description` was null, the string states what is still missing (e.g., `"... Needs review in Wrangler: date, total_amount."`). This is informational; the agent takes no further action.
 
 ---
 
@@ -206,7 +212,8 @@ Transactions inserted via MCP adhere to the full Staging Area lifecycle defined 
 
 1. **Immediate Visibility:** Staged transactions appear immediately in the **Import & Staging View** (`/import`, `GET /api/staging?status=STAGED`).
 2. **Clean Filter Dropdown:** The `source` column displays `"mcp"`. The UI filter dropdown includes `"mcp"` so users can isolate all records scraped by AI desktop assistants.
-3. **User Allocation:** Newly staged transactions have no allocations and display the `"Unallocated"` badge (`is_ready = False`). The user can:
+3. **User Allocation & Metadata Completion:** Staged transactions may have null `date`, `description`, or `total_amount` if not available during intake. Such transactions display as not ready (`is_ready = False`). `is_ready` evaluates to `True` only when `date`, `description`, and `total_amount` are all non-null, and allocations are balanced. The user can:
+   - Edit metadata (date, description, amount) via `PUT /api/staging/{id}`.
    - Toggle to **Personal** (`is_personal = True`).
    - Assign to a **Company** (`is_personal = False`).
    - Click **Edit / Split** to split across multiple businesses.
@@ -229,6 +236,6 @@ Transactions inserted via MCP adhere to the full Staging Area lifecycle defined 
 | **Idempotency & Deduplication** | Agents re-running over the same order history will encounter existing orders. | Dual-table check (`staged_transactions` and `transactions`) on `("mcp", namespaced_external_id)` returns a graceful confirmation without failing the agent's task. |
 | **Authentication & LAN Security** | Desktop clients running on a separate Windows machine cannot use interactive browser cookies or short-lived frontend JWTs. | Dedicated `MCP_API_KEY` supported via query parameter (`?api_key=`), `Authorization: Bearer`, or `X-API-Key`. Exempted from JWT auth in middleware. |
 | **Concurrency & Thread Safety** | FastMCP handles asynchronous tool invocations concurrently over SSE. | Each tool invocation creates and disposes its own isolated SQLAlchemy `Session` via `SessionLocal()`, avoiding shared session concurrency issues. |
-| **Data Integrity** | Floats passed by LLMs can introduce precision artifacts (e.g., `29.98999999999`). | Formatted and converted immediately to `Decimal(f"{total_amount:.2f}")` with non-zero validation. |
+| **Data Integrity** | Floats passed by LLMs can introduce precision artifacts (e.g., `29.98999999999`). | Formatted and converted immediately to `Decimal(f"{total_amount:.2f}")` with non-zero validation when provided. |
 | **Currency Default** | SQLite `currency_code` column is non-null. | Defaults to `"CAD"` across all tools, satisfying the schema while reflecting user base currency. |
-| **Schema Impact** | Uses existing `StagedTransaction` and `Transaction` tables. `source` is already a string column. | **Zero new database migrations required**. |
+| **Schema Impact** | Staged transactions allow partial data (`date`, `description`, `total_amount` nullable). | Alembic migration alters `staged_transactions` columns (`date`, `description`, `total_amount`) to nullable. Ledger transactions remain strictly non-null. |

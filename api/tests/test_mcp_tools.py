@@ -48,6 +48,33 @@ async def test_stage_transaction_success_and_normalization(mock_mcp_session):
 
 
 @pytest.mark.anyio
+async def test_stage_transaction_email_source_label_used_verbatim(mock_mcp_session):
+    result = await stage_transaction(
+        source_label="Receipts@mmjm.ca",
+        external_id="IAd5p4TqJGc-1",
+        date="2026-10-17",
+        total_amount=42.10,
+        description="Amazon: USB-C Hub",
+    )
+    assert "[mcp] receipts@mmjm.ca:IAd5p4TqJGc-1" in result
+
+    staged = mock_mcp_session.query(StagedTransaction).filter(StagedTransaction.external_id == "receipts@mmjm.ca:IAd5p4TqJGc-1").first()
+    assert staged is not None
+    assert staged.description == "[receipts@mmjm.ca] Amazon: USB-C Hub"
+
+    # Re-staging with an already-prefixed description does not double the prefix
+    again = await stage_transaction(
+        source_label="receipts@mmjm.ca",
+        external_id="IAd5p4TqJGc-2",
+        date="2026-10-17",
+        total_amount=5.00,
+        description="[receipts@mmjm.ca] Coffee",
+    )
+    assert "[receipts@mmjm.ca] Coffee" in again
+    assert "[receipts@mmjm.ca] [receipts@mmjm.ca]" not in again
+
+
+@pytest.mark.anyio
 async def test_stage_transaction_description_already_prefixed(mock_mcp_session):
     result = await stage_transaction(
         source_label="target",
@@ -254,3 +281,56 @@ async def test_check_transaction_exists(mock_mcp_session):
     # Check LEDGER
     check_ledger = await check_transaction_exists("amazon", "ledger-check-1")
     assert check_ledger == {"exists": True, "location": "ledger", "status": "COMMITTED"}
+
+
+@pytest.mark.anyio
+async def test_stage_transaction_partial_fields_and_readiness(mock_mcp_session):
+    from schemas.staging import compute_staged_is_ready
+
+    # 1. Stage with only source_label and external_id (all optional fields omitted)
+    res = await stage_transaction(
+        source_label="receipts@mmjm.ca",
+        external_id="partial-thread-1",
+    )
+    assert "Successfully staged transaction" in res
+    assert "[mcp] receipts@mmjm.ca:partial-thread-1" in res
+    assert "Needs review in Wrangler: date, total_amount, description." in res
+
+    staged = mock_mcp_session.query(StagedTransaction).filter(StagedTransaction.external_id == "receipts@mmjm.ca:partial-thread-1").first()
+    assert staged is not None
+    assert staged.date is None
+    assert staged.total_amount is None
+    assert staged.description is None
+    assert staged.currency_code == "CAD"
+    assert staged.status == "STAGED"
+    assert compute_staged_is_ready(staged) is False
+
+    # 2. Re-staging does not overwrite partial data (existing records are never modified)
+    res_repeat = await stage_transaction(
+        source_label="receipts@mmjm.ca",
+        external_id="partial-thread-1",
+        date="2026-10-17",
+        total_amount=50.00,
+        description="USB Hub",
+    )
+    assert "already exists in Wrangler (status: STAGED). Skipped." in res_repeat
+    mock_mcp_session.refresh(staged)
+    assert staged.date is None
+    assert staged.total_amount is None
+
+    # 3. Stage with partial metadata (e.g. amount and date known, description unknown)
+    res_partial_2 = await stage_transaction(
+        source_label="amazon",
+        external_id="partial-thread-2",
+        date="2026-10-17",
+        total_amount=24.99,
+    )
+    assert "Successfully staged transaction" in res_partial_2
+    assert "Needs review in Wrangler: description." in res_partial_2
+
+    staged_2 = mock_mcp_session.query(StagedTransaction).filter(StagedTransaction.external_id == "amazon:partial-thread-2").first()
+    assert staged_2 is not None
+    assert staged_2.date == datetime.date(2026, 10, 17)
+    assert staged_2.total_amount == Decimal("24.99")
+    assert staged_2.description is None
+    assert compute_staged_is_ready(staged_2) is False

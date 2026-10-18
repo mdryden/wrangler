@@ -123,7 +123,7 @@ def list_staged_transactions(
     stmt = select(StagedTransaction).options(selectinload(StagedTransaction.allocations))
     if filters:
         stmt = stmt.where(*filters)
-    stmt = stmt.order_by(StagedTransaction.date.desc(), StagedTransaction.id.desc()).offset((page - 1) * page_size).limit(page_size)
+    stmt = stmt.order_by(StagedTransaction.date.desc().nullslast(), StagedTransaction.id.desc()).offset((page - 1) * page_size).limit(page_size)
     items = list(db.scalars(stmt).all())
 
     return PaginatedStagedTransactionsResponse(
@@ -185,8 +185,18 @@ async def update_staged_transaction(
     effective_total_amount = payload.total_amount if payload.total_amount is not None else staged_tx.total_amount
 
     if "allocations" in update_data and payload.allocations is not None:
+        if effective_total_amount is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot allocate staged transaction without a total amount",
+            )
         _validate_and_apply_staged_allocations(staged_tx, payload.allocations, effective_total_amount, db)
     elif "total_amount" in update_data and len(staged_tx.allocations) > 0:
+        if effective_total_amount is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot set total amount to null when allocations exist",
+            )
         existing_sum = sum((Decimal(str(a.amount)).quantize(Decimal("0.01")) for a in staged_tx.allocations), Decimal("0.00"))
         target_total = Decimal(str(effective_total_amount)).quantize(Decimal("0.01"))
         if existing_sum != target_total:

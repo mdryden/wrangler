@@ -16,7 +16,8 @@ mcp = FastMCP("Wrangler")
 
 def _normalize_description(source_label: str, description: str) -> str:
     cleaned = description.strip()
-    prefix = f"[{source_label.title()}]"
+    # Email-style labels (e.g. "receipts@mmjm.ca") are used exactly as written; plain names are title-cased.
+    prefix = f"[{source_label}]" if "@" in source_label else f"[{source_label.title()}]"
     if cleaned.startswith(prefix):
         if cleaned.startswith(f"{prefix} "):
             return cleaned
@@ -35,20 +36,22 @@ def _normalize_description(source_label: str, description: str) -> str:
 async def stage_transaction(
     source_label: str,
     external_id: str,
-    date: str,
-    total_amount: float,
-    description: str,
-    currency_code: str = "CAD",
+    date: str | None = None,
+    total_amount: float | None = None,
+    description: str | None = None,
+    currency_code: str | None = None,
 ) -> str:
     """Stage a transaction in Wrangler for user review and allocation.
 
+    Any value that cannot be determined should be passed as null (never guessed); the user completes it in Wrangler.
+
     Args:
-        source_label: Merchant or source platform identifier (e.g., 'amazon', 'target', 'homedepot').
-        external_id: Unique order ID or transaction reference from the merchant.
-        date: Transaction date in ISO format (YYYY-MM-DD or ISO timestamp).
-        total_amount: Transaction amount. Non-zero float; positive for purchases, negative for returns/refunds.
-        description: Item title, summary, or vendor notes.
-        currency_code: Three-letter ISO currency code (defaults to 'CAD').
+        source_label: Intake source identifier (e.g., 'amazon', 'receipts@mmjm.ca'). Required.
+        external_id: Unique order ID or transaction reference from the merchant. Required.
+        date: Transaction date in ISO format (YYYY-MM-DD or ISO timestamp), or null if unknown.
+        total_amount: Non-zero float; positive for purchases, negative for returns/refunds, or null if unknown.
+        description: Item title, summary, or vendor notes, or null if unknown.
+        currency_code: Three-letter ISO currency code, or null (defaults to 'CAD').
 
     Returns:
         A human-readable confirmation string detailing whether the transaction was staged
@@ -68,20 +71,31 @@ async def stage_transaction(
     if not cleaned_currency:
         cleaned_currency = "CAD"
 
-    amount_decimal = Decimal(f"{total_amount:.2f}")
-    if amount_decimal == Decimal("0.00"):
-        raise ValueError("total_amount cannot be zero")
+    amount_decimal: Decimal | None = None
+    if total_amount is not None:
+        amount_decimal = Decimal(f"{total_amount:.2f}")
+        if amount_decimal == Decimal("0.00"):
+            raise ValueError("total_amount cannot be zero")
 
+    parsed_date = None
     cleaned_date = (date or "").strip()
-    if not cleaned_date:
-        raise ValueError("date cannot be empty")
+    if cleaned_date:
+        try:
+            parsed_date = datetime.fromisoformat(cleaned_date.replace("Z", "+00:00")).date()
+        except Exception as exc:
+            raise ValueError(f"Invalid date format: {date}") from exc
 
-    try:
-        parsed_date = datetime.fromisoformat(cleaned_date.replace("Z", "+00:00")).date()
-    except Exception as exc:
-        raise ValueError(f"Invalid date format: {date}") from exc
+    formatted_description: str | None = None
+    if description is not None and description.strip():
+        formatted_description = _normalize_description(norm_source_label, description)
 
-    formatted_description = _normalize_description(norm_source_label, description or "")
+    missing: list[str] = []
+    if parsed_date is None:
+        missing.append("date")
+    if amount_decimal is None:
+        missing.append("total_amount")
+    if formatted_description is None:
+        missing.append("description")
 
     session = SessionLocal()
     try:
@@ -124,6 +138,14 @@ async def stage_transaction(
         )
         session.add(new_staged)
         session.commit()
+
+        if missing:
+            desc_display = formatted_description if formatted_description is not None else "[unnamed]"
+            amt_display = f"(${amount_decimal:.2f} {cleaned_currency})" if amount_decimal is not None else "(amount pending)"
+            return (
+                f"Successfully staged transaction: [mcp] {namespaced_external_id} - {desc_display} {amt_display}. "
+                f"Needs review in Wrangler: {', '.join(missing)}."
+            )
         return f"Successfully staged transaction: [mcp] {namespaced_external_id} - {formatted_description} (${amount_decimal:.2f} {cleaned_currency})."
     finally:
         session.close()

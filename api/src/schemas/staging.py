@@ -61,9 +61,9 @@ class StagedTransactionResponse(BaseModel):
     id: uuid.UUID
     source: str
     external_id: str | None = None
-    date: datetime.date
-    description: str
-    total_amount: Decimal
+    date: datetime.date | None = None
+    description: str | None = None
+    total_amount: Decimal | None = None
     currency_code: str
     receipt_file_path: str | None = None
     status: str
@@ -98,8 +98,11 @@ class StagingAcceptResponse(BaseModel):
 
 
 def compute_staged_is_ready(staged_tx: StagedTransaction) -> bool:
-    """Return True if the staged transaction has status STAGED and valid balanced allocations."""
+    """Return True if the staged transaction has status STAGED, all metadata fields filled, and valid balanced allocations."""
     if staged_tx.status != "STAGED":
+        return False
+
+    if staged_tx.date is None or staged_tx.description is None or staged_tx.total_amount is None:
         return False
 
     allocs = staged_tx.allocations

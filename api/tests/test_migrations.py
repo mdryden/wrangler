@@ -60,6 +60,11 @@ def test_alembic_migrations_upgrade_and_downgrade(tmp_path):
         "created_at",
     } <= staged_tx_cols
 
+    staged_tx_columns_dict = {col["name"]: col for col in inspector.get_columns("staged_transactions")}
+    assert staged_tx_columns_dict["date"]["nullable"] is True
+    assert staged_tx_columns_dict["description"]["nullable"] is True
+    assert staged_tx_columns_dict["total_amount"]["nullable"] is True
+
     staged_tx_indexes = {idx["name"] for idx in inspector.get_indexes("staged_transactions")}
     assert "ix_staged_transactions_source" in staged_tx_indexes
     assert "ix_staged_transactions_status" in staged_tx_indexes

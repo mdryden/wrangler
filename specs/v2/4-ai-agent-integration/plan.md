@@ -50,10 +50,10 @@ This implementation plan defines the step-by-step engineering tasks to integrate
   async def stage_transaction(
       source_label: str,
       external_id: str,
-      date: str,
-      total_amount: float,
-      description: str,
-      currency_code: str = "CAD",
+      date: str | None = None,
+      total_amount: float | None = None,
+      description: str | None = None,
+      currency_code: str | None = None,
   ) -> str:
   ```
 - Use localized SQLAlchemy session lifecycle (`SessionLocal()` within `try...finally`) for thread/concurrency safety.
@@ -61,10 +61,10 @@ This implementation plan defines the step-by-step engineering tasks to integrate
   - Strip and lowercase `source_label`. Reject if empty.
   - Strip `external_id`. Reject if empty.
   - Construct `namespaced_external_id = f"{source_label}:{raw_external_id}"`.
-  - Strip `description`. Prepend `f"[{source_label.title()}] "` if not already present.
-  - Strip and uppercase `currency_code` (defaults to `"CAD"`).
-  - Convert `total_amount` to `Decimal(f"{total_amount:.2f}")`. Reject zero amount (`Decimal("0.00")`). Support negative amounts for refunds.
-  - Parse `date` string supporting `YYYY-MM-DD` and full ISO 8601 timestamps into a `datetime.date` object.
+  - Description: If None or empty, store as None. If provided, strip and format with prefix: `f"[{source_label}] "` if `@` in source_label else `f"[{source_label.title()}] "` (if not already present).
+  - Currency: If None or empty, default to `"CAD"`. Otherwise strip and uppercase.
+  - Amount: If None, store as None. If provided, convert to `Decimal(f"{total_amount:.2f}")`. Reject zero amount (`Decimal("0.00")`). Support negative amounts for refunds.
+  - Date: If None or empty, store as None. If provided, parse string supporting `YYYY-MM-DD` and full ISO 8601 timestamps into a `datetime.date` object.
 - Implement dual-table deduplication query:
   - Check `StagedTransaction` for `source == "mcp"` and `external_id == namespaced_external_id`.
   - Check `Transaction` for `source == "mcp"` and `external_id == namespaced_external_id`.
@@ -72,7 +72,7 @@ This implementation plan defines the step-by-step engineering tasks to integrate
   - If found in ledger: return `"Transaction '[mcp] {namespaced_external_id}' already exists in Wrangler (status: LEDGER). Skipped."`
 - Implement record persistence:
   - Create new `StagedTransaction` with `source="mcp"`, `external_id=namespaced_external_id`, `date=parsed_date`, `description=formatted_description`, `total_amount=amount_decimal`, `currency_code=currency_code`, `status="STAGED"`, `is_marked_imported=False`, `receipt_file_path=None`, and empty allocations.
-  - Commit session and return `"Successfully staged transaction: [mcp] {namespaced_external_id} - {formatted_description} (${amount:.2f} {currency_code})."`
+  - Commit session and return confirmation string detailing staged transaction and noting missing fields if any (e.g. `"... Needs review in Wrangler: date, total_amount."`).
 
 ### 2.2 Implement Pre-flight Verification Tool `check_transaction_exists`
 - In `api/src/services/mcp.py`, implement `@mcp.tool()` function:

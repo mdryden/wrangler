@@ -1,5 +1,7 @@
+import datetime
 import uuid
 from datetime import timedelta
+from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
@@ -177,3 +179,66 @@ async def test_mcp_staging_dismissal_and_idempotency(client, db_session, auth_he
         description="Phone Case",
     )
     assert re_stage_dismissed == "Transaction '[mcp] amazon:order-lifecycle-2' already exists in Wrangler (status: DISMISSED). Skipped."
+
+
+@pytest.mark.anyio
+async def test_mcp_staging_partial_data_completion_and_accept_lifecycle(client, db_session, auth_headers):
+    # 1. Ingest partial transaction without date, amount, description
+    msg = await stage_transaction(
+        source_label="receipts@mmjm.ca",
+        external_id="partial-lifecycle-1",
+    )
+    assert "Needs review in Wrangler: date, total_amount, description." in msg
+
+    # 2. Verify in staging list - not ready
+    res_staged = client.get("/api/staging?status=STAGED&source=mcp", headers=auth_headers)
+    assert res_staged.status_code == 200
+    staged_item = next(item for item in res_staged.json()["items"] if item["external_id"] == "receipts@mmjm.ca:partial-lifecycle-1")
+    staged_id = staged_item["id"]
+    assert staged_item["date"] is None
+    assert staged_item["total_amount"] is None
+    assert staged_item["description"] is None
+    assert staged_item["is_ready"] is False
+
+    # 3. Acceptance blocked while metadata incomplete
+    res_accept_blocked = client.post(
+        "/api/staging/accept",
+        json={"staged_transaction_ids": [staged_id]},
+        headers=auth_headers,
+    )
+    assert res_accept_blocked.status_code == 400
+    assert "not ready for acceptance" in res_accept_blocked.json()["detail"].lower()
+
+    # 4. Update metadata in Wrangler
+    res_update = client.put(
+        f"/api/staging/{staged_id}",
+        json={
+            "date": "2026-10-20",
+            "total_amount": "50.00",
+            "description": "[receipts@mmjm.ca] Completed Office Supplies",
+            "allocations": [{"amount": "50.00", "is_personal": True}],
+        },
+        headers=auth_headers,
+    )
+    assert res_update.status_code == 200
+    updated_data = res_update.json()
+    assert updated_data["date"] == "2026-10-20"
+    assert updated_data["total_amount"] == "50.00"
+    assert updated_data["description"] == "[receipts@mmjm.ca] Completed Office Supplies"
+    assert updated_data["is_ready"] is True
+
+    # 5. Acceptance succeeds once complete
+    res_accept = client.post(
+        "/api/staging/accept",
+        json={"staged_transaction_ids": [staged_id]},
+        headers=auth_headers,
+    )
+    assert res_accept.status_code == 200
+    assert res_accept.json()["accepted_count"] == 1
+
+    # 6. Verify in live ledger
+    ledger_tx = db_session.query(Transaction).filter(Transaction.external_id == "receipts@mmjm.ca:partial-lifecycle-1").first()
+    assert ledger_tx is not None
+    assert ledger_tx.date == datetime.date(2026, 10, 20)
+    assert ledger_tx.total_amount == Decimal("50.00")
+    assert ledger_tx.description == "[receipts@mmjm.ca] Completed Office Supplies"
