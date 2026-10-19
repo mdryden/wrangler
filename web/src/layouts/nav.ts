@@ -12,3 +12,16 @@ export const navItems: NavItem[] = [
   { name: "export-manager", label: "Export Manager", icon: "file_download", path: "/export-manager" },
   { name: "settings", label: "Settings", icon: "settings", path: "/settings" },
 ]
+
+export function handleSidebarKeydown(event: KeyboardEvent, toggleSidebar: () => void): boolean {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "b") {
+    const target = event.target as HTMLElement | null
+    if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+      return false
+    }
+    event.preventDefault()
+    toggleSidebar()
+    return true
+  }
+  return false
+}

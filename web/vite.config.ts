@@ -8,7 +8,9 @@ export default defineConfig({
     vue({
       template: { transformAssetUrls },
     }),
-    quasar(),
+    quasar({
+      devTreeshaking: true,
+    }),
   ],
   server: {
     port: 3000,
