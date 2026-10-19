@@ -523,6 +523,7 @@ def test_batch_accept_staged_transactions_and_mark_imported_hooks(client, auth_h
     assert ledger_tx_1 is not None
     assert ledger_tx_1.external_id == "ACC-1"
     assert not hasattr(ledger_tx_1, "url")
+    assert not hasattr(ledger_tx_1, "currency_code")
     assert len(ledger_tx_1.allocations) == 2
     assert all(not a.is_locked for a in ledger_tx_1.allocations)
 

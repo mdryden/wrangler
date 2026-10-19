@@ -19,7 +19,6 @@ export interface ExportAllocationRow {
   date: string
   description: string
   amount: string | number
-  currency_code: string
   is_locked: boolean
   company_id: string | null
   receipt_file_path: string | null
@@ -94,7 +93,6 @@ export function extractCompanyAllocationRows(
         date: tx.date,
         description: tx.description,
         amount: alloc.amount,
-        currency_code: tx.currency_code || "CAD",
         is_locked: Boolean(alloc.is_locked),
         company_id: alloc.company_id,
         receipt_file_path: tx.receipt_file_path,

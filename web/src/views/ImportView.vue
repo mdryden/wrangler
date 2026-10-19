@@ -643,7 +643,7 @@ defineExpose({
       <template #body-cell-total_amount="props">
         <q-td :props="props" align="right">
           <span :class="Number(props.row.total_amount) < 0 ? 'text-negative text-weight-bold' : 'text-weight-bold'">
-            {{ formatStagedAmount(props.row.total_amount, props.row.currency_code) }}
+            {{ formatStagedAmount(props.row.total_amount) }}
           </span>
         </q-td>
       </template>

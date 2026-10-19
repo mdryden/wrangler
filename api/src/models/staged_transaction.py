@@ -20,7 +20,6 @@ class StagedTransaction(Base):
     date: Mapped[datetime.date | None] = mapped_column(Date, nullable=True)
     description: Mapped[str | None] = mapped_column(String, nullable=True)
     total_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
-    currency_code: Mapped[str] = mapped_column(String, nullable=False, default="CAD")
     receipt_file_path: Mapped[str | None] = mapped_column(String, nullable=True)
     url: Mapped[str | None] = mapped_column(String, nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=False, default="STAGED", index=True)

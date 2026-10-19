@@ -83,7 +83,6 @@ class AmazonCsvImporter(BaseCsvImporter):
             date=tx_date,
             description=description,
             total_amount=total_amount,
-            currency_code="CAD",
             receipt=None,
             url=parsed_url,
         )

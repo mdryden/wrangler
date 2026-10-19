@@ -406,7 +406,6 @@ async def accept_staged_transactions(
             date=stx.date,
             description=stx.description,
             total_amount=stx.total_amount,
-            currency_code=stx.currency_code,
             receipt_file_path=stx.receipt_file_path,
         )
         for s_alloc in stx.allocations:

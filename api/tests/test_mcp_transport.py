@@ -165,6 +165,7 @@ async def test_mcp_tool_listing_and_execution_protocol(mock_mcp_session):
     assert "date" in stage_tool.input_schema["properties"]
     assert "total_amount" in stage_tool.input_schema["properties"]
     assert "description" in stage_tool.input_schema["properties"]
+    assert "currency_code" not in stage_tool.input_schema["properties"]
 
     # Check check_transaction_exists tool schema/parameters
     check_tool = next(t for t in tools if t.name == "check_transaction_exists")
@@ -180,7 +181,6 @@ async def test_mcp_tool_listing_and_execution_protocol(mock_mcp_session):
             "date": "2026-10-17",
             "total_amount": 55.40,
             "description": "USB-C Hub",
-            "currency_code": "CAD",
         },
     )
     assert stage_res is not None

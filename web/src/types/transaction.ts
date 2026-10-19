@@ -18,7 +18,6 @@ export interface TransactionCreatePayload {
   date: string
   description: string
   total_amount: string | number
-  currency_code?: string
   source?: string
   external_id?: string | null
   company_id?: string | null
@@ -29,7 +28,6 @@ export interface TransactionUpdatePayload {
   date?: string
   description?: string
   total_amount?: string | number
-  currency_code?: string
   source?: string
   external_id?: string | null
   receipt_file_path?: string | null
@@ -53,7 +51,6 @@ export interface Transaction {
   date: string
   description: string
   total_amount: string | number
-  currency_code: string
   receipt_file_path: string | null
   allocations: Allocation[]
 }

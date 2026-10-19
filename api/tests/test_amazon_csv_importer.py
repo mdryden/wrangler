@@ -262,28 +262,24 @@ def test_amazon_csv_importer_sample_csv_pipeline():
     assert items[0].date == date(2026, 10, 16)
     assert items[0].description is None
     assert items[0].total_amount == Decimal("96.04")
-    assert items[0].currency_code == "CAD"
     assert items[0].receipt is None
 
     assert items[1].external_id == "702-4929086-4929052_2026-10-12_15.67"
     assert items[1].date == date(2026, 10, 12)
     assert items[1].description is None
     assert items[1].total_amount == Decimal("15.67")
-    assert items[1].currency_code == "CAD"
     assert items[1].receipt is None
 
     assert items[2].external_id == "D01-0626645-1689808, ??_2026-09-19_27.25"
     assert items[2].date == date(2026, 9, 19)
     assert items[2].description is None
     assert items[2].total_amount == Decimal("27.25")
-    assert items[2].currency_code == "CAD"
     assert items[2].receipt is None
 
     assert items[3].external_id == "702-1234567-8901234_2026-09-10_-15.00"
     assert items[3].date == date(2026, 9, 10)
     assert items[3].description is None
     assert items[3].total_amount == Decimal("-15.00")
-    assert items[3].currency_code == "CAD"
     assert items[3].receipt is None
 
 

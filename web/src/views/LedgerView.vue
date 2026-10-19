@@ -557,7 +557,7 @@ defineExpose({
       <template #body-cell-total_amount="props">
         <q-td :props="props" align="right">
           <span :class="Number(props.row.total_amount) < 0 ? 'text-negative text-weight-bold' : 'text-weight-bold'">
-            {{ formatCurrency(props.row.total_amount, props.row.currency_code) }}
+            {{ formatCurrency(props.row.total_amount) }}
           </span>
         </q-td>
       </template>
@@ -678,7 +678,7 @@ defineExpose({
                           {{ getAllocationItemLabel(alloc, companyMap) }}
                         </q-item-label>
                         <q-item-label caption>
-                          {{ formatCurrency(alloc.amount, props.row.currency_code) }}
+                          {{ formatCurrency(alloc.amount) }}
                         </q-item-label>
                       </q-item-section>
                       <q-item-section side>

@@ -76,7 +76,6 @@ def test_create_transaction_json_success(client, auth_headers, db_session):
         "date": "2026-09-06",
         "description": "Office Supplies",
         "total_amount": "125.50",
-        "currency_code": "CAD",
         "source": "manual",
         "external_id": "EXP-001",
         "allocations": [
@@ -88,7 +87,6 @@ def test_create_transaction_json_success(client, auth_headers, db_session):
     data = resp.json()
     assert data["description"] == "Office Supplies"
     assert data["total_amount"] == "125.50"
-    assert data["currency_code"] == "CAD"
     assert data["source"] == "manual"
     assert data["external_id"] == "EXP-001"
     assert data["receipt_file_path"] is None
@@ -324,7 +322,6 @@ def test_create_transaction_multipart_with_receipt(client, auth_headers, db_sess
         "date": "2026-09-06",
         "description": "Printed receipt manual entry",
         "total_amount": "78.25",
-        "currency_code": "CAD",
         "source": "manual",
         "allocations": json.dumps([{"amount": "78.25", "company_id": str(company.id)}]),
     }

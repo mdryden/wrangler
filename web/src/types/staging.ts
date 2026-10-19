@@ -34,7 +34,6 @@ export interface StagedTransaction {
   date: string
   description: string
   total_amount: string | number
-  currency_code: string
   receipt_file_path: string | null
   url: string | null
   status: StagedStatus

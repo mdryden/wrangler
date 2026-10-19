@@ -14,7 +14,6 @@ class ParsedTransaction(BaseModel):
     date: date
     description: str
     total_amount: Decimal
-    currency_code: str = "CAD"
     receipt_file_path: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -59,7 +58,6 @@ class ManualIntakeParser(BaseIntakeParser):
             elif isinstance(item, dict):
                 data = item.copy()
                 data.setdefault("source", self.source_name)
-                data.setdefault("currency_code", "CAD")
                 parsed = ParsedTransaction(**data)
                 results.append(parsed)
             else:
@@ -69,7 +67,6 @@ class ManualIntakeParser(BaseIntakeParser):
                     "date": getattr(item, "date", None),
                     "description": getattr(item, "description", None),
                     "total_amount": getattr(item, "total_amount", None),
-                    "currency_code": getattr(item, "currency_code", "CAD"),
                     "receipt_file_path": getattr(item, "receipt_file_path", None),
                 }
                 parsed = ParsedTransaction(**data)

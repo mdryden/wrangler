@@ -155,7 +155,7 @@ For MCP clients using JSON configuration (e.g., Claude Desktop, Cursor):
 
 | Tool | Parameters | Description |
 | :--- | :--- | :--- |
-| `stage_transaction` | `source_label`: string (e.g. `'amazon'`)<br>`external_id`: string (e.g. `'114-1234567-8901234'`)<br>`date`: string (`YYYY-MM-DD` or ISO timestamp)<br>`total_amount`: float (non-zero; negative for refunds)<br>`description`: string<br>`currency_code`: string (default `'CAD'`) | Ingests a transaction into Wrangler's Staging Area (`source = "mcp"`). Performs automated dual-table deduplication against existing staged and ledger transactions, returning an idempotent skip confirmation if already recorded. |
+| `stage_transaction` | `source_label`: string (e.g. `'amazon'`)<br>`external_id`: string (e.g. `'114-1234567-8901234'`)<br>`date`: string (`YYYY-MM-DD` or ISO timestamp)<br>`total_amount`: float (non-zero; negative for refunds)<br>`description`: string | Ingests a transaction into Wrangler's Staging Area (`source = "mcp"`). Performs automated dual-table deduplication against existing staged and ledger transactions, returning an idempotent skip confirmation if already recorded. |
 | `check_transaction_exists` | `source_label`: string<br>`external_id`: string | Pre-flight check to verify if a transaction exists in Wrangler before running scraping operations. Returns `{"exists": bool, "location": "staged"\|"ledger"\|null, "status": "STAGED"\|"ACCEPTED"\|"DISMISSED"\|"COMMITTED"\|null}`. |
 
 ---

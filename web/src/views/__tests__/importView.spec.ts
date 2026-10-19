@@ -42,7 +42,6 @@ function makeStagedTx(overrides: Partial<StagedTransaction> = {}): StagedTransac
     date: "2026-10-15",
     description: "Cloud Server",
     total_amount: "120.00",
-    currency_code: "CAD",
     receipt_file_path: null,
     url: null,
     status: "STAGED",
@@ -357,17 +356,11 @@ describe("ImportView Logic & Workflow", () => {
     })
 
     it("formats CAD currency amounts without redundant 'CA$' prefix", () => {
-      expect(formatStagedAmount(96.04, "CAD")).toBe("$96.04")
-      expect(formatStagedAmount(-15.0, "CAD")).toBe("-$15.00")
-      expect(formatStagedAmount("1250.75", "CAD")).toBe("$1,250.75")
-      expect(formatStagedAmount("0", "CAD")).toBe("$0.00")
-      expect(formatStagedAmount(null, "CAD")).toBe("$0.00")
-    })
-
-    it("retains currency code for non-CAD currencies", () => {
-      expect(formatStagedAmount(15.0, "USD")).toBe("USD 15.00")
-      expect(formatStagedAmount(-15.0, "USD")).toBe("-USD 15.00")
-      expect(formatStagedAmount("99.99", "EUR")).toBe("EUR 99.99")
+      expect(formatStagedAmount(96.04)).toBe("$96.04")
+      expect(formatStagedAmount(-15.0)).toBe("-$15.00")
+      expect(formatStagedAmount("1250.75")).toBe("$1,250.75")
+      expect(formatStagedAmount("0")).toBe("$0.00")
+      expect(formatStagedAmount(null)).toBe("$0.00")
     })
 
     it("verifies template layout optimizations in ImportView.vue", () => {
@@ -386,7 +379,7 @@ describe("ImportView Logic & Workflow", () => {
       expect(templateContent).toContain('rel="noopener noreferrer"')
 
       // Total amount slot uses formatStagedAmount
-      expect(templateContent).toContain("formatStagedAmount(props.row.total_amount, props.row.currency_code)")
+      expect(templateContent).toContain("formatStagedAmount(props.row.total_amount)")
 
       // Allocations slot contains call_split icon button with tooltip
       expect(templateContent).toContain('data-testid="btn-split-allocations"')

@@ -39,7 +39,6 @@ async def stage_transaction(
     date: str | None = None,
     total_amount: float | None = None,
     description: str | None = None,
-    currency_code: str | None = None,
 ) -> str:
     """Stage a transaction in Wrangler for user review and allocation.
 
@@ -51,7 +50,6 @@ async def stage_transaction(
         date: Transaction date in ISO format (YYYY-MM-DD or ISO timestamp), or null if unknown.
         total_amount: Non-zero float; positive for purchases, negative for returns/refunds, or null if unknown.
         description: Item title, summary, or vendor notes, or null if unknown.
-        currency_code: Three-letter ISO currency code, or null (defaults to 'CAD').
 
     Returns:
         A human-readable confirmation string detailing whether the transaction was staged
@@ -66,10 +64,6 @@ async def stage_transaction(
         raise ValueError("external_id cannot be empty")
 
     namespaced_external_id = f"{norm_source_label}:{norm_external_id}"
-
-    cleaned_currency = (currency_code or "CAD").strip().upper()
-    if not cleaned_currency:
-        cleaned_currency = "CAD"
 
     amount_decimal: Decimal | None = None
     if total_amount is not None:
@@ -131,7 +125,6 @@ async def stage_transaction(
             date=parsed_date,
             description=formatted_description,
             total_amount=amount_decimal,
-            currency_code=cleaned_currency,
             status="STAGED",
             is_marked_imported=False,
             receipt_file_path=None,
@@ -141,12 +134,12 @@ async def stage_transaction(
 
         if missing:
             desc_display = formatted_description if formatted_description is not None else "[unnamed]"
-            amt_display = f"(${amount_decimal:.2f} {cleaned_currency})" if amount_decimal is not None else "(amount pending)"
+            amt_display = f"(${amount_decimal:.2f})" if amount_decimal is not None else "(amount pending)"
             return (
                 f"Successfully staged transaction: [mcp] {namespaced_external_id} - {desc_display} {amt_display}. "
                 f"Needs review in Wrangler: {', '.join(missing)}."
             )
-        return f"Successfully staged transaction: [mcp] {namespaced_external_id} - {formatted_description} (${amount_decimal:.2f} {cleaned_currency})."
+        return f"Successfully staged transaction: [mcp] {namespaced_external_id} - {formatted_description} (${amount_decimal:.2f})."
     finally:
         session.close()
 

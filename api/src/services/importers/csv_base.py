@@ -1,6 +1,5 @@
 import csv
 import io
-import re
 from abc import abstractmethod
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
@@ -38,9 +37,14 @@ class BaseCsvImporter(BaseImporter):
             is_negative = True
             cleaned = cleaned[1:-1].strip()
 
-        # Strip common currency prefixes/symbols and commas
-        cleaned = re.sub(r"\b(?:CAD|USD)\b", "", cleaned, flags=re.IGNORECASE)
-        cleaned = cleaned.replace("$", "").replace(",", "").strip()
+        if cleaned.startswith("-"):
+            is_negative = True
+            cleaned = cleaned[1:].strip()
+        elif cleaned.startswith("+"):
+            cleaned = cleaned[1:].strip()
+
+        # Strip common currency symbols ($ and CA$) and commas
+        cleaned = cleaned.replace("CA$", "").replace("ca$", "").replace("$", "").replace(",", "").strip()
 
         if cleaned.startswith("-"):
             is_negative = True

@@ -29,14 +29,12 @@ def test_imported_transaction_data_valid():
         date=date(2026, 10, 1),
         description="  Cloud Hosting  ",
         total_amount=Decimal("42.50"),
-        currency_code="CAD",
         receipt=receipt,
     )
     assert item.external_id == "EXT-1"
     assert item.date == date(2026, 10, 1)
     assert item.description == "Cloud Hosting"
     assert item.total_amount == Decimal("42.50")
-    assert item.currency_code == "CAD"
     assert item.receipt == receipt
     assert item.receipt.content_type == "application/pdf"
 
@@ -87,7 +85,6 @@ def test_imported_transaction_data_nullable_and_defaults():
     assert item6.description is None
     assert item6.total_amount is None
     assert item6.external_id is None
-    assert item6.currency_code == "CAD"
     assert item6.receipt is None
     assert item6.url is None
 
@@ -197,14 +194,15 @@ class SampleCsvImporter(BaseCsvImporter):
             date=tx_date,
             description=row["Description"],
             total_amount=amount,
-            currency_code=row.get("Currency") or "CAD",
         )
 
 
 def test_base_csv_importer_parse_amount_and_dates():
     assert BaseCsvImporter.parse_amount("$1,234.56") == Decimal("1234.56")
-    assert BaseCsvImporter.parse_amount("CAD 45.00") == Decimal("45.00")
-    assert BaseCsvImporter.parse_amount("USD -19.99") == Decimal("-19.99")
+    assert BaseCsvImporter.parse_amount("$12.50") == Decimal("12.50")
+    assert BaseCsvImporter.parse_amount("CA$12.50") == Decimal("12.50")
+    assert BaseCsvImporter.parse_amount("-$25.00") == Decimal("-25.00")
+    assert BaseCsvImporter.parse_amount("(45.00)") == Decimal("-45.00")
     assert BaseCsvImporter.parse_amount("(12.34)") == Decimal("-12.34")
     assert BaseCsvImporter.parse_amount("($1,000.50)") == Decimal("-1000.50")
 
@@ -246,7 +244,6 @@ def test_base_csv_importer_pipeline_utf8_bom_and_latin1():
     assert items[0].total_amount == Decimal("12.50")
     assert items[1].external_id == "TX-2"
     assert items[1].total_amount == Decimal("-25.00")
-    assert items[1].currency_code == "CAD"
 
     # Latin-1 encoded content fallback
     latin1_csv = "External ID,Date,Description,Amount\nTX-3,2026-10-05,Café Boulangerie,15.00\n".encode("latin-1")

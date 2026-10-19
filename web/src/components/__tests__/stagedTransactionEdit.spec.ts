@@ -22,7 +22,6 @@ describe("stagedTransactionEdit", () => {
     date: "2026-10-01",
     description: "Unallocated Staged Item",
     total_amount: "100.00",
-    currency_code: "CAD",
     receipt_file_path: "stx-1_receipt.pdf",
     url: null,
     status: "STAGED",

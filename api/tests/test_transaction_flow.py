@@ -65,7 +65,6 @@ def test_transaction_allocation_receipt_lifecycle_flow(client, auth_headers, db_
         "date": "2026-09-06",
         "description": "Hardware & Office Setup",
         "total_amount": "250.00",
-        "currency_code": "CAD",
         "source": "manual",
         "external_id": "INT-TX-001",
         "allocations": [

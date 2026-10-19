@@ -1,29 +1,12 @@
 import type { QTableColumn } from "quasar"
 import type { StagedTransaction } from "../types/staging"
+import { formatCurrency } from "./ledger"
 
 /**
- * Formats a staged amount or string into simplified currency format without redundant 'CA$' prefix for CAD.
+ * Formats a staged amount or string into standard CAD currency format ($X,XXX.XX or -$X,XXX.XX).
  */
-export function formatStagedAmount(amount: string | number | null | undefined, currencyCode = "CAD"): string {
-  if (amount === null || amount === undefined || amount === "") {
-    return "$0.00"
-  }
-  const num = typeof amount === "string" ? parseFloat(amount) : amount
-  if (Number.isNaN(num)) {
-    return "$0.00"
-  }
-  const isNegative = num < 0
-  const absFormatted = Math.abs(num).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
-  const sign = isNegative ? "-" : ""
-  const code = (currencyCode || "CAD").toUpperCase()
-
-  if (code === "CAD") {
-    return `${sign}$${absFormatted}`
-  }
-  return `${sign}${code} ${absFormatted}`
+export function formatStagedAmount(amount: string | number | null | undefined): string {
+  return formatCurrency(amount)
 }
 
 export const stagingTableColumns: QTableColumn[] = [

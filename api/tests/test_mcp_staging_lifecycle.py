@@ -68,7 +68,6 @@ async def test_mcp_staging_full_lifecycle(client, db_session, auth_headers):
         date="2026-10-18",
         total_amount=79.99,
         description="Wireless Headphones",
-        currency_code="CAD",
     )
     assert "Successfully staged transaction" in stage_msg
     assert "[mcp] amazon:order-lifecycle-1" in stage_msg
@@ -136,7 +135,6 @@ async def test_mcp_staging_full_lifecycle(client, db_session, auth_headers):
         date="2026-10-18",
         total_amount=79.99,
         description="Wireless Headphones",
-        currency_code="CAD",
     )
     assert re_stage_accepted == "Transaction '[mcp] amazon:order-lifecycle-1' already exists in Wrangler (status: ACCEPTED). Skipped."
 

@@ -71,7 +71,6 @@ def test_transaction_creation_defaults(db_session):
     assert tx.date == date(2026, 9, 6)
     assert tx.description == "Office lunch"
     assert tx.total_amount == Decimal("45.50")
-    assert tx.currency_code == "CAD"
     assert tx.receipt_file_path is None
     assert tx.allocations == []
 
@@ -85,7 +84,6 @@ def test_transaction_creation_with_all_fields(db_session):
         date=date(2026, 9, 1),
         description="Monitor stand",
         total_amount=Decimal("-89.99"),  # Test refund / negative amount
-        currency_code="CAD",
         receipt_file_path="/receipts/2026/09/amz_123.pdf",
     )
     db_session.add(tx)
@@ -98,7 +96,6 @@ def test_transaction_creation_with_all_fields(db_session):
     assert tx.date == date(2026, 9, 1)
     assert tx.description == "Monitor stand"
     assert tx.total_amount == Decimal("-89.99")
-    assert tx.currency_code == "CAD"
     assert tx.receipt_file_path == "/receipts/2026/09/amz_123.pdf"
 
 
@@ -407,7 +404,6 @@ def test_staged_transaction_creation_defaults(db_session):
     assert staged_tx.date == date(2026, 10, 1)
     assert staged_tx.description == "Cloud hosting"
     assert staged_tx.total_amount == Decimal("29.99")
-    assert staged_tx.currency_code == "CAD"
     assert staged_tx.receipt_file_path is None
     assert staged_tx.url is None
     assert staged_tx.status == "STAGED"

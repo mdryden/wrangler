@@ -25,13 +25,12 @@ async def test_stage_transaction_success_and_normalization(mock_mcp_session):
         date="2026-10-15",
         total_amount=29.99,
         description="  Wireless Keyboard  ",
-        currency_code="cad",
     )
 
     assert "Successfully staged transaction" in result
     assert "[mcp] amazon:114-1234567-8901234" in result
     assert "[Amazon] Wireless Keyboard" in result
-    assert "($29.99 CAD)" in result
+    assert "($29.99)" in result
 
     staged = (
         mock_mcp_session.query(StagedTransaction)
@@ -41,7 +40,6 @@ async def test_stage_transaction_success_and_normalization(mock_mcp_session):
     assert staged is not None
     assert staged.description == "[Amazon] Wireless Keyboard"
     assert staged.total_amount == Decimal("29.99")
-    assert staged.currency_code == "CAD"
     assert staged.date == datetime.date(2026, 10, 15)
     assert staged.status == "STAGED"
     assert staged.is_marked_imported is False
@@ -82,14 +80,13 @@ async def test_stage_transaction_description_already_prefixed(mock_mcp_session):
         date="2026-10-16",
         total_amount=15.50,
         description="[Target] Desk Lamp",
-        currency_code="USD",
     )
     assert "Successfully staged transaction" in result
+    assert "($15.50)" in result
 
     staged = mock_mcp_session.query(StagedTransaction).filter(StagedTransaction.source == "mcp", StagedTransaction.external_id == "target:order-999").first()
     assert staged is not None
     assert staged.description == "[Target] Desk Lamp"
-    assert staged.currency_code == "USD"
 
 
 @pytest.mark.anyio
@@ -161,7 +158,7 @@ async def test_stage_transaction_negative_refund_amount(mock_mcp_session):
         description="Returned Headphones",
     )
     assert "Successfully staged transaction" in result
-    assert "($-45.50 CAD)" in result
+    assert "($-45.50)" in result
 
     staged = mock_mcp_session.query(StagedTransaction).filter(StagedTransaction.source == "mcp", StagedTransaction.external_id == "amazon:refund-123").first()
     assert staged is not None
@@ -181,7 +178,6 @@ async def test_stage_transaction_deduplication_against_staging(mock_mcp_session)
             date=datetime.date(2026, 10, 10),
             description=f"[Amazon] Order {status}",
             total_amount=Decimal("50.00"),
-            currency_code="CAD",
             status=status,
             is_marked_imported=False,
         )
@@ -210,7 +206,6 @@ async def test_stage_transaction_deduplication_against_ledger(mock_mcp_session):
         date=datetime.date(2026, 9, 20),
         description="[Amazon] Office Chair",
         total_amount=Decimal("199.99"),
-        currency_code="CAD",
     )
     mock_mcp_session.add(ledger_tx)
     mock_mcp_session.commit()
@@ -239,7 +234,6 @@ async def test_check_transaction_exists(mock_mcp_session):
         date=datetime.date(2026, 10, 1),
         description="[Amazon] Staged Check",
         total_amount=Decimal("25.00"),
-        currency_code="CAD",
         status="STAGED",
     )
     mock_mcp_session.add(staged_tx)
@@ -252,7 +246,6 @@ async def test_check_transaction_exists(mock_mcp_session):
         date=datetime.date(2026, 10, 2),
         description="[Amazon] Dismissed Check",
         total_amount=Decimal("10.00"),
-        currency_code="CAD",
         status="DISMISSED",
     )
     mock_mcp_session.add(dismissed_tx)
@@ -265,7 +258,6 @@ async def test_check_transaction_exists(mock_mcp_session):
         date=datetime.date(2026, 10, 3),
         description="[Amazon] Ledger Check",
         total_amount=Decimal("80.00"),
-        currency_code="CAD",
     )
     mock_mcp_session.add(ledger_tx)
     mock_mcp_session.commit()
@@ -301,7 +293,6 @@ async def test_stage_transaction_partial_fields_and_readiness(mock_mcp_session):
     assert staged.date is None
     assert staged.total_amount is None
     assert staged.description is None
-    assert staged.currency_code == "CAD"
     assert staged.status == "STAGED"
     assert compute_staged_is_ready(staged) is False
 

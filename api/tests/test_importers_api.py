@@ -84,7 +84,6 @@ class MockCsvImporter(BaseCsvImporter):
             date=tx_date,
             description=row["Description"],
             total_amount=amount,
-            currency_code=row.get("Currency") or "CAD",
         )
 
 

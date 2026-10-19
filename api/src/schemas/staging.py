@@ -73,7 +73,6 @@ class StagedTransactionResponse(BaseModel):
     date: datetime.date | None = None
     description: str | None = None
     total_amount: Decimal | None = None
-    currency_code: str
     receipt_file_path: str | None = None
     url: str | None = None
     status: str
@@ -150,7 +149,6 @@ def serialize_staged_transaction(
         date=staged_tx.date,
         description=staged_tx.description,
         total_amount=staged_tx.total_amount,
-        currency_code=staged_tx.currency_code,
         receipt_file_path=staged_tx.receipt_file_path,
         url=staged_tx.url,
         status=staged_tx.status,

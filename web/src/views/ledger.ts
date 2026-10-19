@@ -7,15 +7,21 @@ export { DELETE_LOCKED_TOOLTIP, UNLOCK_WARNING_MESSAGE }
 export type TransactionLockStatus = "unlocked" | "partially_locked" | "fully_locked"
 
 /**
- * Formats a numeric amount or string into localized currency format.
+ * Formats a numeric amount or string into standard CAD currency format ($X,XXX.XX or -$X,XXX.XX).
  */
-export function formatCurrency(amount: string | number, currencyCode = "CAD"): string {
+export function formatCurrency(amount: string | number | null | undefined): string {
+  if (amount === null || amount === undefined || amount === "") {
+    return "$0.00"
+  }
   const num = typeof amount === "string" ? parseFloat(amount) : amount
   if (Number.isNaN(num)) return "$0.00"
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: currencyCode || "CAD",
-  }).format(num)
+
+  const isNegative = num < 0
+  const absFormatted = Math.abs(num).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+  return `${isNegative ? "-" : ""}$${absFormatted}`
 }
 
 /**

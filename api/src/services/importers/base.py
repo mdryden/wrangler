@@ -31,7 +31,6 @@ class ImportedTransactionData(BaseModel):
     date: datetime.date | None = None
     description: str | None = None
     total_amount: Decimal | None = None
-    currency_code: str = "CAD"
     receipt: ImporterReceiptData | None = None
     url: str | None = None
 
