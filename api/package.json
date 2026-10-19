@@ -9,6 +9,7 @@
     "format": "uv run ruff format --check",
     "format:fix": "uv run ruff format",
     "test": "uv run pytest",
+    "test:changed": "uv run pytest --picked",
     "db:migrate": "uv run alembic upgrade head",
     "db:clear-staged": "uv run python scripts/clear_staged.py"
   }

@@ -12,7 +12,8 @@
     "lint:fix": "prettier --write .",
     "format": "prettier --check .",
     "format:fix": "prettier --write .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:changed": "vitest run --changed"
   },
   "dependencies": {
     "@quasar/extras": "^2.0.4",

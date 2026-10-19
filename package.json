@@ -11,7 +11,8 @@
     "lint:fix": "pnpm --filter \"./*\" lint:fix",
     "format": "pnpm --filter \"./*\" format",
     "format:fix": "pnpm --filter \"./*\" format:fix",
-    "test": "pnpm --filter \"./*\" test"
+    "test": "pnpm --filter \"./*\" test",
+    "test:changed": "pnpm --filter \"./*\" test:changed"
   },
   "packageManager": "pnpm@12.3.4",
   "devDependencies": {

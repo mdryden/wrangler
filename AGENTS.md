@@ -32,14 +32,19 @@ Always run commands from the repository root. Base commands (`lint`, `format`) a
 | `pnpm format` | Check code formatting across all projects (or `pnpm --filter api format`) |
 | `pnpm format:fix` | Format and write code changes across all projects (or `pnpm --filter api format:fix`) |
 | `pnpm test` | Run backend test suite using Pytest (or `pnpm --filter api test`) |
+| `pnpm test:changed` | Run test suite on changed/affected files only (or `pnpm --filter web test:changed`) |
 | `pnpm build` | Build workspace packages (or `pnpm --filter web build`) |
 
 ---
 
 ## 3. Implementation Rules for Agents
 
-1. **Format and Lint Verification**: After writing or modifying  code, run `pnpm format` and `pnpm lint` to ensure no formatting or lint regressions. Use `pnpm format:fix` or `pnpm lint:fix` to automatically apply fixes.
+1. **Format and Lint Verification**: After writing or modifying code, run `pnpm format` and `pnpm lint` to ensure no formatting or lint regressions. Use `pnpm format:fix` or `pnpm lint:fix` to automatically apply fixes.
 2. **Import Conventions**: Use relative imports when referencing internal modules (e.g., `from .config import settings` or `from ..database import Base`). Do not use `src.` prefixes.
 3. **No Unnecessary `__init__.py`**: Subdirectories under `api/src/` (such as `routers/`, `models/`, `schemas/`, `services/`, `core/`) do not require `__init__.py` files.
-4. **No Inline Python Execution**: Do not run ad-hoc inline Python snippets (`python -c "..."` or `uv run python -c "..."`) or multi-line shell commands. All testing and verification must occur through dedicated test files in `api/tests/` run via `pnpm test`.
-5. **Test-Driven Verification**: Each model, endpoint, or service implementation must include or update unit/integration tests in `api/tests/` and be verified using `pnpm test` prior to marking a task complete.
+4. **No Inline Python Execution**: Do not run ad-hoc inline Python snippets (`python -c "..."` or `uv run python -c "..."`) or multi-line shell commands. All testing and verification must occur through dedicated test files in `api/tests/` run via `pnpm test` or `pnpm test:changed`.
+5. **Command Invariance & Fast Test Verification**:
+   - Never append specific file paths or ad-hoc arguments to test commands (e.g. do **not** run `pnpm test <file>` or `pnpm --filter web test <file>`). Command lines must remain invariant to prevent repetitive interactive permission prompts.
+   - For fast iterative verification during task development, run `pnpm --filter web test:changed` (or `pnpm test:changed`).
+   - If the task list or plan specifies dedicated test tasks (e.g. a separate "Test Suite" task or testing phase), do not run tests on preceding code-only tasks; verify during the designated test task.
+   - Run the full test suite (`pnpm test`) at the end of each phase or before final task completion to verify no regressions have slipped through.
