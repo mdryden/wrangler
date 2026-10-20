@@ -2,8 +2,10 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from mcp.server.transport_security import TransportSecuritySettings
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -118,6 +120,23 @@ def health_check(response: Response, db: Annotated[Session, Depends(get_db)]):
                 "error": str(exc),
             },
         }
+
+
+if settings.STATIC_DIR.is_dir() and (settings.STATIC_DIR / "index.html").is_file():
+    assets_dir = settings.STATIC_DIR / "assets"
+    if assets_dir.is_dir():
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="static_assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa(full_path: str):
+        if full_path.startswith(("api", "mcp", "etc")):
+            raise HTTPException(status_code=404, detail="Endpoint not found")
+
+        candidate_file = (settings.STATIC_DIR / full_path).resolve()
+        if candidate_file.is_file() and candidate_file.is_relative_to(settings.STATIC_DIR):
+            return FileResponse(candidate_file)
+
+        return FileResponse(settings.STATIC_DIR / "index.html")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pydantic import field_validator
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _CORE_DIR = Path(__file__).resolve().parent
@@ -19,6 +19,10 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # Centralized Local Data Directory
+    # If set, automatically derives default DATABASE_URL and RECEIPT_STORAGE_DIR
+    DATA_DIR: Path | None = None
+
     # Admin Credentials
     ADMIN_USERNAME: str = "admin"
     ADMIN_PASSWORD: str = "admin"
@@ -30,6 +34,9 @@ class Settings(BaseSettings):
 
     # Receipt Storage
     RECEIPT_STORAGE_DIR: Path = Path("receipts").resolve()
+
+    # Static Assets Directory (Compiled Vue SPA)
+    STATIC_DIR: Path = Path(__file__).resolve().parent.parent.parent.parent / "web" / "dist"
 
     # Database
     DATABASE_URL: str = "sqlite:///./wrangler.db"
@@ -47,10 +54,25 @@ class Settings(BaseSettings):
     AI_MAX_PDF_PAGES: int = 3
     MAX_RECEIPT_FILE_SIZE: int = 20 * 1024 * 1024  # 20 MB
 
-    @field_validator("RECEIPT_STORAGE_DIR", mode="after")
-    @classmethod
-    def resolve_receipt_storage_dir(cls, v: Path | str) -> Path:
-        return Path(v).expanduser().resolve()
+    @model_validator(mode="after")
+    def resolve_paths(self) -> Settings:
+        if self.DATA_DIR is not None:
+            resolved_data = self.DATA_DIR.expanduser().resolve()
+            resolved_data.mkdir(parents=True, exist_ok=True)
+
+            # Default DATABASE_URL to DATA_DIR/wrangler.db if not explicitly customized
+            if self.DATABASE_URL == "sqlite:///./wrangler.db":
+                db_file = (resolved_data / "wrangler.db").as_posix()
+                self.DATABASE_URL = f"sqlite:///{db_file}"
+
+            # Default RECEIPT_STORAGE_DIR to DATA_DIR/receipts if not explicitly customized
+            if Path(self.RECEIPT_STORAGE_DIR).resolve() == Path("receipts").resolve():
+                self.RECEIPT_STORAGE_DIR = (resolved_data / "receipts").resolve()
+
+        # Ensure receipt storage directory exists
+        self.RECEIPT_STORAGE_DIR = Path(self.RECEIPT_STORAGE_DIR).expanduser().resolve()
+        self.RECEIPT_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+        return self
 
 
 settings = Settings()

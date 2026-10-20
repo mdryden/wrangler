@@ -93,6 +93,10 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         if path in self.anonymous_paths or path.startswith(("/docs", "/redoc")):
             return await call_next(request)
 
+        # Non-API, non-MCP frontend routes and static assets pass through to SPA handler
+        if not path.startswith("/api") and not path.startswith("/mcp"):
+            return await call_next(request)
+
         if path == "/mcp" or path.startswith("/mcp/"):
             if settings.MCP_API_KEY:
                 candidate_key: str | None = request.query_params.get("api_key")
