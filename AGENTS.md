@@ -4,6 +4,19 @@ This document outlines project conventions, code styling rules, and execution co
 
 ---
 
+## 0. Core Architectural Philosophy & System Scope
+
+**Wrangler is an Ingestion and Routing Layer, NOT a full double-entry accounting system.**
+
+Its primary responsibilities are:
+1. **Deduplication:** Preventing duplicate intake across diverse external streams (Amazon CSVs, AI receipt parsers, MCP agents, bank exports).
+2. **Receipt Matching & Storage:** Durable, collision-free local archiving and receipt viewing.
+3. **Entity Attribution:** Routing financial transactions across Personal expenses and distinct business entities (e.g. *Personal vs. Company A vs. Company B*).
+
+**Scope Boundary:** Wrangler intentionally enforces that a parent transaction can have at most **one** allocation per entity (at most one personal split and at most one split per company). Wrangler does not manage granular accounting sub-categorization (e.g., splitting an expense across multiple internal expense categories for the same business). Granular accounting categorization and sub-splits belong strictly inside downstream accounting systems (such as Wave).
+
+---
+
 ## 1. Code Styling & Formatting (Backend / `api`)
 
 All Python code in `api/` must strictly adhere to the following standards (enforced via Ruff in [api/pyproject.toml](api/pyproject.toml)):
