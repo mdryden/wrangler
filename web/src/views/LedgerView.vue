@@ -201,7 +201,7 @@ function resetFilters(): void {
     transaction_id: null,
   }
   if (routerInstance && route?.query?.transaction_id) {
-    routerInstance.replace({ query: { ...route.query, transaction_id: undefined } }).catch(() => {})
+    routerInstance.replace({ query: { ...route.query, transaction_id: undefined } }).catch(() => { })
   }
   pagination.value.page = 1
   onRequest({ pagination: pagination.value })
@@ -347,7 +347,7 @@ onMounted(() => {
   if (typeof queryTxId === "string" && queryTxId.trim()) {
     filters.value.transaction_id = queryTxId.trim()
   }
-  companyStore.fetchCompanies().catch(() => {})
+  companyStore.fetchCompanies().catch(() => { })
   onRequest({ pagination: pagination.value })
 })
 
@@ -400,17 +400,8 @@ defineExpose({
         <div class="text-caption text-grey-7">Review, filter, and allocate transactions.</div>
       </div>
       <div class="row items-center q-gutter-sm">
-        <q-btn
-          flat
-          dense
-          round
-          icon="refresh"
-          color="grey-7"
-          aria-label="Refresh Transactions"
-          data-testid="btn-refresh"
-          :loading="transactionStore.loading"
-          @click="refresh"
-        >
+        <q-btn flat dense round icon="refresh" color="grey-7" aria-label="Refresh Transactions"
+          data-testid="btn-refresh" :loading="transactionStore.loading" @click="refresh">
           <q-tooltip>Refresh transactions</q-tooltip>
         </q-btn>
       </div>
@@ -433,17 +424,8 @@ defineExpose({
         <div class="row q-col-gutter-sm items-center">
           <!-- Source Filter -->
           <div class="col-12 col-sm-6 col-md-3">
-            <q-input
-              v-model="filters.source"
-              dense
-              outlined
-              clearable
-              bg-color="white"
-              label="Source"
-              placeholder="e.g. manual..."
-              data-testid="filter-source"
-              @keyup.enter="applyFilters"
-            >
+            <q-input v-model="filters.source" dense outlined clearable bg-color="white" label="Source"
+              placeholder="e.g. manual..." data-testid="filter-source" @keyup.enter="applyFilters">
               <template #prepend>
                 <q-icon name="search" />
               </template>
@@ -452,18 +434,8 @@ defineExpose({
 
           <!-- Company Filter -->
           <div class="col-12 col-sm-6 col-md-3">
-            <q-select
-              v-model="filters.company_id"
-              dense
-              outlined
-              emit-value
-              map-options
-              bg-color="white"
-              label="Company"
-              :options="companyOptions"
-              data-testid="filter-company"
-              @update:model-value="applyFilters"
-            >
+            <q-select v-model="filters.company_id" dense outlined emit-value map-options bg-color="white"
+              label="Company" :options="companyOptions" data-testid="filter-company" @update:model-value="applyFilters">
               <template #prepend>
                 <q-icon name="business" />
               </template>
@@ -472,72 +444,41 @@ defineExpose({
 
           <!-- Start Date Filter -->
           <div class="col-12 col-sm-6 col-md-2">
-            <q-input
-              v-model="filters.start_date"
-              type="date"
-              dense
-              outlined
-              clearable
-              stack-label
-              bg-color="white"
-              label="Start Date"
-              data-testid="filter-start-date"
-              @keyup.enter="applyFilters"
-            />
+            <q-input v-model="filters.start_date" type="date" dense outlined clearable stack-label bg-color="white"
+              label="Start Date" data-testid="filter-start-date" @keyup.enter="applyFilters" />
           </div>
 
           <!-- End Date Filter -->
           <div class="col-12 col-sm-6 col-md-2">
-            <q-input
-              v-model="filters.end_date"
-              type="date"
-              dense
-              outlined
-              clearable
-              stack-label
-              bg-color="white"
-              label="End Date"
-              data-testid="filter-end-date"
-              @keyup.enter="applyFilters"
-            />
+            <q-input v-model="filters.end_date" type="date" dense outlined clearable stack-label bg-color="white"
+              label="End Date" data-testid="filter-end-date" @keyup.enter="applyFilters" />
           </div>
 
           <!-- Filter Action Buttons -->
           <div class="col-12 col-md-2 row items-center justify-end q-gutter-xs">
-            <q-btn color="primary" unelevated icon="filter_list" label="Filter" data-testid="btn-apply-filters" @click="applyFilters" />
-            <q-btn flat color="grey-7" icon="clear" label="Reset" data-testid="btn-reset-filters" @click="resetFilters" />
+            <q-btn color="primary" unelevated icon="filter_list" label="Filter" data-testid="btn-apply-filters"
+              @click="applyFilters" />
+            <q-btn flat color="grey-7" icon="clear" label="Reset" data-testid="btn-reset-filters"
+              @click="resetFilters" />
           </div>
         </div>
       </q-card-section>
     </q-card>
 
     <!-- Transactions Table -->
-    <q-table
-      :rows="transactionStore.transactions"
-      :columns="columns"
-      row-key="id"
-      :loading="transactionStore.loading"
-      v-model:pagination="pagination"
-      :rows-per-page-options="[10, 20, 50, 100]"
-      flat
-      bordered
-      class="shadow-1 transaction-table"
-      @request="onRequest"
-    >
+    <q-table :rows="transactionStore.transactions" :columns="columns" row-key="id" :loading="transactionStore.loading"
+      v-model:pagination="pagination" :rows-per-page-options="[10, 20, 50, 100]" flat bordered
+      class="shadow-1 transaction-table" @request="onRequest">
       <!-- Date Column -->
       <template #body-cell-date="props">
         <q-td :props="props">
           <div class="row items-center no-wrap q-gutter-x-xs">
-            <q-icon v-if="isTransactionFullyLocked(props.row)" name="lock" color="amber-9" size="16px" data-testid="icon-row-fully-locked">
+            <q-icon v-if="isTransactionFullyLocked(props.row)" name="lock" color="amber-9" size="16px"
+              data-testid="icon-row-fully-locked">
               <q-tooltip>Fully Locked</q-tooltip>
             </q-icon>
-            <q-icon
-              v-else-if="isTransactionPartiallyLocked(props.row)"
-              name="lock_open"
-              color="orange-7"
-              size="16px"
-              data-testid="icon-row-partially-locked"
-            >
+            <q-icon v-else-if="isTransactionPartiallyLocked(props.row)" name="lock_open" color="orange-7" size="16px"
+              data-testid="icon-row-partially-locked">
               <q-tooltip>Partially Locked</q-tooltip>
             </q-icon>
             <span class="text-weight-medium">{{ props.row.date }}</span>
@@ -549,7 +490,6 @@ defineExpose({
       <template #body-cell-description="props">
         <q-td :props="props">
           <div class="text-weight-medium">{{ props.row.description }}</div>
-          <div v-if="props.row.external_id" class="text-caption text-grey-6">ID: {{ props.row.external_id }}</div>
         </q-td>
       </template>
 
@@ -576,23 +516,13 @@ defineExpose({
         <q-td :props="props">
           <div class="row items-center no-wrap q-gutter-x-xs">
             <span class="text-weight-medium" data-testid="allocation-cell">{{ getAllocationDisplay(props.row) }}</span>
-            <q-badge
-              v-if="isTransactionFullyLocked(props.row)"
-              color="amber-2"
-              text-color="amber-10"
-              class="q-px-xs"
-              data-testid="badge-fully-locked"
-            >
+            <q-badge v-if="isTransactionFullyLocked(props.row)" color="amber-2" text-color="amber-10" class="q-px-xs"
+              data-testid="badge-fully-locked">
               <q-icon name="lock" size="12px" class="q-mr-xs" />
               Locked
             </q-badge>
-            <q-badge
-              v-else-if="isTransactionPartiallyLocked(props.row)"
-              color="orange-2"
-              text-color="orange-10"
-              class="q-px-xs"
-              data-testid="badge-partially-locked"
-            >
+            <q-badge v-else-if="isTransactionPartiallyLocked(props.row)" color="orange-2" text-color="orange-10"
+              class="q-px-xs" data-testid="badge-partially-locked">
               <q-icon name="lock_open" size="12px" class="q-mr-xs" />
               Partial Lock
             </q-badge>
@@ -603,18 +533,8 @@ defineExpose({
       <!-- Receipt Column -->
       <template #body-cell-receipt="props">
         <q-td :props="props" align="center">
-          <q-btn
-            v-if="props.row.receipt_file_path"
-            flat
-            round
-            dense
-            size="sm"
-            icon="receipt"
-            color="primary"
-            aria-label="View Receipt"
-            data-testid="btn-view-receipt"
-            @click="openReceipt(props.row.receipt_file_path)"
-          >
+          <q-btn v-if="props.row.receipt_file_path" flat round dense size="sm" icon="receipt" color="primary"
+            aria-label="View Receipt" data-testid="btn-view-receipt" @click="openReceipt(props.row.receipt_file_path)">
             <q-tooltip>View receipt in new tab</q-tooltip>
           </q-btn>
           <span v-else class="text-grey-5">—</span>
@@ -626,45 +546,29 @@ defineExpose({
         <q-td :props="props" align="right">
           <div class="row items-center justify-end q-gutter-xs no-wrap">
             <!-- Edit Button -->
-            <q-btn
-              flat
-              round
-              dense
-              size="sm"
-              color="grey-8"
-              icon="edit"
-              aria-label="Edit transaction"
-              data-testid="btn-edit-transaction"
-              @click="openEditDialog(props.row)"
-            >
+            <q-btn flat round dense size="sm" color="grey-8" icon="edit" aria-label="Edit transaction"
+              data-testid="btn-edit-transaction" @click="openEditDialog(props.row)">
               <q-tooltip>Edit transaction</q-tooltip>
             </q-btn>
 
             <!-- Lock / Unlock Toggle Button -->
-            <q-btn
-              flat
-              round
-              dense
-              size="sm"
+            <q-btn flat round dense size="sm"
               :color="isTransactionFullyLocked(props.row) ? 'amber-9' : isTransactionPartiallyLocked(props.row) ? 'orange-7' : 'grey-7'"
-              :icon="isTransactionFullyLocked(props.row) ? 'lock' : 'lock_open'"
-              :aria-label="
-                props.row.allocations.length > 1
+              :icon="isTransactionFullyLocked(props.row) ? 'lock' : 'lock_open'" :aria-label="props.row.allocations.length > 1
                   ? 'Manage split locks'
                   : isTransactionFullyLocked(props.row)
                     ? 'Unlock transaction'
                     : 'Lock transaction'
-              "
-              data-testid="btn-toggle-lock"
-              @click="onToggleTransactionLock(props.row)"
-            >
+                " data-testid="btn-toggle-lock" @click="onToggleTransactionLock(props.row)">
               <q-tooltip>
                 <template v-if="props.row.allocations.length > 1">Manage split locks</template>
-                <template v-else>{{ isTransactionFullyLocked(props.row) ? "Unlock transaction" : "Lock transaction" }}</template>
+                <template v-else>{{ isTransactionFullyLocked(props.row) ? "Unlock transaction" : "Lock transaction"
+                  }}</template>
               </q-tooltip>
 
               <!-- Per-Allocation Lock Popup Menu for Multi-Split Transactions -->
-              <q-menu v-if="props.row.allocations.length > 1" anchor="bottom right" self="top right" data-testid="menu-allocation-locks">
+              <q-menu v-if="props.row.allocations.length > 1" anchor="bottom right" self="top right"
+                data-testid="menu-allocation-locks">
                 <div style="min-width: 300px">
                   <div class="q-px-md q-py-sm bg-grey-2">
                     <div class="text-subtitle2 text-weight-bold text-grey-9">Manage Split Locks</div>
@@ -682,47 +586,21 @@ defineExpose({
                         </q-item-label>
                       </q-item-section>
                       <q-item-section side>
-                        <q-btn
-                          flat
-                          dense
-                          no-wrap
-                          size="sm"
-                          :color="alloc.is_locked ? 'amber-9' : 'grey-7'"
+                        <q-btn flat dense no-wrap size="sm" :color="alloc.is_locked ? 'amber-9' : 'grey-7'"
                           :icon="alloc.is_locked ? 'lock' : 'lock_open'"
-                          :label="alloc.is_locked ? 'Locked' : 'Unlocked'"
-                          :data-testid="`btn-toggle-alloc-lock-${idx}`"
-                          @click="onToggleSingleAllocationLock(alloc)"
-                        />
+                          :label="alloc.is_locked ? 'Locked' : 'Unlocked'" :data-testid="`btn-toggle-alloc-lock-${idx}`"
+                          @click="onToggleSingleAllocationLock(alloc)" />
                       </q-item-section>
                     </q-item>
                   </q-list>
                   <q-separator />
                   <div class="row items-center justify-end q-gutter-x-xs q-px-sm q-py-xs bg-grey-1">
-                    <q-btn
-                      flat
-                      dense
-                      no-wrap
-                      size="sm"
-                      color="amber-9"
-                      icon="lock"
-                      label="Lock All"
-                      :disable="isTransactionFullyLocked(props.row)"
-                      data-testid="btn-lock-all-splits"
-                      @click="onLockAllAllocations(props.row)"
-                    />
-                    <q-btn
-                      flat
-                      dense
-                      no-wrap
-                      size="sm"
-                      color="grey-8"
-                      icon="lock_open"
-                      label="Unlock All"
-                      :disable="!hasLockedAllocations(props.row)"
-                      v-close-popup
-                      data-testid="btn-unlock-all-splits"
-                      @click="onRequestUnlockAllAllocations(props.row)"
-                    />
+                    <q-btn flat dense no-wrap size="sm" color="amber-9" icon="lock" label="Lock All"
+                      :disable="isTransactionFullyLocked(props.row)" data-testid="btn-lock-all-splits"
+                      @click="onLockAllAllocations(props.row)" />
+                    <q-btn flat dense no-wrap size="sm" color="grey-8" icon="lock_open" label="Unlock All"
+                      :disable="!hasLockedAllocations(props.row)" v-close-popup data-testid="btn-unlock-all-splits"
+                      @click="onRequestUnlockAllAllocations(props.row)" />
                   </div>
                 </div>
               </q-menu>
@@ -730,18 +608,9 @@ defineExpose({
 
             <!-- Delete Button -->
             <div>
-              <q-btn
-                flat
-                round
-                dense
-                size="sm"
-                color="negative"
-                icon="delete"
-                aria-label="Delete transaction"
-                :disable="!canDeleteTransaction(props.row)"
-                data-testid="btn-delete-transaction"
-                @click="onDeleteTransaction(props.row)"
-              />
+              <q-btn flat round dense size="sm" color="negative" icon="delete" aria-label="Delete transaction"
+                :disable="!canDeleteTransaction(props.row)" data-testid="btn-delete-transaction"
+                @click="onDeleteTransaction(props.row)" />
               <q-tooltip>
                 {{ canDeleteTransaction(props.row) ? "Delete transaction" : DELETE_LOCKED_TOOLTIP }}
               </q-tooltip>
@@ -777,8 +646,10 @@ defineExpose({
         </q-card-section>
 
         <q-card-actions align="right">
-          <q-btn flat label="Cancel" color="grey-7" data-testid="btn-cancel-unlock-transaction" @click="cancelUnlockTransaction" />
-          <q-btn unelevated label="Unlock" color="amber-9" data-testid="btn-confirm-unlock-transaction" @click="confirmUnlockTransaction" />
+          <q-btn flat label="Cancel" color="grey-7" data-testid="btn-cancel-unlock-transaction"
+            @click="cancelUnlockTransaction" />
+          <q-btn unelevated label="Unlock" color="amber-9" data-testid="btn-confirm-unlock-transaction"
+            @click="confirmUnlockTransaction" />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -793,18 +664,16 @@ defineExpose({
 
         <q-card-section class="q-pt-none">
           Are you sure you want to delete this transaction
-          <strong v-if="pendingDeleteTransaction">"{{ pendingDeleteTransaction.description }}"</strong>? This action cannot be undone.
+          <strong v-if="pendingDeleteTransaction">"{{ pendingDeleteTransaction.description }}"</strong>? This action
+          cannot
+          be undone.
         </q-card-section>
 
         <q-card-actions align="right">
-          <q-btn flat label="Cancel" color="grey-7" data-testid="btn-cancel-delete-transaction" @click="cancelDeleteTransaction" />
-          <q-btn
-            unelevated
-            label="Delete"
-            color="negative"
-            data-testid="btn-confirm-delete-transaction"
-            @click="confirmDeleteTransaction"
-          />
+          <q-btn flat label="Cancel" color="grey-7" data-testid="btn-cancel-delete-transaction"
+            @click="cancelDeleteTransaction" />
+          <q-btn unelevated label="Delete" color="negative" data-testid="btn-confirm-delete-transaction"
+            @click="confirmDeleteTransaction" />
         </q-card-actions>
       </q-card>
     </q-dialog>

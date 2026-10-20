@@ -370,11 +370,10 @@ describe("ImportView Logic & Workflow", () => {
       // Standalone source slot removed
       expect(templateContent).not.toContain("#body-cell-source")
 
-      // Description slot contains source chip, external ID, and open_in_new button with tooltip
+      // Description slot contains source chip and open_in_new button with tooltip
       expect(templateContent).toContain("props.row.source")
-      expect(templateContent).toContain("ID: {{ props.row.external_id }}")
       expect(templateContent).toContain('data-testid="btn-open-url"')
-      expect(templateContent).toContain("<q-tooltip>Open order in Amazon</q-tooltip>")
+      expect(templateContent).toContain("<q-tooltip>Open URL</q-tooltip>")
       expect(templateContent).toContain('target="_blank"')
       expect(templateContent).toContain('rel="noopener noreferrer"')
 
