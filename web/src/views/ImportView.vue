@@ -326,8 +326,8 @@ async function onAcceptBatch(): Promise<void> {
 }
 
 onMounted(() => {
-  companyStore.fetchCompanies().catch(() => {})
-  stagingStore.fetchImporters().catch(() => {})
+  companyStore.fetchCompanies().catch(() => { })
+  stagingStore.fetchImporters().catch(() => { })
   refreshStagingTable()
 })
 
@@ -380,17 +380,9 @@ defineExpose({
         </div>
       </div>
       <div class="row items-center q-gutter-sm">
-        <q-btn
-          flat
-          dense
-          round
-          icon="refresh"
-          color="grey-7"
-          aria-label="Refresh Staging"
-          data-testid="btn-refresh-staging"
-          :loading="stagingStore.loadingStaging || stagingStore.loadingImporters"
-          @click="refreshStagingTable"
-        >
+        <q-btn flat dense round icon="refresh" color="grey-7" aria-label="Refresh Staging"
+          data-testid="btn-refresh-staging" :loading="stagingStore.loadingStaging || stagingStore.loadingImporters"
+          @click="refreshStagingTable">
           <q-tooltip>Refresh staged transactions</q-tooltip>
         </q-btn>
       </div>
@@ -414,19 +406,9 @@ defineExpose({
         <div class="row q-col-gutter-md items-center">
           <!-- Importer Select Dropdown -->
           <div class="col-12 col-md-4">
-            <q-select
-              :model-value="selectedImporterId"
-              dense
-              outlined
-              clearable
-              emit-value
-              map-options
-              label="Select Importer"
-              :options="importerOptions"
-              :loading="stagingStore.loadingImporters"
-              data-testid="select-importer"
-              @update:model-value="onSelectImporter"
-            >
+            <q-select :model-value="selectedImporterId" dense outlined clearable emit-value map-options
+              label="Select Importer" :options="importerOptions" :loading="stagingStore.loadingImporters"
+              data-testid="select-importer" @update:model-value="onSelectImporter">
               <template #prepend>
                 <q-icon name="cloud_upload" />
               </template>
@@ -443,29 +425,18 @@ defineExpose({
 
           <!-- Dynamic Input Control -->
           <div class="col-12 col-md-5">
-            <q-file
-              v-if="selectedImporter && selectedImporter.input_type === 'file'"
-              v-model="importerFile"
-              dense
-              outlined
-              clearable
-              label="Import File"
-              :accept="acceptedFileTypes"
-              :multiple="selectedImporter?.importer_id === 'receipt_parser'"
-              :use-chips="true"
+            <q-file v-if="selectedImporter && selectedImporter.input_type === 'file'" v-model="importerFile" dense
+              outlined clearable label="Import File" :accept="acceptedFileTypes"
+              :multiple="selectedImporter?.importer_id === 'receipt_parser'" :use-chips="true"
               :hint="Array.isArray(importerFile) && importerFile.length > 1 ? `${importerFile.length} files selected` : undefined"
-              data-testid="input-importer-file"
-            >
+              data-testid="input-importer-file">
               <template #prepend>
                 <q-icon name="attach_file" />
               </template>
             </q-file>
 
-            <div
-              v-else-if="selectedImporter && selectedImporter.input_type === 'none'"
-              class="row items-center q-gutter-sm"
-              data-testid="badge-importer-integration-source"
-            >
+            <div v-else-if="selectedImporter && selectedImporter.input_type === 'none'"
+              class="row items-center q-gutter-sm" data-testid="badge-importer-integration-source">
               <q-badge color="blue-1" text-color="primary" class="q-px-sm q-py-xs text-weight-medium">
                 <q-icon name="sync" size="14px" class="q-mr-xs" />
                 Pulls directly from integration source ({{ selectedImporter.source_name }})
@@ -477,16 +448,9 @@ defineExpose({
 
           <!-- Run Importer Button -->
           <div class="col-12 col-md-3 row justify-end">
-            <q-btn
-              unelevated
-              color="primary"
-              icon="play_arrow"
-              label="Run Importer"
-              :loading="runningImporter"
-              :disable="!isRunImporterEnabled || runningImporter"
-              data-testid="btn-run-importer"
-              @click="onRunImporter"
-            />
+            <q-btn unelevated color="primary" icon="play_arrow" label="Run Importer" :loading="runningImporter"
+              :disable="!isRunImporterEnabled || runningImporter" data-testid="btn-run-importer"
+              @click="onRunImporter" />
           </div>
         </div>
 
@@ -495,15 +459,8 @@ defineExpose({
           <span class="text-caption text-grey-7" data-testid="importer-description">
             {{ selectedImporter.description }}
           </span>
-          <q-chip
-            v-if="selectedImporter.supports_mark_imported"
-            dense
-            size="sm"
-            color="teal-1"
-            text-color="teal-9"
-            icon="verified"
-            data-testid="chip-supports-mark-imported"
-          >
+          <q-chip v-if="selectedImporter.supports_mark_imported" dense size="sm" color="teal-1" text-color="teal-9"
+            icon="verified" data-testid="chip-supports-mark-imported">
             {{ MARK_IMPORTED_CAPABILITY_LABEL }}
           </q-chip>
         </div>
@@ -517,64 +474,34 @@ defineExpose({
           <div class="col-12 col-md-7 row q-col-gutter-sm items-center">
             <!-- Status Filter -->
             <div class="col-12 col-sm-4">
-              <q-select
-                v-model="filters.status"
-                dense
-                outlined
-                emit-value
-                map-options
-                bg-color="white"
-                label="Status"
-                :options="statusOptions"
-                data-testid="filter-staging-status"
-                @update:model-value="applyFilters"
-              />
+              <q-select v-model="filters.status" dense outlined emit-value map-options bg-color="white" label="Status"
+                :options="statusOptions" data-testid="filter-staging-status" @update:model-value="applyFilters" />
             </div>
 
             <!-- Source Filter -->
             <div class="col-12 col-sm-5">
-              <q-select
-                v-model="filters.source"
-                dense
-                outlined
-                clearable
-                emit-value
-                map-options
-                bg-color="white"
-                label="Source"
-                :options="SOURCE_FILTER_OPTIONS"
-                data-testid="filter-staging-source"
-                @update:model-value="applyFilters"
-              />
+              <q-select v-model="filters.source" dense outlined clearable emit-value map-options bg-color="white"
+                label="Source" :options="SOURCE_FILTER_OPTIONS" data-testid="filter-staging-source"
+                @update:model-value="applyFilters" />
             </div>
 
             <!-- Filter Buttons -->
             <div class="col-12 col-sm-3 row items-center q-gutter-xs">
-              <q-btn
-                color="primary"
-                unelevated
-                icon="filter_list"
-                label="Filter"
-                data-testid="btn-apply-staging-filters"
-                @click="applyFilters"
-              />
-              <q-btn flat color="grey-7" icon="clear" label="Reset" data-testid="btn-reset-staging-filters" @click="resetFilters" />
+              <q-btn color="primary" unelevated icon="filter_list" label="Filter"
+                data-testid="btn-apply-staging-filters" @click="applyFilters" />
+              <q-btn flat color="grey-7" icon="clear" label="Reset" data-testid="btn-reset-staging-filters"
+                @click="resetFilters" />
             </div>
           </div>
 
           <!-- Batch Action Bar -->
           <div class="col-12 col-md-5 row items-center justify-end q-gutter-sm" data-testid="batch-action-bar">
-            <q-btn
-              unelevated
-              color="positive"
-              icon="done_all"
-              :label="`Accept Ready into Ledger (${readyAcceptCount})`"
-              :loading="acceptingBatch"
-              :disable="readyAcceptCount === 0 || acceptingBatch"
-              data-testid="btn-accept-ready"
-              @click="onAcceptBatch"
-            >
-              <q-tooltip v-if="readyAcceptCount === 0"> Allocate at least one staged transaction to accept into the Ledger </q-tooltip>
+            <q-btn unelevated color="positive" icon="done_all" :label="`Accept Ready into Ledger (${readyAcceptCount})`"
+              :loading="acceptingBatch" :disable="readyAcceptCount === 0 || acceptingBatch"
+              data-testid="btn-accept-ready" @click="onAcceptBatch">
+              <q-tooltip v-if="readyAcceptCount === 0"> Allocate at least one staged transaction to accept into the
+                Ledger
+              </q-tooltip>
             </q-btn>
           </div>
         </div>
@@ -582,30 +509,16 @@ defineExpose({
     </q-card>
 
     <!-- Staging Review Table -->
-    <q-table
-      :rows="stagingStore.stagedTransactions"
-      :columns="columns"
-      row-key="id"
-      :loading="stagingStore.loadingStaging"
-      v-model:pagination="pagination"
-      :rows-per-page-options="[20, 50, 100]"
-      flat
-      bordered
-      class="shadow-1 staging-table"
-      data-testid="table-staging"
-      @request="onRequest"
-    >
+    <q-table :rows="stagingStore.stagedTransactions" :columns="columns" row-key="id"
+      :loading="stagingStore.loadingStaging" v-model:pagination="pagination" :rows-per-page-options="[20, 50, 100]" flat
+      bordered class="shadow-1 staging-table" data-testid="table-staging" @request="onRequest">
       <!-- Selection Checkbox Column -->
       <template #body-cell-select="props">
         <q-td :props="props" align="center">
-          <q-checkbox
-            v-if="props.row.status === 'STAGED' && props.row.is_ready"
-            :model-value="isRowSelected(props.row.id)"
-            dense
-            color="primary"
+          <q-checkbox v-if="props.row.status === 'STAGED' && props.row.is_ready"
+            :model-value="isRowSelected(props.row.id)" dense color="primary"
             :data-testid="`checkbox-select-${props.row.id}`"
-            @update:model-value="(val: boolean) => toggleRowSelection(props.row, val)"
-          />
+            @update:model-value="(val: boolean) => toggleRowSelection(props.row, val)" />
         </q-td>
       </template>
 
@@ -627,21 +540,9 @@ defineExpose({
             <q-chip dense size="xs" color="blue-1" text-color="primary" class="text-weight-bold">
               {{ props.row.source }}
             </q-chip>
-            <span v-if="props.row.external_id" class="text-grey-6">ID: {{ props.row.external_id }}</span>
-            <q-btn
-              v-if="props.row.url"
-              flat
-              round
-              dense
-              size="xs"
-              icon="open_in_new"
-              color="primary"
-              :href="props.row.url"
-              target="_blank"
-              rel="noopener noreferrer"
-              data-testid="btn-open-url"
-            >
-              <q-tooltip>Open order in Amazon</q-tooltip>
+            <q-btn v-if="props.row.url" flat round dense size="xs" icon="open_in_new" color="primary"
+              :href="props.row.url" target="_blank" rel="noopener noreferrer" data-testid="btn-open-url">
+              <q-tooltip>Open URL</q-tooltip>
             </q-btn>
           </div>
         </q-td>
@@ -660,41 +561,20 @@ defineExpose({
       <template #body-cell-allocations="props">
         <q-td :props="props">
           <div class="row items-center no-wrap q-gutter-xs">
-            <q-badge
-              :color="getStagedAllocationSummary(props.row, companyMap).color"
+            <q-badge :color="getStagedAllocationSummary(props.row, companyMap).color"
               :text-color="getStagedAllocationSummary(props.row, companyMap).textColor"
-              class="q-px-sm q-py-xs text-weight-bold"
-              data-testid="badge-staged-allocation"
-            >
+              class="q-px-sm q-py-xs text-weight-bold" data-testid="badge-staged-allocation">
               {{ getStagedAllocationSummary(props.row, companyMap).label }}
             </q-badge>
 
             <!-- Inline Quick Assignment Selector for STAGED rows -->
             <template v-if="props.row.status === 'STAGED'">
-              <q-select
-                :model-value="getQuickAssignValue(props.row)"
-                dense
-                outlined
-                clearable
-                emit-value
-                map-options
-                options-dense
-                style="min-width: 150px"
-                placeholder="Quick allocate..."
-                :options="quickAssignOptions"
+              <q-select :model-value="getQuickAssignValue(props.row)" dense outlined clearable emit-value map-options
+                options-dense style="min-width: 150px" placeholder="Quick allocate..." :options="quickAssignOptions"
                 :data-testid="`select-quick-assign-${props.row.id}`"
-                @update:model-value="(val: string | null) => onQuickAssignChange(props.row, val)"
-              />
-              <q-btn
-                flat
-                round
-                dense
-                size="sm"
-                color="primary"
-                icon="call_split"
-                data-testid="btn-split-allocations"
-                @click="openEditDialog(props.row)"
-              >
+                @update:model-value="(val: string | null) => onQuickAssignChange(props.row, val)" />
+              <q-btn flat round dense size="sm" color="primary" icon="call_split" data-testid="btn-split-allocations"
+                @click="openEditDialog(props.row)">
                 <q-tooltip>Split Allocations</q-tooltip>
               </q-btn>
             </template>
@@ -707,59 +587,24 @@ defineExpose({
         <q-td :props="props" align="center">
           <div class="row items-center justify-center no-wrap q-gutter-xs">
             <template v-if="props.row.receipt_file_path">
-              <q-btn
-                flat
-                round
-                dense
-                size="sm"
-                icon="receipt"
-                color="primary"
-                aria-label="View Receipt"
-                data-testid="btn-view-staged-receipt"
-                @click="openReceipt(props.row.receipt_file_path)"
-              >
+              <q-btn flat round dense size="sm" icon="receipt" color="primary" aria-label="View Receipt"
+                data-testid="btn-view-staged-receipt" @click="openReceipt(props.row.receipt_file_path)">
                 <q-tooltip>View Receipt</q-tooltip>
               </q-btn>
               <template v-if="props.row.status === 'STAGED'">
-                <q-btn
-                  flat
-                  round
-                  dense
-                  size="sm"
-                  icon="upload_file"
-                  color="grey-7"
-                  aria-label="Replace Receipt"
-                  data-testid="btn-replace-staged-receipt"
-                  @click="openEditDialog(props.row)"
-                >
+                <q-btn flat round dense size="sm" icon="upload_file" color="grey-7" aria-label="Replace Receipt"
+                  data-testid="btn-replace-staged-receipt" @click="openEditDialog(props.row)">
                   <q-tooltip>Replace Receipt</q-tooltip>
                 </q-btn>
-                <q-btn
-                  flat
-                  round
-                  dense
-                  size="sm"
-                  icon="delete_outline"
-                  color="negative"
-                  aria-label="Remove Receipt"
-                  data-testid="btn-remove-staged-receipt"
-                  @click="onRemoveRowReceipt(props.row)"
-                >
+                <q-btn flat round dense size="sm" icon="delete_outline" color="negative" aria-label="Remove Receipt"
+                  data-testid="btn-remove-staged-receipt" @click="onRemoveRowReceipt(props.row)">
                   <q-tooltip>Remove Receipt</q-tooltip>
                 </q-btn>
               </template>
             </template>
             <template v-else-if="props.row.status === 'STAGED'">
-              <q-btn
-                flat
-                round
-                dense
-                size="sm"
-                icon="attach_file"
-                color="grey-8"
-                data-testid="btn-attach-staged-receipt"
-                @click="openEditDialog(props.row)"
-              >
+              <q-btn flat round dense size="sm" icon="attach_file" color="grey-8"
+                data-testid="btn-attach-staged-receipt" @click="openEditDialog(props.row)">
                 <q-tooltip>Attach Receipt</q-tooltip>
               </q-btn>
             </template>
@@ -773,42 +618,18 @@ defineExpose({
         <q-td :props="props" align="right">
           <div class="row items-center justify-end q-gutter-xs no-wrap">
             <template v-if="props.row.status === 'STAGED'">
-              <q-btn
-                flat
-                round
-                dense
-                size="sm"
-                color="primary"
-                icon="edit"
-                data-testid="btn-action-edit"
-                @click="openEditDialog(props.row)"
-              >
+              <q-btn flat round dense size="sm" color="primary" icon="edit" data-testid="btn-action-edit"
+                @click="openEditDialog(props.row)">
                 <q-tooltip>Edit Transaction</q-tooltip>
               </q-btn>
-              <q-btn
-                flat
-                round
-                dense
-                size="sm"
-                color="negative"
-                icon="block"
-                data-testid="btn-action-dismiss"
-                @click="onDismissRow(props.row)"
-              >
+              <q-btn flat round dense size="sm" color="negative" icon="block" data-testid="btn-action-dismiss"
+                @click="onDismissRow(props.row)">
                 <q-tooltip>Dismiss Transaction</q-tooltip>
               </q-btn>
             </template>
             <template v-else-if="props.row.status === 'DISMISSED'">
-              <q-btn
-                flat
-                round
-                dense
-                size="sm"
-                color="primary"
-                icon="restore"
-                data-testid="btn-action-restore"
-                @click="onRestoreRow(props.row)"
-              >
+              <q-btn flat round dense size="sm" color="primary" icon="restore" data-testid="btn-action-restore"
+                @click="onRestoreRow(props.row)">
                 <q-tooltip>Restore Transaction</q-tooltip>
               </q-btn>
             </template>
@@ -826,6 +647,7 @@ defineExpose({
     </q-table>
 
     <!-- Staged Transaction & Allocation Editor Dialog -->
-    <StagedTransactionEditDialog v-model="editDialogVisible" :staged-transaction="selectedStagedTransaction" @saved="onStagedSaved" />
+    <StagedTransactionEditDialog v-model="editDialogVisible" :staged-transaction="selectedStagedTransaction"
+      @saved="onStagedSaved" />
   </q-page>
 </template>
