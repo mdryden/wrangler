@@ -22,6 +22,8 @@ export interface ExportAllocationRow {
   is_locked: boolean
   company_id: string | null
   receipt_file_path: string | null
+  wave_category_id: string | null
+  wave_transaction_id: string | null
 }
 
 export interface CompanyExportSummary {
@@ -96,10 +98,26 @@ export function extractCompanyAllocationRows(
         is_locked: Boolean(alloc.is_locked),
         company_id: alloc.company_id,
         receipt_file_path: tx.receipt_file_path,
+        wave_category_id: alloc.wave_category_id ?? null,
+        wave_transaction_id: alloc.wave_transaction_id ?? null,
       })
     }
   }
   return rows
+}
+
+/**
+ * Determines whether a row was previously pushed to Wave but was subsequently unlocked in Wrangler.
+ */
+export function isWaveAlreadySynced(row: ExportAllocationRow): boolean {
+  return Boolean(!row.is_locked && row.wave_transaction_id)
+}
+
+/**
+ * Determines whether a row is eligible to be selected and synced to Wave.
+ */
+export function canSyncRowToWave(row: ExportAllocationRow): boolean {
+  return Boolean(!row.is_locked && !row.wave_transaction_id && row.wave_category_id)
 }
 
 /**

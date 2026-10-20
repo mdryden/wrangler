@@ -22,7 +22,7 @@ def test_database_schema_setup():
     # 1. Verify tables
     tables = inspector.get_table_names()
     assert "companies" in tables
-    assert "wave_categories" not in tables
+    assert "wave_categories" in tables
     assert "transactions" in tables
     assert "allocations" in tables
     assert "staged_transactions" in tables
@@ -33,8 +33,8 @@ def test_database_schema_setup():
     assert "id" in company_cols
     assert "name" in company_cols
     assert not company_cols["name"]["nullable"]
-    assert "wave_equity_account_id" not in company_cols
-    assert "wave_business_id" not in company_cols
+    assert "wave_equity_account_id" in company_cols
+    assert "wave_business_id" in company_cols
     assert "wave_access_token" not in company_cols
     assert "wave_refresh_token" not in company_cols
     assert "wave_token_expires_at" not in company_cols
@@ -63,8 +63,8 @@ def test_database_schema_setup():
     assert "company_id" in alloc_cols
     assert "is_locked" in alloc_cols
     assert "sync_status" not in alloc_cols
-    assert "wave_category_id" not in alloc_cols
-    assert "wave_transaction_id" not in alloc_cols
+    assert "wave_category_id" in alloc_cols
+    assert "wave_transaction_id" in alloc_cols
 
     # 5. Verify unique constraints
     tx_unique = inspector.get_unique_constraints("transactions")
@@ -84,7 +84,7 @@ def test_database_schema_setup():
     referred_tables = {fk["referred_table"] for fk in alloc_fks}
     assert "transactions" in referred_tables
     assert "companies" in referred_tables
-    assert "wave_categories" not in referred_tables
+    assert "wave_categories" in referred_tables
 
     staged_alloc_fks = inspector.get_foreign_keys("staged_allocations")
     staged_referred_tables = {fk["referred_table"] for fk in staged_alloc_fks}

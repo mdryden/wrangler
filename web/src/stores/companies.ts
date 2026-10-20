@@ -3,6 +3,7 @@ import { ref } from "vue"
 import { apiClient } from "../api/client"
 import type { Company, CompanyCreatePayload, CompanyExportOptions, CompanyUpdatePayload } from "../types/company"
 import type { Allocation } from "../types/transaction"
+import type { WaveBusiness, WaveBusinessAccountsResponse, WaveCategory, WaveConnectPayload, WaveSyncResponse } from "../types/wave"
 
 export function extractFilenameFromContentDisposition(header: string | null | undefined, fallbackFilename: string): string {
   if (!header) return fallbackFilename
@@ -211,6 +212,123 @@ export const useCompanyStore = defineStore("companies", () => {
     }
   }
 
+  /**
+   * Verify Full Access Token against Wave and return accessible businesses.
+   */
+  async function testWaveToken(token: string): Promise<WaveBusiness[]> {
+    error.value = null
+    try {
+      const data = await apiClient.post<WaveBusiness[]>("/api/companies/wave/test-token", { token })
+      return data
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to test Wave token"
+      error.value = msg
+      throw err
+    }
+  }
+
+  /**
+   * Fetch Chart of Accounts candidate anchors and expense categories for a Wave business.
+   */
+  async function fetchBusinessAccounts(token: string, businessId: string): Promise<WaveBusinessAccountsResponse> {
+    error.value = null
+    try {
+      const data = await apiClient.post<WaveBusinessAccountsResponse>("/api/companies/wave/business-accounts", {
+        token,
+        business_id: businessId,
+      })
+      return data
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to fetch Wave business accounts"
+      error.value = msg
+      throw err
+    }
+  }
+
+  /**
+   * Connect a company to Wave with credentials and anchor account.
+   */
+  async function connectWave(companyId: string, payload: WaveConnectPayload): Promise<Company> {
+    error.value = null
+    try {
+      const updated = await apiClient.post<Company>(`/api/companies/${companyId}/wave/connect`, payload)
+      const index = companies.value.findIndex(c => c.id === companyId)
+      if (index !== -1) {
+        companies.value[index] = updated
+      }
+      return updated
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to connect Wave"
+      error.value = msg
+      throw err
+    }
+  }
+
+  /**
+   * Disconnect Wave credentials from a company.
+   */
+  async function disconnectWave(companyId: string): Promise<Company> {
+    error.value = null
+    try {
+      const updated = await apiClient.delete<Company>(`/api/companies/${companyId}/wave`)
+      const index = companies.value.findIndex(c => c.id === companyId)
+      if (index !== -1) {
+        companies.value[index] = updated
+      }
+      return updated
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to disconnect Wave"
+      error.value = msg
+      throw err
+    }
+  }
+
+  /**
+   * Fetch cached Wave expense categories for a company.
+   */
+  async function fetchWaveCategories(companyId: string): Promise<WaveCategory[]> {
+    error.value = null
+    try {
+      const data = await apiClient.get<WaveCategory[]>(`/api/companies/${companyId}/wave/categories`)
+      return data
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to fetch Wave categories"
+      error.value = msg
+      throw err
+    }
+  }
+
+  /**
+   * Refresh and sync cached Wave expense categories from Wave.
+   */
+  async function syncWaveCategories(companyId: string): Promise<WaveCategory[]> {
+    error.value = null
+    try {
+      const data = await apiClient.post<WaveCategory[]>(`/api/companies/${companyId}/wave/sync-categories`)
+      return data
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to sync Wave categories"
+      error.value = msg
+      throw err
+    }
+  }
+
+  /**
+   * Direct batch synchronize categorized allocations to Wave.
+   */
+  async function syncCompanyToWave(companyId: string, allocationIds?: string[]): Promise<WaveSyncResponse> {
+    error.value = null
+    try {
+      const body = allocationIds !== undefined ? { allocation_ids: allocationIds } : undefined
+      const data = await apiClient.post<WaveSyncResponse>(`/api/companies/${companyId}/sync-wave`, body)
+      return data
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to sync to Wave"
+      error.value = msg
+      throw err
+    }
+  }
+
   return {
     companies,
     loading,
@@ -222,5 +340,12 @@ export const useCompanyStore = defineStore("companies", () => {
     exportTransactionsCsv,
     lockCompanyAllocations,
     unlockCompanyAllocations,
+    testWaveToken,
+    fetchBusinessAccounts,
+    connectWave,
+    disconnectWave,
+    fetchWaveCategories,
+    syncWaveCategories,
+    syncCompanyToWave,
   }
 })

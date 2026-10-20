@@ -512,14 +512,14 @@ def test_update_allocations_validation_errors(client, auth_headers, db_session):
     assert resp.status_code == 400
     assert "not found" in resp.json()["detail"].lower()
 
-    # Reject personal split when len(allocations) > 1
+    # Reject multiple personal allocations
     mixed_payload = [
         {"amount": "40.00", "is_personal": True},
-        {"amount": "60.00", "is_personal": False, "company_id": str(comp.id)},
+        {"amount": "60.00", "is_personal": True},
     ]
     resp_mixed = client.put(f"/api/transactions/{tx.id}/allocations", json=mixed_payload, headers=auth_headers)
     assert resp_mixed.status_code == 400
-    assert "Only business transactions can be split" in resp_mixed.json()["detail"]
+    assert "A transaction can have at most one allocation per company/entity" in resp_mixed.json()["detail"]
 
     # Reject unbalanced splits
     unbalanced_payload = [

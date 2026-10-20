@@ -170,6 +170,13 @@ async def create_transaction(
                 detail=f"Company with ID '{alloc_item.company_id}' not found",
             )
 
+    company_ids = [alloc_item.company_id for alloc_item in alloc_list if not alloc_item.is_personal]
+    if len(company_ids) != len(set(company_ids)):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A transaction can have at most one allocation per company/entity. Manage sub-categories directly in Wave.",
+        )
+
     if payload.external_id is not None:
         existing = db.scalar(
             select(Transaction).where(
@@ -300,10 +307,18 @@ def _validate_and_apply_allocations(
             detail="At least one allocation is required",
         )
 
-    if len(items) > 1 and any(item.is_personal for item in items):
+    personal_allocations = [item for item in items if item.is_personal]
+    if len(personal_allocations) > 1:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only business transactions can be split. Remove extra splits before marking as personal.",
+            detail="A transaction can have at most one allocation per company/entity. Manage sub-categories directly in Wave.",
+        )
+
+    business_company_ids = [item.company_id for item in items if not item.is_personal]
+    if len(business_company_ids) != len(set(business_company_ids)):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A transaction can have at most one allocation per company/entity. Manage sub-categories directly in Wave.",
         )
 
     for item in items:

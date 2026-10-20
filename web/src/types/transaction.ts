@@ -4,6 +4,8 @@ export interface AllocationCreateItem {
   is_personal?: boolean
   company_id?: string | null
   is_locked?: boolean
+  wave_category_id?: string | null
+  wave_transaction_id?: string | null
 }
 
 export interface AllocationUpdateItem {
@@ -12,6 +14,8 @@ export interface AllocationUpdateItem {
   is_personal?: boolean
   company_id?: string | null
   is_locked?: boolean
+  wave_category_id?: string | null
+  wave_transaction_id?: string | null
 }
 
 export interface TransactionCreatePayload {
@@ -42,6 +46,8 @@ export interface Allocation {
   is_personal: boolean
   company_id: string | null
   is_locked: boolean
+  wave_category_id?: string | null
+  wave_transaction_id?: string | null
 }
 
 export interface Transaction {

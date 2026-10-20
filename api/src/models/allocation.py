@@ -4,7 +4,7 @@ import uuid
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, ForeignKey, Numeric, Uuid
+from sqlalchemy import Boolean, ForeignKey, Numeric, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -12,6 +12,7 @@ from database import Base
 if TYPE_CHECKING:
     from .company import Company
     from .transaction import Transaction
+    from .wave_category import WaveCategory
 
 
 class Allocation(Base):
@@ -23,6 +24,9 @@ class Allocation(Base):
     is_personal: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     company_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("companies.id", ondelete="SET NULL"), nullable=True)
     is_locked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    wave_category_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("wave_categories.id", ondelete="SET NULL"), nullable=True)
+    wave_transaction_id: Mapped[str | None] = mapped_column(String, nullable=True)
 
     transaction: Mapped[Transaction] = relationship("Transaction", back_populates="allocations")
     company: Mapped[Company | None] = relationship("Company")
+    wave_category: Mapped[WaveCategory | None] = relationship("WaveCategory")

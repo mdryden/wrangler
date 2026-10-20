@@ -11,6 +11,8 @@ class AllocationResponse(BaseModel):
     is_personal: bool
     company_id: uuid.UUID | None = None
     is_locked: bool = False
+    wave_category_id: uuid.UUID | None = None
+    wave_transaction_id: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -21,6 +23,8 @@ class AllocationItem(BaseModel):
     is_personal: bool = False
     company_id: uuid.UUID | None = None
     is_locked: bool = False
+    wave_category_id: uuid.UUID | None = None
+    wave_transaction_id: str | None = None
 
 
 class AllocationCreateItem(BaseModel):
@@ -29,10 +33,16 @@ class AllocationCreateItem(BaseModel):
     is_personal: bool = False
     company_id: uuid.UUID | None = None
     is_locked: bool = False
+    wave_category_id: uuid.UUID | None = None
+    wave_transaction_id: str | None = None
 
 
 class AllocationUpdateRequest(BaseModel):
     allocations: list[AllocationItem]
+
+
+class AllocationCategoryUpdateRequest(BaseModel):
+    wave_category_id: uuid.UUID | None = None
 
 
 class LockUpdateRequest(BaseModel):

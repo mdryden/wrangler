@@ -74,9 +74,9 @@ def test_create_company_success(client, auth_headers, db_session):
     data = response.json()
     assert data["name"] == "Acme Corporation"
     assert "id" in data
-    assert "wave_equity_account_id" not in data
-    assert "wave_business_id" not in data
-    assert "is_connected" not in data
+    assert "wave_equity_account_id" in data
+    assert "wave_business_id" in data
+    assert "is_wave_connected" in data
 
     # Check persistence in db
     company_id = uuid.UUID(data["id"])

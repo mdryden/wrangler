@@ -229,6 +229,30 @@ export const useTransactionStore = defineStore("transactions", () => {
     }
   }
 
+  /**
+   * Update the Wave category on an unlocked allocation.
+   */
+  async function updateAllocationCategory(allocationId: string, waveCategoryId: string | null): Promise<Allocation> {
+    error.value = null
+    try {
+      const updatedAlloc = await apiClient.patch<Allocation>(`/api/allocations/${allocationId}/category`, {
+        wave_category_id: waveCategoryId,
+      })
+      for (const tx of transactions.value) {
+        const allocIdx = tx.allocations.findIndex(a => a.id === allocationId)
+        if (allocIdx !== -1) {
+          tx.allocations[allocIdx] = updatedAlloc
+          break
+        }
+      }
+      return updatedAlloc
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to update allocation category"
+      error.value = msg
+      throw err
+    }
+  }
+
   return {
     transactions,
     total,
@@ -243,6 +267,7 @@ export const useTransactionStore = defineStore("transactions", () => {
     deleteTransaction,
     lockTransaction,
     lockAllocation,
+    updateAllocationCategory,
     uploadReceipt,
     deleteReceipt,
     openReceiptInNewTab,

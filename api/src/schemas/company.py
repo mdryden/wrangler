@@ -22,6 +22,10 @@ class CompanyResponse(CompanyBase):
     unlocked_allocation_count: int = 0
     unlocked_amount_total: Decimal = Decimal("0.00")
     locked_allocation_count: int = 0
+    wave_business_id: str | None = None
+    wave_business_name: str | None = None
+    wave_equity_account_id: str | None = None
+    is_wave_connected: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -31,3 +35,67 @@ class CompanyLockBatchRequest(BaseModel):
 
 
 CompanySyncStatusBatchRequest = CompanyLockBatchRequest
+
+
+class WaveTestTokenRequest(BaseModel):
+    token: str = Field(..., min_length=1)
+
+
+class WaveBusinessAccountsRequest(BaseModel):
+    token: str = Field(..., min_length=1)
+    business_id: str = Field(..., min_length=1)
+
+
+class WaveBusinessItem(BaseModel):
+    id: str
+    name: str
+    is_personal: bool
+
+
+class WaveAccountItem(BaseModel):
+    id: str
+    name: str
+    type: str
+    subtype: str | None = None
+    is_uncategorized: bool = False
+
+
+class WaveBusinessAccountsResponse(BaseModel):
+    anchor_accounts: list[WaveAccountItem]
+    expense_categories: list[WaveAccountItem]
+
+
+class WaveConnectRequest(BaseModel):
+    token: str = Field(..., min_length=1)
+    business_id: str = Field(..., min_length=1)
+    business_name: str = Field(..., min_length=1)
+    equity_account_id: str = Field(..., min_length=1)
+
+
+class WaveCategoryResponse(BaseModel):
+    id: uuid.UUID
+    company_id: uuid.UUID
+    wave_account_id: str
+    name: str
+    account_type: str
+    account_subtype: str | None = None
+    is_uncategorized: bool = False
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class WaveSyncBatchRequest(BaseModel):
+    allocation_ids: list[uuid.UUID] | None = None
+
+
+class WaveSyncErrorItem(BaseModel):
+    allocation_id: uuid.UUID
+    description: str
+    error: str
+
+
+class WaveSyncResponse(BaseModel):
+    total_processed: int
+    synced_count: int
+    failed_count: int
+    errors: list[WaveSyncErrorItem] = Field(default_factory=list)

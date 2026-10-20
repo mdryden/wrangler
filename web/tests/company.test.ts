@@ -514,6 +514,8 @@ describe("ExportManagerView & Export Controls Logic (exportManager.ts)", () => {
         is_locked: false,
         company_id: "comp-1",
         receipt_file_path: "tx-100.pdf",
+        wave_category_id: null,
+        wave_transaction_id: null,
       },
     ])
 
