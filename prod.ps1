@@ -19,7 +19,39 @@ if (-not (Get-Command "uv" -ErrorAction SilentlyContinue)) {
     exit 1
 }
 
-# 2. Smart Database Migration Check
+# 2. Backup Destination Verification
+$BackupDirValue = $env:BACKUP_DIR
+if (-not $BackupDirValue) {
+    $CandidateEnvFiles = @(
+        (Join-Path $ScriptDir ".env"),
+        (Join-Path $ApiDir ".env")
+    )
+    foreach ($envPath in $CandidateEnvFiles) {
+        if (Test-Path $envPath) {
+            foreach ($line in Get-Content $envPath) {
+                if ($line -match "^\s*BACKUP_DIR\s*=\s*(.+?)\s*$") {
+                    $val = $matches[1].Trim('"''')
+                    if ($val) {
+                        $BackupDirValue = $val
+                        break
+                    }
+                }
+            }
+        }
+        if ($BackupDirValue) { break }
+    }
+}
+
+if (-not $BackupDirValue) {
+    Write-Host "`n****************************************************************" -ForegroundColor Red
+    Write-Host " WARNING: BACKUP_DIR is not configured!" -ForegroundColor Red
+    Write-Host " Automatic database snapshots & receipt mirroring on exit will be skipped." -ForegroundColor Yellow
+    Write-Host "****************************************************************`n" -ForegroundColor Red
+} else {
+    Write-Host "Backup Destination: $BackupDirValue" -ForegroundColor DarkGray
+}
+
+# 3. Smart Database Migration Check
 Write-Host "`n[1/2] Checking database schema status..." -ForegroundColor Yellow
 $MigrationStatus = & uv run --directory $ApiDir --link-mode copy python scripts/check_migrations.py
 $StatusExit = $LASTEXITCODE

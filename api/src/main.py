@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
@@ -55,6 +56,14 @@ mcp_app = MCPTransportDispatcher()
 async def lifespan(app: FastAPI):
     # Ensure receipt storage directory exists on startup
     settings.RECEIPT_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+
+    if not settings.BACKUP_DIR and not os.getenv("BACKUP_DIR"):
+        print("\n" + "=" * 64)
+        print(" WARNING: BACKUP_DIR is not configured!")
+        print(" Automatic database snapshots & receipt mirroring on exit will be skipped.")
+        print(" Set BACKUP_DIR in your .env to safeguard your financial data.")
+        print("=" * 64 + "\n")
+
     session_mgr = getattr(mcp._lowlevel_server, "_session_manager", None)
     if session_mgr is not None:
         session_mgr._has_started = False

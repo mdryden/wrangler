@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     # If set, automatically derives default DATABASE_URL and RECEIPT_STORAGE_DIR
     DATA_DIR: Path | None = None
 
+    # Google Drive / External Cloud Backup Directory
+    BACKUP_DIR: Path | None = None
+
     # Admin Credentials
     ADMIN_USERNAME: str = "admin"
     ADMIN_PASSWORD: str = "admin"
@@ -68,6 +71,9 @@ class Settings(BaseSettings):
             # Default RECEIPT_STORAGE_DIR to DATA_DIR/receipts if not explicitly customized
             if Path(self.RECEIPT_STORAGE_DIR).resolve() == Path("receipts").resolve():
                 self.RECEIPT_STORAGE_DIR = (resolved_data / "receipts").resolve()
+
+        if self.BACKUP_DIR is not None:
+            self.BACKUP_DIR = Path(self.BACKUP_DIR).expanduser().resolve()
 
         # Ensure receipt storage directory exists
         self.RECEIPT_STORAGE_DIR = Path(self.RECEIPT_STORAGE_DIR).expanduser().resolve()

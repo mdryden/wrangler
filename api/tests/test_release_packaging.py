@@ -11,6 +11,29 @@ def test_scripts_exist():
     assert release_script.is_file()
 
 
+def test_script_syntax_validation():
+    if sys.platform != "win32":
+        return
+
+    root_dir = Path(__file__).resolve().parent.parent.parent
+    for script_name in ("prod.ps1", "release.ps1"):
+        script_path = root_dir / script_name
+        parse_cmd = (
+            f"$errors = $null; [System.Management.Automation.Language.Parser]::ParseFile("
+            f"'{script_path.as_posix()}', [ref]$null, [ref]$errors); if ($errors) {{ throw $errors[0].Message }}"
+        )
+        cmd = [
+            "powershell.exe",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            parse_cmd,
+        ]
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        assert proc.returncode == 0, f"{script_name} syntax error: {proc.stderr}"
+
+
 def test_release_packaging_execution_and_isolation(tmp_path: Path):
     if sys.platform != "win32":
         return

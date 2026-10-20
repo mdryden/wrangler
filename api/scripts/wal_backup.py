@@ -16,12 +16,17 @@ from database import engine
 
 
 def run_backup() -> int:
-    backup_dir_str = os.getenv("BACKUP_DIR")
-    if not backup_dir_str:
-        print("BACKUP_DIR is not set in environment. Skipping backup snapshot.")
+    backup_dir: Path | None = settings.BACKUP_DIR
+    if backup_dir is None:
+        backup_dir_str = os.getenv("BACKUP_DIR")
+        if backup_dir_str:
+            backup_dir = Path(backup_dir_str).expanduser().resolve()
+
+    if not backup_dir:
+        print("BACKUP_DIR is not set in environment or .env. Skipping backup snapshot.")
         return 0
 
-    backup_dir = Path(backup_dir_str).expanduser().resolve()
+    backup_dir = Path(backup_dir).expanduser().resolve()
     backup_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Atomic SQLite Snapshot via VACUUM INTO

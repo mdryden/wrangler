@@ -81,8 +81,19 @@ def test_check_migrations_connection_error():
 
 def test_wal_backup_noop_when_backup_dir_unset(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("BACKUP_DIR", raising=False)
+    monkeypatch.setattr(settings, "BACKUP_DIR", None)
     exit_code = run_backup()
     assert exit_code == 0
+
+
+def test_wal_backup_success_from_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    backup_dir = tmp_path / "backup_dest_settings"
+    monkeypatch.delenv("BACKUP_DIR", raising=False)
+    monkeypatch.setattr(settings, "BACKUP_DIR", backup_dir)
+
+    exit_code = run_backup()
+    assert exit_code == 0
+    assert (backup_dir / "wrangler.db").is_file()
 
 
 def test_wal_backup_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
