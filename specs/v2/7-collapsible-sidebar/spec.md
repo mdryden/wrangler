@@ -1,5 +1,7 @@
 # Collapsible Icon-Rail Sidebar Navigation Specification
 
+**Status:** Implemented
+
 ## 1. Goal & Overview
 
 In the original Wrangler user interface (defined in [`specs/v1/spec.md`](file:///D:/src/personal/wrangler/specs/v1/spec.md) §7.1 and implemented in [`MainLayout.vue`](file:///D:/src/personal/wrangler/web/src/layouts/MainLayout.vue)), the left navigation drawer toggles between fully expanded (240px) and completely hidden off-screen via a generic hamburger icon (`menu`).

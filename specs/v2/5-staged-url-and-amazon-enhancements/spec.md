@@ -1,5 +1,7 @@
 # Staged Transaction URL & Amazon Importer Enhancements Specification
 
+**Status:** Implemented
+
 ## 1. Goal & Overview
 
 This specification details four related architectural enhancements to Wrangler's intake pipeline, building on top of [`specs/v2/1-importer-framework/spec.md`](file:///D:/src/personal/wrangler/specs/v2/1-importer-framework/spec.md) and [`specs/v2/3-amazon-csv-importer/spec.md`](file:///D:/src/personal/wrangler/specs/v2/3-amazon-csv-importer/spec.md):

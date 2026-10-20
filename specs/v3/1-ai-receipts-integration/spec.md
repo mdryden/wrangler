@@ -1,5 +1,7 @@
 # AI Receipt Integration & Multi-Provider Architecture Specification
 
+**Status:** Implemented
+
 ## 1. Goal & Overview
 
 This specification defines the **AI Receipt Parsing** feature and **Pluggable AI Abstraction Layer** for Wrangler.

@@ -1,5 +1,7 @@
 # AI Agent Integration (Model Context Protocol) Specification
 
+**Status:** Implemented
+
 ## 1. Goal & Overview
 
 This specification defines how Wrangler exposes its transaction intake pipeline to external AI desktop assistants (such as Goose or Askimo Desktop) via the **Model Context Protocol (MCP)** using **FastMCP** (the official Python MCP SDK).

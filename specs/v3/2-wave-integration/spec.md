@@ -1,5 +1,7 @@
 # Wave API Integration & Synchronization Specification
 
+**Status:** Implemented
+
 ## 1. Goal & Architectural Overview
 
 This specification defines the re-introduction of automated **Wave API Integration** in Wrangler for Wave Pro companies, coexisting alongside the existing **Manual CSV Export** workflow for Wave Free companies.

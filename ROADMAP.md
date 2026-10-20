@@ -1,5 +1,5 @@
 # Feature wishlist
 
-Wave integration (sync transactions)
+Checkboxes -> allocate many to company
 
-Ensure receipts are synced to the cloud
+Favicon

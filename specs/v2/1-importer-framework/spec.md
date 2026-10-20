@@ -1,5 +1,7 @@
 # Transaction Importer Framework & Staging Specification
 
+**Status:** Implemented
+
 ## 1. Goal & Overview
 This specification defines the **Transaction Importer Framework** and **Staging Workflow** for Wrangler.
 

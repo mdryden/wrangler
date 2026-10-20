@@ -1,5 +1,7 @@
 # Amazon Transactions CSV Importer Specification
 
+**Status:** Implemented
+
 ## 1. Goal & Overview
 
 The **Amazon Transactions CSV Importer** (`AmazonCsvImporter`) is a file-based intake adapter that subclasses [`BaseCsvImporter`](file:///D:/src/personal/wrangler/api/src/services/importers/csv_base.py#L13-L141) to ingest Amazon order history and refund transactions into Wrangler's Staging Area.

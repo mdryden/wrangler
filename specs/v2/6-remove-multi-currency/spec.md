@@ -1,5 +1,7 @@
 # Removal of Multi-Currency Support (CAD Single-Currency Architecture) Specification
 
+**Status:** Implemented
+
 ## 1. Goal & Overview
 
 The original system architecture for Wrangler provisioned a `currency_code` field across intake pipelines, database models, API schemas, and frontend view layers under the assumption of multi-currency accounting. In reality, Wrangler is strictly a single-currency application designed and operated exclusively in Canadian Dollars (**CAD**).

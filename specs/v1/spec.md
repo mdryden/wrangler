@@ -1,5 +1,7 @@
 # Family Accounting App - Technical Specification
 
+**Status:** Implemented
+
 ## 1. Project Overview
 This application is a private, internal web tool used to review, allocate, and process financial transactions from various intake sources. Transactions can be split and assigned to either personal/home expenses or specific business entities. Approved business transactions are exported to a CSV format compatible with Wave (waveapps.com) for manual upload, featuring batch tracking, status reconciliation, and receipt file correlation.
 
