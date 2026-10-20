@@ -18,26 +18,23 @@ from services.wave.client import (
 async def test_get_user_businesses_success():
     mock_payload = {
         "data": {
-            "user": {
-                "id": "usr_123",
-                "businesses": {
-                    "edges": [
-                        {
-                            "node": {
-                                "id": "biz_1",
-                                "name": "Company One",
-                                "isPersonal": False,
-                            }
-                        },
-                        {
-                            "node": {
-                                "id": "biz_2",
-                                "name": "Personal Books",
-                                "isPersonal": True,
-                            }
-                        },
-                    ]
-                },
+            "businesses": {
+                "edges": [
+                    {
+                        "node": {
+                            "id": "biz_1",
+                            "name": "Company One",
+                            "isPersonal": False,
+                        }
+                    },
+                    {
+                        "node": {
+                            "id": "biz_2",
+                            "name": "Personal Books",
+                            "isPersonal": True,
+                        }
+                    },
+                ]
             }
         }
     }
@@ -48,6 +45,15 @@ async def test_get_user_businesses_success():
         assert len(businesses) == 2
         assert businesses[0] == WaveBusiness(id="biz_1", name="Company One", is_personal=False)
         assert businesses[1] == WaveBusiness(id="biz_2", name="Personal Books", is_personal=True)
+
+
+@pytest.mark.anyio
+async def test_get_user_businesses_missing_data():
+    mock_payload = {"data": {}}
+    mock_resp = httpx.Response(status_code=200, json=mock_payload, request=httpx.Request("POST", "http://test"))
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_resp):
+        with pytest.raises(WaveApiError, match="Wave API did not return businesses information"):
+            await WaveClient.get_user_businesses("token-abc")
 
 
 @pytest.mark.anyio

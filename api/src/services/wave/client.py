@@ -41,24 +41,21 @@ class WaveApiError(Exception):
     pass
 
 
-GET_USER_BUSINESSES_QUERY = """
-query GetUserBusinesses {
-  user {
-    id
-    defaultEmail
-    businesses(page: 1, pageSize: 50) {
-      edges {
-        node {
-          id
-          name
-          isPersonal
-          isClassicAccounting
-        }
+GET_BUSINESSES_QUERY = """
+query GetBusinesses {
+  businesses(page: 1, pageSize: 50) {
+    edges {
+      node {
+        id
+        name
+        isPersonal
       }
     }
   }
 }
 """
+
+GET_USER_BUSINESSES_QUERY = GET_BUSINESSES_QUERY
 
 GET_BUSINESS_ACCOUNTS_QUERY = """
 query GetBusinessAccounts($businessId: ID!) {
@@ -151,12 +148,12 @@ class WaveClient:
     @classmethod
     async def get_user_businesses(cls, token: str) -> list[WaveBusiness]:
         """Fetch all businesses accessible by the Wave bearer token."""
-        data = await cls._execute_graphql(token, GET_USER_BUSINESSES_QUERY)
-        user_data = data.get("user")
-        if not user_data:
-            raise WaveApiError("Wave API did not return user information")
+        data = await cls._execute_graphql(token, GET_BUSINESSES_QUERY)
+        businesses_container = data.get("businesses")
+        if businesses_container is None:
+            raise WaveApiError("Wave API did not return businesses information")
 
-        businesses_data = user_data.get("businesses", {}).get("edges", [])
+        businesses_data = businesses_container.get("edges", [])
         businesses: list[WaveBusiness] = []
         for edge in businesses_data:
             node = edge.get("node", {})

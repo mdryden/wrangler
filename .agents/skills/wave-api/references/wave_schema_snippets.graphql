@@ -1,0 +1,155 @@
+# Wave Financial GraphQL Schema Snippets
+# Endpoint: https://gql.waveapps.com/graphql/public
+
+type Query {
+  user: User
+  businesses(page: Int, pageSize: Int): BusinessConnection!
+  business(id: ID!): Business
+}
+
+type Mutation {
+  moneyTransactionCreate(input: MoneyTransactionCreateInput!): MoneyTransactionCreatePayload!
+}
+
+type User {
+  id: ID!
+  defaultEmail: String
+  firstName: String
+  lastName: String
+  createdAt: DateTime
+}
+
+type BusinessConnection {
+  pageInfo: PageInfo!
+  edges: [BusinessEdge!]!
+}
+
+type BusinessEdge {
+  node: Business!
+  cursor: String!
+}
+
+type Business {
+  id: ID!
+  name: String!
+  isPersonal: Boolean!
+  isClassicAccounting: Boolean!
+  isArchived: Boolean!
+  currency: Currency!
+  accounts(page: Int, pageSize: Int): AccountConnection!
+}
+
+type Currency {
+  code: String!
+  symbol: String!
+  name: String!
+  exponent: Int!
+}
+
+type AccountConnection {
+  pageInfo: PageInfo!
+  edges: [AccountEdge!]!
+}
+
+type AccountEdge {
+  node: Account!
+  cursor: String!
+}
+
+type Account {
+  id: ID!
+  name: String!
+  description: String
+  displayId: String
+  type: AccountType!
+  subtype: AccountSubType
+  isArchived: Boolean!
+}
+
+type AccountType {
+  name: String!
+  value: AccountTypeValue!
+}
+
+enum AccountTypeValue {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+type AccountSubType {
+  name: String!
+  value: AccountSubTypeValue!
+}
+
+enum AccountSubTypeValue {
+  CASH_AND_BANK
+  CREDIT_CARD
+  MONEY_MARKET
+  OWNERS_EQUITY
+  ACCOUNTS_RECEIVABLE
+  ACCOUNTS_PAYABLE
+  CUSTOMER_PREPAYMENTS
+  VENDOR_PREPAYMENTS
+  UNCATEGORIZED_INCOME
+  UNCATEGORIZED_EXPENSE
+}
+
+type PageInfo {
+  currentPage: Int!
+  totalPages: Int!
+  totalCount: Int!
+}
+
+input MoneyTransactionCreateInput {
+  businessId: ID!
+  externalId: String
+  date: Date!
+  description: String!
+  anchor: MoneyTransactionAnchorInput!
+  lineItems: [MoneyTransactionLineItemInput!]!
+}
+
+input MoneyTransactionAnchorInput {
+  accountId: ID!
+  amount: Decimal!
+  direction: MoneyTransactionDirection!
+}
+
+enum MoneyTransactionDirection {
+  WITHDRAWAL
+  DEPOSIT
+}
+
+input MoneyTransactionLineItemInput {
+  accountId: ID!
+  amount: Decimal!
+  balance: MoneyTransactionBalance!
+}
+
+enum MoneyTransactionBalance {
+  INCREASE
+  DECREASE
+}
+
+type MoneyTransactionCreatePayload {
+  didSucceed: Boolean!
+  inputErrors: [InputError!]
+  transaction: Transaction
+}
+
+type InputError {
+  path: [String!]!
+  message: String!
+  code: String!
+}
+
+type Transaction {
+  id: ID!
+}
+
+scalar Date
+scalar DateTime
+scalar Decimal
