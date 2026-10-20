@@ -1,3 +1,4 @@
+from .ai_receipt import ReceiptParserImporter
 from .amazon_csv import AmazonCsvImporter
 from .base import BaseImporter
 
@@ -29,3 +30,4 @@ def get_importer_by_source(source_name: str) -> BaseImporter | None:
 
 # Register default system importers
 register_importer(AmazonCsvImporter())
+register_importer(ReceiptParserImporter())

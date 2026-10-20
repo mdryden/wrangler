@@ -18,14 +18,14 @@ import {
 } from "../stores/staging"
 import { useTransactionStore } from "../stores/transactions"
 import type { ImporterMetadata, StagedStatus, StagedTransaction } from "../types/staging"
-import { formatStagedAmount, stagingTableColumns } from "./importView"
+import { formatStagedAmount, getImportNotificationType, stagingTableColumns } from "./importView"
 
 const companyStore = useCompanyStore()
 const stagingStore = useStagingStore()
 const transactionStore = useTransactionStore()
 
 const selectedImporterId = ref<string | null>(null)
-const importerFile = ref<File | null>(null)
+const importerFile = ref<File | File[] | null>(null)
 const runningImporter = ref<boolean>(false)
 
 const filters = ref<{
@@ -138,7 +138,12 @@ async function onRunImporter(): Promise<void> {
       selectedImporter.value.importer_id,
       selectedImporter.value.input_type === "file" ? importerFile.value : null,
     )
-    notifySuccess(formatImporterSummaryToast(result))
+    const summaryToast = formatImporterSummaryToast(result)
+    if (getImportNotificationType(result) === "warning") {
+      notifyWarning(summaryToast)
+    } else {
+      notifySuccess(summaryToast)
+    }
     importerFile.value = null
     await refreshStagingTable()
   } catch (err) {
@@ -446,6 +451,9 @@ defineExpose({
               clearable
               label="Import File"
               :accept="acceptedFileTypes"
+              :multiple="selectedImporter?.importer_id === 'receipt_parser'"
+              :use-chips="true"
+              :hint="Array.isArray(importerFile) && importerFile.length > 1 ? `${importerFile.length} files selected` : undefined"
               data-testid="input-importer-file"
             >
               <template #prepend>

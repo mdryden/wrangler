@@ -4,6 +4,7 @@ import { apiClient } from "../api/client"
 import type {
   Allocation,
   PaginatedTransactionsResponse,
+  ReceiptParseResponse,
   Transaction,
   TransactionCreatePayload,
   TransactionQueryParams,
@@ -211,6 +212,23 @@ export const useTransactionStore = defineStore("transactions", () => {
     }
   }
 
+  /**
+   * Parse a single receipt file via AI extraction endpoint POST /api/receipts/parse.
+   */
+  async function parseReceipt(file: File): Promise<ReceiptParseResponse> {
+    error.value = null
+    try {
+      const fd = new FormData()
+      fd.append("file", file)
+      const data = await apiClient.post<ReceiptParseResponse>("/api/receipts/parse", fd)
+      return data
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to parse receipt"
+      error.value = msg
+      throw err
+    }
+  }
+
   return {
     transactions,
     total,
@@ -228,5 +246,6 @@ export const useTransactionStore = defineStore("transactions", () => {
     uploadReceipt,
     deleteReceipt,
     openReceiptInNewTab,
+    parseReceipt,
   }
 })

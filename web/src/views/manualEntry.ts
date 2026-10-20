@@ -1,4 +1,4 @@
-import type { TransactionCreatePayload } from "../types/transaction"
+import type { ReceiptParseResponse, TransactionCreatePayload } from "../types/transaction"
 
 export interface ManualSplitItem {
   id?: string
@@ -161,4 +161,58 @@ export function prepareTransactionPayload(form: ManualEntryFormState): {
     allocations,
   }
   return { isMultipart: false, payload: jsonPayload }
+}
+
+/**
+ * Cascades parsed receipt fields downward into manual entry form state.
+ */
+export function applyParsedReceiptToForm(form: ManualEntryFormState, parsed: ReceiptParseResponse): void {
+  if (parsed.date) {
+    form.date = parsed.date
+  }
+  if (parsed.description) {
+    form.description = parsed.description
+  } else if (parsed.merchant) {
+    form.description = parsed.merchant
+  }
+  if (parsed.total_amount !== null && parsed.total_amount !== undefined) {
+    form.total_amount = String(parsed.total_amount)
+    if (form.splits.length === 1) {
+      form.splits[0].amount = String(parsed.total_amount)
+    }
+  }
+}
+
+/**
+ * Focuses the Date input element on mount or form reset for keyboard-first workflow.
+ */
+export function focusDateInputElement(inputRef: { focus?: () => void; $el?: HTMLElement } | null | undefined): void {
+  if (!inputRef) return
+  if (typeof inputRef.focus === "function") {
+    inputRef.focus()
+  } else {
+    const inputEl = inputRef.$el?.querySelector("input")
+    inputEl?.focus()
+  }
+}
+
+/**
+ * Checks whether a selected file is a PDF based on MIME type or filename extension.
+ */
+export function isPdfFile(file: File | null): boolean {
+  if (!file) return false
+  return file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
+}
+
+/**
+ * Creates an object URL for a file and opens it in a new window/tab.
+ */
+export function openBlobPreview(file: File): string {
+  const blobUrl = URL.createObjectURL(file)
+  if (typeof window !== "undefined" && typeof window.open === "function") {
+    window.open(blobUrl, "_blank")
+  } else if (typeof globalThis.open === "function") {
+    globalThis.open(blobUrl, "_blank")
+  }
+  return blobUrl
 }

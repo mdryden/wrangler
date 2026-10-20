@@ -52,6 +52,7 @@ export interface ImporterRunResponse {
   staged_count: number
   skipped_duplicates: number
   items: StagedTransaction[]
+  failed_files?: string[]
 }
 
 export interface PaginatedStagedTransactions {

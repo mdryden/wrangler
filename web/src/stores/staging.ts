@@ -21,19 +21,27 @@ export const SOURCE_FILTER_OPTIONS: { label: string; value: string }[] = [
   { label: "Manual", value: "manual" },
   { label: "Wrangler CSV", value: "wrangler_csv" },
   { label: "Amazon CSV", value: "amazon_csv" },
+  { label: "Receipt Scanner", value: "receipt_parser" },
   { label: "Google Groups", value: "google_groups" },
   { label: "MCP", value: "mcp" },
 ]
 
 export function formatImporterSummaryToast(result: ImporterRunResponse): string {
-  return `Imported ${result.staged_count} new transactions into staging (${result.skipped_duplicates} duplicates skipped)`
+  let msg = `Imported ${result.staged_count} new transactions into staging (${result.skipped_duplicates} duplicates skipped)`
+  if (result.failed_files && result.failed_files.length > 0) {
+    msg += ` (${result.failed_files.length} failed: ${result.failed_files.join(", ")})`
+  }
+  return msg
 }
 
-export function canRunImporter(importer: ImporterMetadata | null, file: File | null): boolean {
+export function canRunImporter(importer: ImporterMetadata | null, file: File | File[] | null): boolean {
   if (!importer) {
     return false
   }
   if (importer.input_type === "file") {
+    if (Array.isArray(file)) {
+      return file.length > 0
+    }
     return Boolean(file)
   }
   return true
@@ -205,13 +213,19 @@ export const useStagingStore = defineStore("staging", () => {
     }
   }
 
-  async function runImporter(importerId: string, file?: File | null): Promise<ImporterRunResponse> {
+  async function runImporter(importerId: string, file?: File | File[] | null): Promise<ImporterRunResponse> {
     error.value = null
     try {
       let body: FormData | Record<string, never> = {}
       if (file) {
         const fd = new FormData()
-        fd.append("file", file)
+        if (Array.isArray(file)) {
+          for (const f of file) {
+            fd.append("files", f)
+          }
+        } else {
+          fd.append("files", file)
+        }
         body = fd
       }
       const res = await apiClient.post<ImporterRunResponse>(`/api/importers/${importerId}/run`, body)

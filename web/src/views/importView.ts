@@ -77,3 +77,14 @@ export const stagingTableColumns: QTableColumn[] = [
     headerStyle: "width: 80px",
   },
 ]
+
+/**
+ * Determines whether the importer summary notification should be a warning
+ * (when files failed or duplicates were skipped) or positive success.
+ */
+export function getImportNotificationType(result: { failed_files?: string[]; skipped_duplicates: number }): "warning" | "positive" {
+  if ((result.failed_files && result.failed_files.length > 0) || result.skipped_duplicates > 0) {
+    return "warning"
+  }
+  return "positive"
+}

@@ -81,3 +81,10 @@ export interface TransactionQueryParams extends TransactionFilterParams {
   descending?: boolean
   order?: "asc" | "desc"
 }
+
+export interface ReceiptParseResponse {
+  merchant: string | null
+  date: string | null
+  total_amount: number | string | null
+  description: string | null
+}

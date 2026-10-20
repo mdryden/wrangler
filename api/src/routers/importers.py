@@ -1,7 +1,10 @@
+import asyncio
+import hashlib
 import uuid
+from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -11,7 +14,11 @@ from models.staged_transaction import StagedTransaction
 from models.transaction import Transaction
 from schemas.importer import ImporterMetadataResponse, ImporterRunResponse
 from schemas.staging import serialize_staged_transaction
-from services.importers.base import ImporterInputType, ImporterValidationError
+from services.importers.base import (
+    ImportedTransactionData,
+    ImporterInputType,
+    ImporterValidationError,
+)
 from services.importers.registry import get_importer, list_importers
 from services.receipts import sanitize_filename
 
@@ -49,8 +56,7 @@ async def run_importer(
             detail=f"Importer '{importer_id}' not found",
         )
 
-    file_bytes: bytes | None = None
-    filename: str | None = None
+    files_to_process: list[tuple[str, bytes]] = []
 
     if importer.input_type == ImporterInputType.FILE:
         content_type = request.headers.get("content-type", "")
@@ -60,57 +66,145 @@ async def run_importer(
                 detail="File upload (multipart/form-data) is required for this importer",
             )
         form = await request.form()
-        uploaded = form.get("file")
-        if not isinstance(uploaded, UploadFile) and not (hasattr(uploaded, "read") and hasattr(uploaded, "filename")):
+        raw_files = form.getlist("files")
+        if not raw_files:
+            raw_files = form.getlist("file")
+
+        uploaded_files = [f for f in raw_files if hasattr(f, "filename") and f.filename and hasattr(f, "read")]
+        if not uploaded_files:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File field 'file' is required for this importer",
+                detail="File upload is required for this importer",
             )
-        file_bytes = await uploaded.read()
-        filename = uploaded.filename
 
-    try:
-        parsed_items = await importer.fetch_and_parse(file_bytes=file_bytes, filename=filename)
-    except ImporterValidationError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
-        ) from exc
+        accepted_types_lower = [t.lower() for t in importer.accepted_file_types] if importer.accepted_file_types else []
 
-    total_parsed = len(parsed_items)
+        for f in uploaded_files:
+            if accepted_types_lower:
+                ext = Path(f.filename or "").suffix.lower()
+                if ext not in accepted_types_lower:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Unsupported file type. Allowed: {', '.join(importer.accepted_file_types)}",
+                    )
+            file_bytes = await f.read()
+            if len(file_bytes) > settings.MAX_RECEIPT_FILE_SIZE:
+                raise HTTPException(
+                    status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                    detail=f"File '{f.filename}' exceeds maximum allowed size of 20MB",
+                )
+            files_to_process.append((f.filename or "file", file_bytes))
+
     skipped_duplicates = 0
-    new_staged_records: list[StagedTransaction] = []
+    failed_files: list[str] = []
+    parsed_items: list[ImportedTransactionData] = []
 
-    # Collect non-null external_ids to batch-check existing database records
-    candidate_ext_ids = {item.external_id for item in parsed_items if item.external_id is not None}
-    existing_ext_ids: set[str] = set()
+    if importer.importer_id == "receipt_parser":
+        # Pre-AI SHA-256 Deduplication
+        files_with_hash = [(filename, f_bytes, f"sha256:{hashlib.sha256(f_bytes).hexdigest()}") for filename, f_bytes in files_to_process]
+        candidate_hashes = {ext_id for _, _, ext_id in files_with_hash}
+        existing_hashes: set[str] = set()
 
-    if candidate_ext_ids:
-        staged_existing = db.scalars(
-            select(StagedTransaction.external_id).where(
-                StagedTransaction.source == importer.source_name,
-                StagedTransaction.external_id.in_(candidate_ext_ids),
-            )
-        ).all()
-        tx_existing = db.scalars(
-            select(Transaction.external_id).where(
-                Transaction.source == importer.source_name,
-                Transaction.external_id.in_(candidate_ext_ids),
-            )
-        ).all()
-        existing_ext_ids.update(ext_id for ext_id in staged_existing if ext_id is not None)
-        existing_ext_ids.update(ext_id for ext_id in tx_existing if ext_id is not None)
+        if candidate_hashes:
+            staged_existing = db.scalars(
+                select(StagedTransaction.external_id).where(
+                    StagedTransaction.source == importer.source_name,
+                    StagedTransaction.external_id.in_(candidate_hashes),
+                )
+            ).all()
+            tx_existing = db.scalars(
+                select(Transaction.external_id).where(
+                    Transaction.source == importer.source_name,
+                    Transaction.external_id.in_(candidate_hashes),
+                )
+            ).all()
+            existing_hashes.update(ext_id for ext_id in staged_existing if ext_id is not None)
+            existing_hashes.update(ext_id for ext_id in tx_existing if ext_id is not None)
 
-    seen_external_ids: set[str] = set()
+        seen_batch_hashes: set[str] = set()
+        files_to_parse: list[tuple[str, bytes]] = []
 
-    for item in parsed_items:
-        ext_id = item.external_id
-        if ext_id is not None:
-            if ext_id in seen_external_ids or ext_id in existing_ext_ids:
+        for filename, f_bytes, ext_id in files_with_hash:
+            if ext_id in existing_hashes or ext_id in seen_batch_hashes:
                 skipped_duplicates += 1
                 continue
-            seen_external_ids.add(ext_id)
+            seen_batch_hashes.add(ext_id)
+            files_to_parse.append((filename, f_bytes))
 
+        # Concurrency & Resilient execution
+        semaphore = asyncio.Semaphore(settings.AI_MAX_BATCH_CONCURRENCY)
+
+        async def parse_single_receipt(filename: str, f_bytes: bytes):
+            async with semaphore:
+                try:
+                    items = await importer.fetch_and_parse(file_bytes=f_bytes, filename=filename)
+                    return ("ok", filename, items)
+                except (ImporterValidationError, ValueError, RuntimeError, Exception) as exc:
+                    return ("error", filename, str(exc))
+
+        results = await asyncio.gather(*(parse_single_receipt(fn, fb) for fn, fb in files_to_parse))
+        for res_type, filename, payload in results:
+            if res_type == "error":
+                failed_files.append(f"{filename}: {payload}")
+            else:
+                parsed_items.extend(payload)
+    elif importer.input_type == ImporterInputType.FILE:
+        for filename, f_bytes in files_to_process:
+            try:
+                items = await importer.fetch_and_parse(file_bytes=f_bytes, filename=filename)
+                parsed_items.extend(items)
+            except ImporterValidationError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=str(exc),
+                ) from exc
+    else:
+        try:
+            parsed_items = await importer.fetch_and_parse()
+        except ImporterValidationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+            ) from exc
+
+    total_parsed = len(parsed_items)
+    new_staged_records: list[StagedTransaction] = []
+
+    # For non-receipt_parser importers, do post-parse deduplication
+    if importer.importer_id != "receipt_parser":
+        candidate_ext_ids = {item.external_id for item in parsed_items if item.external_id is not None}
+        existing_ext_ids: set[str] = set()
+
+        if candidate_ext_ids:
+            staged_existing = db.scalars(
+                select(StagedTransaction.external_id).where(
+                    StagedTransaction.source == importer.source_name,
+                    StagedTransaction.external_id.in_(candidate_ext_ids),
+                )
+            ).all()
+            tx_existing = db.scalars(
+                select(Transaction.external_id).where(
+                    Transaction.source == importer.source_name,
+                    Transaction.external_id.in_(candidate_ext_ids),
+                )
+            ).all()
+            existing_ext_ids.update(ext_id for ext_id in staged_existing if ext_id is not None)
+            existing_ext_ids.update(ext_id for ext_id in tx_existing if ext_id is not None)
+
+        seen_external_ids: set[str] = set()
+        items_to_stage: list[ImportedTransactionData] = []
+        for item in parsed_items:
+            ext_id = item.external_id
+            if ext_id is not None:
+                if ext_id in seen_external_ids or ext_id in existing_ext_ids:
+                    skipped_duplicates += 1
+                    continue
+                seen_external_ids.add(ext_id)
+            items_to_stage.append(item)
+    else:
+        items_to_stage = parsed_items
+
+    for item in items_to_stage:
         staged_id = uuid.uuid4()
         receipt_file_path: str | None = None
 
@@ -125,7 +219,7 @@ async def run_importer(
         staged_tx = StagedTransaction(
             id=staged_id,
             source=importer.source_name,
-            external_id=ext_id,
+            external_id=item.external_id,
             date=item.date,
             description=item.description,
             total_amount=item.total_amount,
@@ -147,4 +241,5 @@ async def run_importer(
         staged_count=len(new_staged_records),
         skipped_duplicates=skipped_duplicates,
         items=[serialize_staged_transaction(stx) for stx in new_staged_records],
+        failed_files=failed_files,
     )

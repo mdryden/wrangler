@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from services.importers.base import ImporterInputType
 
@@ -21,3 +21,4 @@ class ImporterRunResponse(BaseModel):
     staged_count: int
     skipped_duplicates: int
     items: list[StagedTransactionResponse]
+    failed_files: list[str] = Field(default_factory=list)

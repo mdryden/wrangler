@@ -37,6 +37,16 @@ class Settings(BaseSettings):
     # MCP Integration
     MCP_API_KEY: str = ""
 
+    # AI Receipt Parsing Configuration
+    AI_PROVIDER: str = "openai"  # "openai" or "mock"
+    OPENAI_API_KEY: str = ""
+    OPENAI_MODEL: str = "gpt-4o-mini"
+    OPENAI_BASE_URL: str = "https://api.openai.com/v1"
+    AI_TIMEOUT_SECONDS: int = 60
+    AI_MAX_BATCH_CONCURRENCY: int = 3
+    AI_MAX_PDF_PAGES: int = 3
+    MAX_RECEIPT_FILE_SIZE: int = 20 * 1024 * 1024  # 20 MB
+
     @field_validator("RECEIPT_STORAGE_DIR", mode="after")
     @classmethod
     def resolve_receipt_storage_dir(cls, v: Path | str) -> Path:

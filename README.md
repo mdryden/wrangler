@@ -67,6 +67,14 @@ The backend environment is configured via `api/.env`:
 | `RECEIPT_STORAGE_DIR` | Absolute or relative path for receipt files | `receipts` |
 | `DATABASE_URL` | SQLite database connection string | `sqlite:///./wrangler.db` |
 | `MCP_API_KEY` | Optional API key protecting MCP endpoints over SSE | `""` (Trust on local network) |
+| `AI_PROVIDER` | AI provider backend for receipt parsing (`openai` or `mock`) | `openai` |
+| `OPENAI_API_KEY` | OpenAI API key for AI receipt parsing | `""` |
+| `OPENAI_MODEL` | OpenAI vision model for receipt extraction | `gpt-4o-mini` |
+| `OPENAI_BASE_URL` | Base URL for OpenAI API or compatible endpoints | `https://api.openai.com/v1` |
+| `AI_TIMEOUT_SECONDS` | Request timeout in seconds for AI provider calls | `60` |
+| `AI_MAX_BATCH_CONCURRENCY` | Maximum concurrent AI parse tasks during batch imports | `3` |
+| `AI_MAX_PDF_PAGES` | Maximum allowed PDF page count per receipt before rejection | `3` |
+| `MAX_RECEIPT_FILE_SIZE` | Maximum file size for receipt uploads in bytes (20 MB) | `20971520` |
 
 ---
 
