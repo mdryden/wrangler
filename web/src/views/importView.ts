@@ -30,6 +30,15 @@ export const stagingTableColumns: QTableColumn[] = [
     headerStyle: "width: 95px",
   },
   {
+    name: "allocations",
+    label: "Allocation Status / Summary",
+    align: "left",
+    field: (row: StagedTransaction) => row.id,
+    sortable: false,
+    style: "width: 260px",
+    headerStyle: "width: 260px",
+  },
+  {
     name: "description",
     required: true,
     label: "Description",
@@ -48,15 +57,6 @@ export const stagingTableColumns: QTableColumn[] = [
     sortable: false,
     style: "width: 95px",
     headerStyle: "width: 95px",
-  },
-  {
-    name: "allocations",
-    label: "Allocation Status / Summary",
-    align: "left",
-    field: (row: StagedTransaction) => row.id,
-    sortable: false,
-    style: "width: 260px",
-    headerStyle: "width: 260px",
   },
   {
     name: "receipt",

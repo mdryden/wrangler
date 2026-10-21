@@ -265,3 +265,21 @@ describe("MainLayout Template & Structural Contract Specification", () => {
     expect(templateContent).toContain(".sidebar-mini-avatar {")
   })
 })
+
+describe("Application Favicon Contract", () => {
+  const indexHtmlPath = path.resolve(__dirname, "../index.html")
+  const faviconSvgPath = path.resolve(__dirname, "../public/favicon.svg")
+
+  it("links to the SVG favicon in index.html", () => {
+    const htmlContent = fs.readFileSync(indexHtmlPath, "utf-8")
+    expect(htmlContent).toContain('<link rel="icon" type="image/svg+xml" href="/favicon.svg" />')
+  })
+
+  it("provides the account_balance_wallet icon SVG asset in public/favicon.svg", () => {
+    expect(fs.existsSync(faviconSvgPath)).toBe(true)
+    const svgContent = fs.readFileSync(faviconSvgPath, "utf-8")
+    expect(svgContent).toContain('viewBox="0 0 24 24"')
+    expect(svgContent).toContain("M21 18v1c0 1.1-.9 2-2 2H5")
+    expect(svgContent).toContain("#1976D2")
+  })
+})

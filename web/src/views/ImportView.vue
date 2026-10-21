@@ -602,11 +602,11 @@ defineExpose({
       <template #body-cell-select="props">
         <q-td :props="props" align="center">
           <q-checkbox
-            v-if="props.row.status === 'STAGED' && props.row.is_ready"
             :model-value="isRowSelected(props.row.id)"
             dense
             color="primary"
             :data-testid="`checkbox-select-${props.row.id}`"
+            :disable="props.row.status !== 'STAGED' || !props.row.is_ready"
             @update:model-value="(val: boolean) => toggleRowSelection(props.row, val)"
           />
         </q-td>
@@ -708,17 +708,6 @@ defineExpose({
 
             <!-- Single Allocation or Unallocated -->
             <template v-else>
-              <!-- Unallocated badge -->
-              <q-badge
-                v-if="!props.row.is_ready"
-                color="orange-2"
-                text-color="orange-10"
-                class="q-px-sm q-py-xs text-weight-bold"
-                data-testid="badge-staged-allocation"
-              >
-                Unallocated
-              </q-badge>
-
               <!-- Quick Assign Selector -->
               <q-select
                 :model-value="getQuickAssignValue(props.row)"
