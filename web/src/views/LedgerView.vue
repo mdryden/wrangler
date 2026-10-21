@@ -12,6 +12,7 @@ import {
   getAllocationItemLabel,
   getAllocationLabel,
   getSingleAllocationCompany,
+  getTextWeightClass,
   getTransactionLockBadge,
   getTransactionLockStatus,
   hasLockedAllocations,
@@ -100,6 +101,15 @@ const pagination = ref({
 })
 
 const columns = computed<QTableColumn[]>(() => [
+  {
+    name: "lock",
+    label: "",
+    align: "center",
+    field: () => "",
+    sortable: false,
+    style: "width: 32px",
+    headerStyle: "width: 32px",
+  },
   {
     name: "date",
     required: true,
@@ -366,6 +376,7 @@ defineExpose({
   getAllocationDisplay,
   getAllocationItemLabel,
   getSingleAllocationCompany,
+  getTextWeightClass,
   getTransactionLockStatus,
   getTransactionLockBadge,
   isTransactionFullyLocked,
@@ -524,38 +535,45 @@ defineExpose({
       class="shadow-1 transaction-table"
       @request="onRequest"
     >
+      <!-- Lock Column -->
+      <template #header-cell-lock="props">
+        <q-th :props="props" auto-width />
+      </template>
+      <template #body-cell-lock="props">
+        <q-td :props="props" auto-width>
+          <q-icon v-if="isTransactionFullyLocked(props.row)" name="lock" color="amber-9" size="16px" data-testid="icon-row-fully-locked">
+            <q-tooltip>Fully Locked</q-tooltip>
+          </q-icon>
+          <q-icon
+            v-else-if="isTransactionPartiallyLocked(props.row)"
+            name="lock_open"
+            color="orange-7"
+            size="16px"
+            data-testid="icon-row-partially-locked"
+          >
+            <q-tooltip>Partially Locked</q-tooltip>
+          </q-icon>
+        </q-td>
+      </template>
+
       <!-- Date Column -->
       <template #body-cell-date="props">
         <q-td :props="props">
-          <div class="row items-center no-wrap q-gutter-x-xs">
-            <q-icon v-if="isTransactionFullyLocked(props.row)" name="lock" color="amber-9" size="16px" data-testid="icon-row-fully-locked">
-              <q-tooltip>Fully Locked</q-tooltip>
-            </q-icon>
-            <q-icon
-              v-else-if="isTransactionPartiallyLocked(props.row)"
-              name="lock_open"
-              color="orange-7"
-              size="16px"
-              data-testid="icon-row-partially-locked"
-            >
-              <q-tooltip>Partially Locked</q-tooltip>
-            </q-icon>
-            <span class="text-weight-medium">{{ props.row.date }}</span>
-          </div>
+          <span :class="getTextWeightClass(props.row)">{{ props.row.date }}</span>
         </q-td>
       </template>
 
       <!-- Description Column -->
       <template #body-cell-description="props">
         <q-td :props="props">
-          <div class="text-weight-medium">{{ props.row.description }}</div>
+          <div :class="getTextWeightClass(props.row)">{{ props.row.description }}</div>
         </q-td>
       </template>
 
       <!-- Amount Column -->
       <template #body-cell-total_amount="props">
         <q-td :props="props" align="right">
-          <span :class="Number(props.row.total_amount) < 0 ? 'text-negative text-weight-bold' : 'text-weight-bold'">
+          <span :class="[Number(props.row.total_amount) < 0 ? 'text-negative' : '', getTextWeightClass(props.row)]">
             {{ formatCurrency(props.row.total_amount) }}
           </span>
         </q-td>
@@ -564,7 +582,7 @@ defineExpose({
       <!-- Source Column -->
       <template #body-cell-source="props">
         <q-td :props="props">
-          <q-chip dense size="sm" color="blue-1" text-color="primary" class="text-weight-bold">
+          <q-chip dense size="sm" color="blue-1" text-color="primary" :class="getTextWeightClass(props.row)">
             {{ props.row.source }}
           </q-chip>
         </q-td>
@@ -574,7 +592,7 @@ defineExpose({
       <template #body-cell-allocations="props">
         <q-td :props="props">
           <div class="row items-center no-wrap q-gutter-x-xs">
-            <span class="text-weight-medium" data-testid="allocation-cell">{{ getAllocationDisplay(props.row) }}</span>
+            <span :class="getTextWeightClass(props.row)" data-testid="allocation-cell">{{ getAllocationDisplay(props.row) }}</span>
             <q-badge
               v-if="isTransactionFullyLocked(props.row)"
               color="amber-2"
@@ -582,8 +600,7 @@ defineExpose({
               class="q-px-xs"
               data-testid="badge-fully-locked"
             >
-              <q-icon name="lock" size="12px" class="q-mr-xs" />
-              Locked
+              <q-icon name="lock" size="12px" class="" />
             </q-badge>
             <q-badge
               v-else-if="isTransactionPartiallyLocked(props.row)"

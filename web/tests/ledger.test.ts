@@ -1,3 +1,5 @@
+import fs from "fs"
+import path from "path"
 import { describe, it, expect } from "vitest"
 import {
   canDeleteTransaction,
@@ -7,6 +9,7 @@ import {
   getAllocationItemLabel,
   getAllocationLabel,
   getSingleAllocationCompany,
+  getTextWeightClass,
   getTransactionLockBadge,
   getTransactionLockStatus,
   hasLockedAllocations,
@@ -338,6 +341,51 @@ describe("Ledger Allocations Display & Currency Formatting (ledger.ts)", () => {
         ),
       ).toBe("Personal")
       expect(getAllocationItemLabel(null, companyMap)).toBe("Unassigned")
+    })
+
+    it("resolves dynamic font weight class: text-weight-regular when locked, text-weight-bold when unlocked", () => {
+      // Locked transactions should render with normal font weight
+      expect(getTextWeightClass(fullyLockedTx)).toBe("text-weight-regular")
+
+      // Unlocked transactions should render with bold font weight to emphasize unsynced items
+      expect(getTextWeightClass(unlockedTx)).toBe("text-weight-bold")
+      expect(getTextWeightClass(partiallyLockedTx)).toBe("text-weight-bold")
+      expect(getTextWeightClass(null)).toBe("text-weight-bold")
+      expect(getTextWeightClass([])).toBe("text-weight-bold")
+    })
+  })
+
+  describe("LedgerView Component Column Layout & Lock Status (LedgerView.vue)", () => {
+    const viewPath = path.resolve(__dirname, "../src/views/LedgerView.vue")
+    const viewContent = fs.readFileSync(viewPath, "utf-8")
+
+    it("includes an unlabeled lock column in the first position to preserve date alignment", () => {
+      // First column definition should be the unlabeled lock column
+      const columnsBlock = viewContent.match(/const columns = computed<QTableColumn\[\]>\(\(\) => (\[[\s\S]*?\])\)/)
+      expect(columnsBlock).not.toBeNull()
+      expect(columnsBlock![1]).toMatch(/\{\s*name:\s*"lock",\s*label:\s*"",\s*align:\s*"center"/)
+
+      // Template should define lock slot templates
+      expect(viewContent).toContain('<template #header-cell-lock="props">')
+      expect(viewContent).toContain('<template #body-cell-lock="props">')
+      expect(viewContent).toContain('data-testid="icon-row-fully-locked"')
+      expect(viewContent).toContain('data-testid="icon-row-partially-locked"')
+    })
+
+    it("renders date column without internal lock icons to maintain vertical alignment", () => {
+      const dateTemplateMatch = viewContent.match(/<!-- Date Column -->[\s\S]*?<template #body-cell-date="props">([\s\S]*?)<\/template>/)
+      expect(dateTemplateMatch).not.toBeNull()
+      const dateSlot = dateTemplateMatch![1]
+      expect(dateSlot).not.toContain("icon-row-fully-locked")
+      expect(dateSlot).not.toContain("icon-row-partially-locked")
+      expect(dateSlot).toContain("getTextWeightClass(props.row)")
+      expect(dateSlot).toContain("props.row.date")
+    })
+
+    it("applies dynamic font weight across column cells", () => {
+      expect(viewContent).toContain('<div :class="getTextWeightClass(props.row)">{{ props.row.description }}</div>')
+      expect(viewContent).toContain("getTextWeightClass(props.row)")
+      expect(viewContent).toContain("getTextWeightClass")
     })
   })
 })

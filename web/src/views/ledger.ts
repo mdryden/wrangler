@@ -169,3 +169,11 @@ export function getTransactionLockBadge(target: Transaction | Allocation[] | und
     color: "grey-6",
   }
 }
+
+/**
+ * Resolves font weight CSS class for transaction ledger columns.
+ * Returns "text-weight-regular" when locked, and "text-weight-bold" when unlocked.
+ */
+export function getTextWeightClass(target: Transaction | Allocation[] | undefined | null): string {
+  return isTransactionFullyLocked(target) ? "text-weight-regular" : "text-weight-bold"
+}
