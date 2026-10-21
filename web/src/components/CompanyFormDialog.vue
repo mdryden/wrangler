@@ -61,6 +61,7 @@ watch(
 
       if (comp) {
         name.value = comp.name || ""
+        selectedAnchorId.value = comp.wave_anchor_account_id ?? null
         if (comp.is_wave_connected) {
           try {
             cachedCategories.value = await companyStore.fetchWaveCategories(comp.id)
@@ -197,7 +198,7 @@ async function onSubmit(): Promise<void> {
         token: waveToken.value.trim(),
         business_id: selectedBusinessId.value,
         business_name: chosenBiz?.name || "Wave Business",
-        equity_account_id: selectedAnchorId.value,
+        anchor_account_id: selectedAnchorId.value,
       })
     }
 
@@ -374,11 +375,11 @@ async function onSubmit(): Promise<void> {
                   :options="anchorOptions"
                   emit-value
                   map-options
-                  label="Select Anchor Account (Bank / Owner Equity) *"
+                  label="Select Anchor Account (Reimbursement / Bank) *"
                   outlined
                   dense
                   :loading="fetchingAccounts"
-                  data-testid="select-anchor-account"
+                  data-testid="select-wave-anchor"
                 />
               </div>
             </div>

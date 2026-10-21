@@ -1,7 +1,7 @@
 # Specification Amendment 1: Due to Owner Anchor Classification & Column Renaming
 
 **Target Specification:** [`specs/v3/2-wave-integration/spec.md`](file:///D:/src/personal/wrangler/specs/v3/2-wave-integration/spec.md)  
-**Status:** Approved  
+**Status:** Implemented  
 **Author:** Application Architecture  
 **Date:** 2026-10-20  
 

@@ -49,7 +49,8 @@ describe("Wave UI Integration & Adaptive Sync View (Tasks 6.1 - 6.4)", () => {
       expect(dialogTemplate).toContain('data-testid="input-wave-token"')
       expect(dialogTemplate).toContain('data-testid="btn-test-token"')
       expect(dialogTemplate).toContain('data-testid="select-wave-business"')
-      expect(dialogTemplate).toContain('data-testid="select-anchor-account"')
+      expect(dialogTemplate).toContain('data-testid="select-wave-anchor"')
+      expect(dialogTemplate).toContain('label="Select Anchor Account (Reimbursement / Bank) *"')
       expect(dialogTemplate).toContain('data-testid="btn-sync-categories"')
       expect(dialogTemplate).toContain('data-testid="btn-disconnect-wave"')
     })
@@ -84,7 +85,12 @@ describe("Wave UI Integration & Adaptive Sync View (Tasks 6.1 - 6.4)", () => {
       const mockAccounts: WaveBusinessAccountsResponse = {
         anchor_accounts: [
           { id: "acct_bank", name: "Operating Account", type: "ASSET", subtype: "CASH_AND_BANK" },
-          { id: "acct_equity", name: "Owner Contributions", type: "EQUITY", subtype: "OWNERS_EQUITY" },
+          {
+            id: "acct_due_to_owner",
+            name: "Due to You and Other Business Owners",
+            type: "LIABILITY",
+            subtype: "DUE_TO_YOU_AND_OTHER_OWNERS",
+          },
         ],
         expense_categories: [{ id: "cat_1", name: "Office Expense", type: "EXPENSE", subtype: null, is_uncategorized: false }],
       }
@@ -99,7 +105,8 @@ describe("Wave UI Integration & Adaptive Sync View (Tasks 6.1 - 6.4)", () => {
       const result = await store.fetchBusinessAccounts("token_123", "biz_1")
       expect(result.anchor_accounts).toHaveLength(2)
       expect(result.anchor_accounts[0].name).toBe("Operating Account")
-      expect(result.anchor_accounts[1].name).toBe("Owner Contributions")
+      expect(result.anchor_accounts[1].name).toBe("Due to You and Other Business Owners")
+      expect(result.anchor_accounts[1].subtype).toBe("DUE_TO_YOU_AND_OTHER_OWNERS")
     })
 
     it("displays 'Connected to Wave', 'Sync Categories', and 'Disconnect Wave' when company is connected", () => {

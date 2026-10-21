@@ -64,13 +64,13 @@ def _get_company_metrics(db: Session, company_id: uuid.UUID) -> dict[str, int | 
 
 
 def _format_company_response(company: Company, metrics: dict[str, int | Decimal]) -> dict:
-    is_wave_connected = bool(company.wave_api_token and company.wave_business_id and company.wave_equity_account_id)
+    is_wave_connected = bool(company.wave_api_token and company.wave_business_id and company.wave_anchor_account_id)
     return {
         "id": company.id,
         "name": company.name,
         "wave_business_id": company.wave_business_id,
         "wave_business_name": company.wave_business_name,
-        "wave_equity_account_id": company.wave_equity_account_id,
+        "wave_anchor_account_id": company.wave_anchor_account_id,
         "is_wave_connected": is_wave_connected,
         **metrics,
     }
@@ -321,7 +321,7 @@ async def connect_company_wave(
     company.wave_api_token = payload.token
     company.wave_business_id = payload.business_id
     company.wave_business_name = payload.business_name
-    company.wave_equity_account_id = payload.equity_account_id
+    company.wave_anchor_account_id = payload.anchor_account_id
 
     _sync_categories_for_company(db, company_id, accounts_result.expense_categories, remove_missing=False)
 
@@ -346,7 +346,7 @@ async def sync_company_wave_categories(
             detail=f"Company with ID '{company_id}' not found",
         )
 
-    if not (company.wave_api_token and company.wave_business_id and company.wave_equity_account_id):
+    if not (company.wave_api_token and company.wave_business_id and company.wave_anchor_account_id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Company is not connected to Wave",
@@ -399,7 +399,7 @@ def disconnect_company_wave(
     company.wave_api_token = None
     company.wave_business_id = None
     company.wave_business_name = None
-    company.wave_equity_account_id = None
+    company.wave_anchor_account_id = None
 
     # Delete cached categories
     categories = list(db.scalars(select(WaveCategory).where(WaveCategory.company_id == company_id)).all())
@@ -428,7 +428,7 @@ async def sync_company_to_wave(
             detail=f"Company with ID '{company_id}' not found",
         )
 
-    if not (company.wave_api_token and company.wave_business_id and company.wave_equity_account_id):
+    if not (company.wave_api_token and company.wave_business_id and company.wave_anchor_account_id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Company is not connected to Wave",
@@ -508,7 +508,7 @@ async def sync_company_to_wave(
                 date=alloc.transaction.date.isoformat(),
                 description=description,
                 amount=alloc.amount,
-                equity_account_id=company.wave_equity_account_id,
+                anchor_account_id=company.wave_anchor_account_id,
                 category_account_id=category_account_id,
             )
             alloc.is_locked = True

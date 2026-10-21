@@ -140,15 +140,27 @@ def test_wave_connect_and_disconnect(client, auth_headers, db_session):
             "token": "tok_123",
             "business_id": "biz_123",
             "business_name": "My Wave Business",
-            "equity_account_id": "a1",
+            "anchor_account_id": "a1",
         }
         resp = client.post(f"/api/companies/{company.id}/wave/connect", json=payload, headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
         assert data["wave_business_id"] == "biz_123"
         assert data["wave_business_name"] == "My Wave Business"
-        assert data["wave_equity_account_id"] == "a1"
+        assert data["wave_anchor_account_id"] == "a1"
+        assert "wave_equity_account_id" not in data
         assert data["is_wave_connected"] is True
+
+        # Check backward compatibility with equity_account_id
+        legacy_payload = {
+            "token": "tok_123",
+            "business_id": "biz_123",
+            "business_name": "My Wave Business",
+            "equity_account_id": "a1",
+        }
+        legacy_resp = client.post(f"/api/companies/{company.id}/wave/connect", json=legacy_payload, headers=auth_headers)
+        assert legacy_resp.status_code == 200
+        assert legacy_resp.json()["wave_anchor_account_id"] == "a1"
 
         # Check cached categories created
         categories_resp = client.get(f"/api/companies/{company.id}/wave/categories", headers=auth_headers)
@@ -166,6 +178,7 @@ def test_wave_connect_and_disconnect(client, auth_headers, db_session):
     del_data = del_resp.json()
     assert del_data["is_wave_connected"] is False
     assert del_data["wave_business_id"] is None
+    assert del_data["wave_anchor_account_id"] is None
 
     # Categories should be deleted
     cats_after = client.get(f"/api/companies/{company.id}/wave/categories", headers=auth_headers).json()
@@ -178,7 +191,7 @@ def test_wave_sync_categories(client, auth_headers, db_session):
         wave_api_token="tok_sync",
         wave_business_id="biz_sync",
         wave_business_name="Sync Business",
-        wave_equity_account_id="a1",
+        wave_anchor_account_id="a1",
     )
     db_session.add(company)
     db_session.commit()

@@ -143,7 +143,7 @@ def test_sync_wave_already_synced_safeguard(client, auth_headers, db_session):
         wave_api_token="tok_123",
         wave_business_id="biz_123",
         wave_business_name="Biz",
-        wave_equity_account_id="eq_123",
+        wave_anchor_account_id="anchor_123",
     )
     db_session.add(company)
     db_session.commit()
@@ -183,7 +183,7 @@ def test_sync_wave_category_fallback_and_validation(client, auth_headers, db_ses
         wave_api_token="tok_123",
         wave_business_id="biz_123",
         wave_business_name="Biz",
-        wave_equity_account_id="eq_123",
+        wave_anchor_account_id="anchor_123",
     )
     db_session.add(company)
     db_session.commit()
@@ -246,7 +246,7 @@ def test_sync_wave_receipt_memo_formatting_and_partial_sync_resilience(client, a
         wave_api_token="tok_123",
         wave_business_id="biz_123",
         wave_business_name="Biz",
-        wave_equity_account_id="eq_123",
+        wave_anchor_account_id="anchor_123",
     )
     db_session.add(company)
     db_session.commit()
@@ -291,8 +291,10 @@ def test_sync_wave_receipt_memo_formatting_and_partial_sync_resilience(client, a
     db_session.commit()
 
     captured_descriptions = []
+    captured_calls = []
 
     async def mock_create(**kwargs):
+        captured_calls.append(kwargs)
         desc = kwargs.get("description")
         captured_descriptions.append(desc)
         if "Failing Tx" in desc:
@@ -310,6 +312,11 @@ def test_sync_wave_receipt_memo_formatting_and_partial_sync_resilience(client, a
         assert len(data["errors"]) == 1
         assert data["errors"][0]["allocation_id"] == str(alloc2.id)
         assert "Upstream Wave network error" in data["errors"][0]["error"]
+
+        # Check anchor account ID passed to WaveClient
+        assert len(captured_calls) == 3
+        for call_kw in captured_calls:
+            assert call_kw["anchor_account_id"] == "anchor_123"
 
         # Check description formatting
         assert "Tx With Receipt [Receipt: receipt123.pdf]" in captured_descriptions

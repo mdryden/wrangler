@@ -23,7 +23,7 @@ Authorization: Bearer {{authToken}}
 
 {
   "name": "Family Farm LLC",
-  "wave_equity_account_id": "equity_account_farm_001",
+  "wave_anchor_account_id": "anchor_account_farm_001",
   "wave_business_id": "wave_biz_123"
 }
 
@@ -41,7 +41,7 @@ Authorization: Bearer {{authToken}}
 
 {
   "name": "Family Farm & Ranch LLC",
-  "wave_equity_account_id": "equity_account_farm_002"
+  "wave_anchor_account_id": "anchor_account_farm_002"
 }
 
 ### 6. Generate Wave OAuth Authorize URL

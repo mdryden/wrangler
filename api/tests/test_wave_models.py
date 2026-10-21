@@ -18,7 +18,7 @@ def test_company_persistence_with_wave_fields(db_session):
         wave_api_token="test-token-123",
         wave_business_id="QnVzaW5lc3M6MTIz",
         wave_business_name="Wave Corp Inc",
-        wave_equity_account_id="QWNjb3VudDoxMjM=",
+        wave_anchor_account_id="QWNjb3VudDoxMjM=",
     )
     db_session.add(company)
     db_session.commit()
@@ -27,7 +27,7 @@ def test_company_persistence_with_wave_fields(db_session):
     assert company.wave_api_token == "test-token-123"
     assert company.wave_business_id == "QnVzaW5lc3M6MTIz"
     assert company.wave_business_name == "Wave Corp Inc"
-    assert company.wave_equity_account_id == "QWNjb3VudDoxMjM="
+    assert company.wave_anchor_account_id == "QWNjb3VudDoxMjM="
 
 
 def test_wave_category_persistence_and_fk(db_session):

@@ -7,7 +7,7 @@ export interface Company {
   locked_allocation_count?: number
   wave_business_id?: string | null
   wave_business_name?: string | null
-  wave_equity_account_id?: string | null
+  wave_anchor_account_id?: string | null
   is_wave_connected?: boolean
 }
 

@@ -33,7 +33,8 @@ def test_database_schema_setup():
     assert "id" in company_cols
     assert "name" in company_cols
     assert not company_cols["name"]["nullable"]
-    assert "wave_equity_account_id" in company_cols
+    assert "wave_anchor_account_id" in company_cols
+    assert "wave_equity_account_id" not in company_cols
     assert "wave_business_id" in company_cols
     assert "wave_access_token" not in company_cols
     assert "wave_refresh_token" not in company_cols

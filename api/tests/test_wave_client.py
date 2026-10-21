@@ -106,7 +106,7 @@ async def test_get_business_accounts_filtering():
                                 "isArchived": True,
                             }
                         },
-                        # Valid Anchor: Bank
+                        # Valid Anchor: Bank (Asset)
                         {
                             "node": {
                                 "id": "acct_bank",
@@ -116,7 +116,7 @@ async def test_get_business_accounts_filtering():
                                 "isArchived": False,
                             }
                         },
-                        # Valid Anchor: Credit Card
+                        # Valid Anchor: Credit Card (Liability)
                         {
                             "node": {
                                 "id": "acct_cc",
@@ -126,7 +126,17 @@ async def test_get_business_accounts_filtering():
                                 "isArchived": False,
                             }
                         },
-                        # Valid Anchor: Owner's Equity
+                        # Valid Anchor: Due to You and Other Business Owners (Liability)
+                        {
+                            "node": {
+                                "id": "acct_due_to_owner",
+                                "name": "Due to You and Other Business Owners",
+                                "type": {"value": "LIABILITY"},
+                                "subtype": {"value": "DUE_TO_YOU_AND_OTHER_OWNERS"},
+                                "isArchived": False,
+                            }
+                        },
+                        # Excluded from anchors: Owner's Equity (Equity)
                         {
                             "node": {
                                 "id": "acct_equity",
@@ -176,9 +186,13 @@ async def test_get_business_accounts_filtering():
     with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_resp):
         res: WaveAccountsResult = await WaveClient.get_business_accounts("token-abc", "biz_1")
 
-        # Anchors should have checking, credit card, owner equity
+        # Anchors should have checking, credit card, and due to owner, but NOT owner equity
         anchor_ids = [a.id for a in res.anchor_accounts]
-        assert anchor_ids == ["acct_bank", "acct_cc", "acct_equity"]
+        assert "acct_bank" in anchor_ids
+        assert "acct_cc" in anchor_ids
+        assert "acct_due_to_owner" in anchor_ids
+        assert "acct_equity" not in anchor_ids
+        assert anchor_ids == ["acct_bank", "acct_cc", "acct_due_to_owner"]
         assert all(isinstance(a, WaveAccount) for a in res.anchor_accounts)
 
         # Expense categories should have supplies and uncategorized
@@ -218,7 +232,7 @@ async def test_create_money_transaction_positive_expense():
             date="2026-10-20",
             description="Office Chairs [Receipt: chair.png]",
             amount=Decimal("250.75"),
-            equity_account_id="acct_equity_1",
+            anchor_account_id="acct_anchor_1",
             category_account_id="acct_cat_1",
         )
 
@@ -230,7 +244,7 @@ async def test_create_money_transaction_positive_expense():
         assert inp["date"] == "2026-10-20"
         assert inp["description"] == "Office Chairs [Receipt: chair.png]"
         # Anchor check: WITHDRAWAL
-        assert inp["anchor"]["accountId"] == "acct_equity_1"
+        assert inp["anchor"]["accountId"] == "acct_anchor_1"
         assert inp["anchor"]["amount"] == 250.75
         assert inp["anchor"]["direction"] == "WITHDRAWAL"
         # LineItems check: INCREASE
@@ -266,14 +280,14 @@ async def test_create_money_transaction_negative_refund():
             date="2026-10-20",
             description="Item Return",
             amount=Decimal("-45.50"),
-            equity_account_id="acct_equity_1",
+            anchor_account_id="acct_anchor_1",
             category_account_id="acct_cat_1",
         )
 
         assert tx_id == "wave_refund_888"
         inp = captured_payload["variables"]["input"]
         # Anchor check: DEPOSIT with absolute amount
-        assert inp["anchor"]["accountId"] == "acct_equity_1"
+        assert inp["anchor"]["accountId"] == "acct_anchor_1"
         assert inp["anchor"]["amount"] == 45.50
         assert inp["anchor"]["direction"] == "DEPOSIT"
         # LineItems check: DECREASE with absolute amount
@@ -311,6 +325,6 @@ async def test_create_money_transaction_input_errors():
                 date="2026-10-20",
                 description="Failed Tx",
                 amount=Decimal("100.00"),
-                equity_account_id="acct_bad",
+                anchor_account_id="acct_bad",
                 category_account_id="acct_cat_1",
             )

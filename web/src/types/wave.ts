@@ -21,7 +21,7 @@ export interface WaveConnectPayload {
   token: string
   business_id: string
   business_name: string
-  equity_account_id: string
+  anchor_account_id: string
 }
 
 export interface WaveCategory {

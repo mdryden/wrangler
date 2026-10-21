@@ -20,6 +20,6 @@ class Company(Base):
     wave_api_token: Mapped[str | None] = mapped_column(String, nullable=True)
     wave_business_id: Mapped[str | None] = mapped_column(String, nullable=True)
     wave_business_name: Mapped[str | None] = mapped_column(String, nullable=True)
-    wave_equity_account_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    wave_anchor_account_id: Mapped[str | None] = mapped_column(String, nullable=True)
 
     categories: Mapped[list[WaveCategory]] = relationship("WaveCategory", back_populates="company", cascade="all, delete-orphan")

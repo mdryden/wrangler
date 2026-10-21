@@ -178,8 +178,13 @@ class WaveClient:
         anchor_accounts: list[WaveAccount] = []
         expense_categories: list[WaveAccount] = []
 
-        valid_anchor_subtypes = {"CASH_AND_BANK", "CREDIT_CARD", "MONEY_MARKET", "OWNERS_EQUITY"}
-        valid_anchor_types = {"ASSET", "LIABILITY", "EQUITY"}
+        valid_anchor_subtypes = {
+            "DUE_TO_YOU_AND_OTHER_OWNERS",
+            "CASH_AND_BANK",
+            "CREDIT_CARD",
+            "MONEY_MARKET",
+        }
+        valid_anchor_types = {"ASSET", "LIABILITY"}
 
         for edge in accounts_edges:
             node = edge.get("node", {})
@@ -226,7 +231,7 @@ class WaveClient:
         date: str,
         description: str,
         amount: Decimal,
-        equity_account_id: str,
+        anchor_account_id: str,
         category_account_id: str,
     ) -> str:
         """Execute Wave moneyTransactionCreate mutation with double-entry balance mappings."""
@@ -244,7 +249,7 @@ class WaveClient:
             "date": date,
             "description": description,
             "anchor": {
-                "accountId": equity_account_id,
+                "accountId": anchor_account_id,
                 "amount": float_amt,
                 "direction": anchor_direction,
             },

@@ -251,7 +251,12 @@ export const useCompanyStore = defineStore("companies", () => {
   async function connectWave(companyId: string, payload: WaveConnectPayload): Promise<Company> {
     error.value = null
     try {
-      const updated = await apiClient.post<Company>(`/api/companies/${companyId}/wave/connect`, payload)
+      const updated = await apiClient.post<Company>(`/api/companies/${companyId}/wave/connect`, {
+        token: payload.token,
+        business_id: payload.business_id,
+        business_name: payload.business_name,
+        anchor_account_id: payload.anchor_account_id,
+      })
       const index = companies.value.findIndex(c => c.id === companyId)
       if (index !== -1) {
         companies.value[index] = updated

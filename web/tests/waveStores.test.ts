@@ -101,7 +101,7 @@ describe("Wave Store Integration", () => {
       name: "Acme Corp",
       wave_business_id: "biz_1",
       wave_business_name: "Acme Wave",
-      wave_equity_account_id: "a1",
+      wave_anchor_account_id: "a1",
       is_wave_connected: true,
     }
 
@@ -116,7 +116,7 @@ describe("Wave Store Integration", () => {
       token: "tok_123",
       business_id: "biz_1",
       business_name: "Acme Wave",
-      equity_account_id: "a1",
+      anchor_account_id: "a1",
     }
     const result = await store.connectWave("comp_1", payload)
 
@@ -128,7 +128,9 @@ describe("Wave Store Integration", () => {
       }),
     )
     expect(result.is_wave_connected).toBe(true)
+    expect(result.wave_anchor_account_id).toBe("a1")
     expect(store.companies.find(c => c.id === "comp_1")?.is_wave_connected).toBe(true)
+    expect(store.companies.find(c => c.id === "comp_1")?.wave_anchor_account_id).toBe("a1")
   })
 
   it("disconnectWave clears credentials and resets is_wave_connected to false", async () => {
@@ -138,7 +140,7 @@ describe("Wave Store Integration", () => {
         id: "comp_1",
         name: "Acme Corp",
         wave_business_id: "biz_1",
-        wave_equity_account_id: "a1",
+        wave_anchor_account_id: "a1",
         is_wave_connected: true,
       },
     ]
@@ -147,7 +149,7 @@ describe("Wave Store Integration", () => {
       id: "comp_1",
       name: "Acme Corp",
       wave_business_id: null,
-      wave_equity_account_id: null,
+      wave_anchor_account_id: null,
       is_wave_connected: false,
     }
 
@@ -167,7 +169,9 @@ describe("Wave Store Integration", () => {
       }),
     )
     expect(result.is_wave_connected).toBe(false)
+    expect(result.wave_anchor_account_id).toBeNull()
     expect(store.companies.find(c => c.id === "comp_1")?.is_wave_connected).toBe(false)
+    expect(store.companies.find(c => c.id === "comp_1")?.wave_anchor_account_id).toBeNull()
   })
 
   it("fetchWaveCategories and syncWaveCategories fetch and refresh cached categories", async () => {

@@ -1,7 +1,8 @@
 import uuid
 from decimal import Decimal
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class CompanyBase(BaseModel):
@@ -24,7 +25,7 @@ class CompanyResponse(CompanyBase):
     locked_allocation_count: int = 0
     wave_business_id: str | None = None
     wave_business_name: str | None = None
-    wave_equity_account_id: str | None = None
+    wave_anchor_account_id: str | None = None
     is_wave_connected: bool = False
 
     model_config = ConfigDict(from_attributes=True)
@@ -66,10 +67,20 @@ class WaveBusinessAccountsResponse(BaseModel):
 
 
 class WaveConnectRequest(BaseModel):
-    token: str = Field(..., min_length=1)
-    business_id: str = Field(..., min_length=1)
-    business_name: str = Field(..., min_length=1)
-    equity_account_id: str = Field(..., min_length=1)
+    token: str = Field(..., min_length=1, description="Wave Full Access Bearer Token")
+    business_id: str = Field(..., min_length=1, description="Wave Business ID")
+    business_name: str = Field(..., min_length=1, description="Wave Business Name")
+    anchor_account_id: str = Field(..., min_length=1, description="Selected Wave Anchor Account ID")
+    equity_account_id: str | None = Field(default=None, description="Legacy fallback alias for anchor_account_id")
+
+    @model_validator(mode="before")
+    @classmethod
+    def fallback_equity_account_id(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "anchor_account_id" not in data and "equity_account_id" in data:
+                data = dict(data)
+                data["anchor_account_id"] = data["equity_account_id"]
+        return data
 
 
 class WaveCategoryResponse(BaseModel):

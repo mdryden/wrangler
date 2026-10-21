@@ -32,7 +32,8 @@ def test_alembic_migrations_upgrade_and_downgrade(tmp_path):
 
     # Verify columns at head
     company_cols = {col["name"] for col in inspector.get_columns("companies")}
-    assert "wave_equity_account_id" in company_cols
+    assert "wave_anchor_account_id" in company_cols
+    assert "wave_equity_account_id" not in company_cols
     assert "wave_business_id" in company_cols
 
     alloc_cols = {col["name"] for col in inspector.get_columns("allocations")}
@@ -194,3 +195,37 @@ def test_alembic_migration_remove_currency_code_upgrade_downgrade(tmp_path):
         assert tx_row[0] == "CAD"
         staged_row = conn.execute(text("SELECT currency_code FROM staged_transactions WHERE id = :id"), {"id": staged_id}).fetchone()
         assert staged_row[0] == "CAD"
+
+
+def test_alembic_migration_rename_equity_account_upgrade_downgrade(tmp_path):
+    db_file = tmp_path / "test_anchor_migration.db"
+    db_url = f"sqlite:///{db_file.as_posix()}"
+
+    ini_path = Path(__file__).resolve().parent.parent / "alembic.ini"
+    alembic_cfg = Config(str(ini_path))
+    alembic_cfg.set_main_option("sqlalchemy.url", db_url)
+
+    # Upgrade to revision before rename: f2a7b1c9d8e3
+    command.upgrade(alembic_cfg, "f2a7b1c9d8e3")
+
+    engine = create_engine(db_url)
+    inspector = inspect(engine)
+    company_cols_before = {col["name"] for col in inspector.get_columns("companies")}
+    assert "wave_equity_account_id" in company_cols_before
+    assert "wave_anchor_account_id" not in company_cols_before
+
+    # Upgrade to head (a1c4e9b8f3d2)
+    command.upgrade(alembic_cfg, "head")
+
+    inspector = inspect(engine)
+    company_cols_head = {col["name"] for col in inspector.get_columns("companies")}
+    assert "wave_anchor_account_id" in company_cols_head
+    assert "wave_equity_account_id" not in company_cols_head
+
+    # Downgrade back to f2a7b1c9d8e3
+    command.downgrade(alembic_cfg, "f2a7b1c9d8e3")
+
+    inspector = inspect(engine)
+    company_cols_downgrade = {col["name"] for col in inspector.get_columns("companies")}
+    assert "wave_equity_account_id" in company_cols_downgrade
+    assert "wave_anchor_account_id" not in company_cols_downgrade
