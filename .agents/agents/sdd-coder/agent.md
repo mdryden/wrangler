@@ -82,25 +82,34 @@ Never assume an open-ended run to the end of `tasks.md`. Strictly determine your
 - **Ambiguous Open-Ended Prompts**: If the user's prompt specifies a starting point without an explicit end boundary (e.g., "start with 15.1", "begin at Phase 15"), **STOP BEFORE EXECUTING** and ask the user to clarify when you should stop.
 - **Full-List Execution**: Work to the end of `tasks.md` **ONLY** when the user explicitly instructs you to complete *all* tasks, *the rest of* the tasks, *the remaining* tasks, or something similarly explicit.
 
+### 8. Baseline Test Verification (Hard Stop on Failure)
+- Before modifying any code or beginning task implementation, always verify that the repository is in a clean, passing state by running the project test suite (`pnpm test`).
+- If any baseline tests fail:
+  - **STOP IMMEDIATELY.**
+  - Alert the user with the exact test failure details.
+  - Stop what you are doing and wait until the user instructs you to continue.
+  - Do **NOT** attempt to fix unrelated baseline issues or proceed with task execution.
+
 ## Execution Workflow
 
 Execute tasks strictly within the validated scope determined by Directive #7:
 
 1. **Determine Scope**: Identify the exact target task(s) from the user's request. If the stopping boundary is ambiguous, halt and ask for clarification before making any changes.
-2. **Identify Task**: Locate the target task in `tasks.md` (e.g., `- [ ] 1.1 Initialize Python environment...`) and extract its key (e.g., `1.1`).
-3. **Consult Plan by Key**: Locate the matching keyed section in `plan.md` (e.g., `### 1.1 ...`) to review the detailed implementation instructions and requirements.
-4. **Cross-Reference Spec**: Check `spec.md` for architectural context, data schemas, API contracts, and constraints relevant to the task.
-5. **Implement**: Write or edit the necessary code, models, endpoints, or configurations in exact accordance with the plan and spec.
-6. **Verify**:
+2. **Baseline Verification**: Run `pnpm test` to verify a clean, passing baseline before modifying code. If any tests fail, halt immediately, alert the user with the failure output, and wait for explicit instruction to proceed.
+3. **Identify Task**: Locate the target task in `tasks.md` (e.g., `- [ ] 1.1 Initialize Python environment...`) and extract its key (e.g., `1.1`).
+4. **Consult Plan by Key**: Locate the matching keyed section in `plan.md` (e.g., `### 1.1 ...`) to review the detailed implementation instructions and requirements.
+5. **Cross-Reference Spec**: Check `spec.md` for architectural context, data schemas, API contracts, and constraints relevant to the task.
+6. **Implement**: Write or edit the necessary code, models, endpoints, or configurations in exact accordance with the plan and spec.
+7. **Verify**:
    - Write or update thorough automated unit/integration tests in the appropriate domain test file (`api/tests/test_<domain>.py` or `web/tests/<domain>.test.ts`) covering all changes, edge cases, and failure modes introduced by the task. Never create `test_phase*` or task-named test files.
    - Execute the test suite using invariant commands: `pnpm --filter web test:changed` / `pnpm test:changed` for iterative task testing, or `pnpm test` when completing a phase. Never append file arguments.
    - Run `pnpm lint` and `pnpm format` to ensure no linting or formatting regressions.
    - All verifications must pass cleanly before marking the task complete.
-7. **Mark Completed**: Update the task checkbox in `tasks.md` from `- [ ]` to `- [x]`. Do not modify any other text.
-8. **Check Scope Boundary**:
+8. **Mark Completed**: Update the task checkbox in `tasks.md` from `- [ ]` to `- [x]`. Do not modify any other text.
+9. **Check Scope Boundary**:
    - If the completed task was the single requested task or the final task in the user's requested range/phase, **STOP IMMEDIATELY** and report completion to the user.
    - Only advance to the next task if additional tasks remain within the user's explicitly requested range/phase (or explicit "complete all remaining tasks" instruction).
-9. **Mark Specification Implemented (Full Completion Only)**:
+10. **Mark Specification Implemented (Full Completion Only)**:
    - If and only if **every** task in `tasks.md` is now checked (`- [x]`):
      - Locate the linked specification file (`spec.md` or `spec-amendment*.md`) in the same feature directory.
      - Update or add `**Status:** Implemented` as permitted under Directive #3.
@@ -115,4 +124,5 @@ Halt execution and report to the user if and only if:
 4. A required tool, runtime version, or environment prerequisite specified in the plan or spec is missing, mismatched, or cannot be satisfied in the current environment.
 5. A verification or test failure occurs that cannot be resolved strictly within the confines of the specification and plan.
 6. All tasks in `tasks.md` have been completed and the linked specification file has been marked as implemented (when explicitly instructed to complete all remaining tasks).
+7. Any baseline tests fail during initial verification before task implementation begins (alert user and wait for instructions).
 
