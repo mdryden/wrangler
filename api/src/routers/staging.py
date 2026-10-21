@@ -20,6 +20,10 @@ from models.transaction import Transaction
 from schemas.staging import (
     PaginatedStagedTransactionsResponse,
     StagedAllocationItem,
+    StagedBulkAllocateRequest,
+    StagedBulkAllocateResponse,
+    StagedBulkDismissRequest,
+    StagedBulkDismissResponse,
     StagedTransactionResponse,
     StagedTransactionUpdate,
     StagingAcceptRequest,
@@ -333,6 +337,122 @@ def restore_staged_transaction(
     db.commit()
     db.refresh(staged_tx)
     return serialize_staged_transaction(staged_tx)
+
+
+@router.post("/bulk-allocate", response_model=StagedBulkAllocateResponse)
+def bulk_allocate_staged(
+    payload: StagedBulkAllocateRequest,
+    db: Annotated[Session, Depends(get_db)],
+) -> StagedBulkAllocateResponse:
+    """Atomically update allocations for a batch of staged transactions to 100% of an entity or clear allocations."""
+    if not payload.staged_transaction_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="staged_transaction_ids must not be empty",
+        )
+
+    if payload.company_id is not None:
+        company = db.get(Company, payload.company_id)
+        if company is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Company not found",
+            )
+
+    stmt = (
+        select(StagedTransaction)
+        .options(selectinload(StagedTransaction.allocations))
+        .where(StagedTransaction.id.in_(payload.staged_transaction_ids))
+        .order_by(StagedTransaction.date.asc(), StagedTransaction.id.asc())
+    )
+    records = list(db.scalars(stmt).all())
+    qualifying_staged = [stx for stx in records if stx.status == "STAGED"]
+
+    for staged_tx in qualifying_staged:
+        staged_tx.allocations.clear()
+        if not payload.clear:
+            if staged_tx.total_amount is None or staged_tx.total_amount == 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot allocate staged transaction without a total amount",
+                )
+            new_alloc = StagedAllocation(
+                id=uuid.uuid4(),
+                staged_transaction_id=staged_tx.id,
+                amount=staged_tx.total_amount,
+                is_personal=payload.is_personal,
+                company_id=payload.company_id,
+            )
+            staged_tx.allocations.append(new_alloc)
+
+    db.commit()
+
+    return StagedBulkAllocateResponse(
+        updated_count=len(qualifying_staged),
+        staged_transaction_ids=[stx.id for stx in qualifying_staged],
+    )
+
+
+@router.post("/bulk-dismiss", response_model=StagedBulkDismissResponse)
+async def bulk_dismiss_staged(
+    payload: StagedBulkDismissRequest,
+    db: Annotated[Session, Depends(get_db)],
+) -> StagedBulkDismissResponse:
+    """Atomically dismiss a batch of staged transactions, clean receipts, and trigger importer mark_as_imported hooks."""
+    if not payload.staged_transaction_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="staged_transaction_ids must not be empty",
+        )
+
+    stmt = (
+        select(StagedTransaction)
+        .options(selectinload(StagedTransaction.allocations))
+        .where(StagedTransaction.id.in_(payload.staged_transaction_ids))
+        .order_by(StagedTransaction.date.asc(), StagedTransaction.id.asc())
+    )
+    records = list(db.scalars(stmt).all())
+    qualifying_staged = [stx for stx in records if stx.status == "STAGED"]
+
+    for staged_tx in qualifying_staged:
+        staged_tx.allocations.clear()
+        if staged_tx.receipt_file_path:
+            delete_receipt_file(staged_tx.receipt_file_path)
+            staged_tx.receipt_file_path = None
+        staged_tx.status = "DISMISSED"
+        db.add(staged_tx)
+
+    db.commit()
+
+    by_source: dict[str, list[StagedTransaction]] = defaultdict(list)
+    for stx in qualifying_staged:
+        if stx.external_id is not None and not stx.is_marked_imported:
+            by_source[stx.source].append(stx)
+
+    marked_imported_count = 0
+    mark_imported_errors: list[str] = []
+
+    for source_name, staged_rows in by_source.items():
+        importer = get_importer_by_source(source_name)
+        if importer is not None and importer.supports_mark_imported:
+            ext_ids = [row.external_id for row in staged_rows if row.external_id is not None]
+            try:
+                await importer.mark_as_imported(ext_ids)
+                for row in staged_rows:
+                    row.is_marked_imported = True
+                    db.add(row)
+                db.commit()
+                marked_imported_count += len(staged_rows)
+            except Exception as exc:
+                db.rollback()
+                mark_imported_errors.append(f"{source_name}: {exc}")
+
+    return StagedBulkDismissResponse(
+        dismissed_count=len(qualifying_staged),
+        staged_transaction_ids=[stx.id for stx in qualifying_staged],
+        marked_imported_count=marked_imported_count,
+        mark_imported_errors=mark_imported_errors,
+    )
 
 
 @router.post("/accept", response_model=StagingAcceptResponse)

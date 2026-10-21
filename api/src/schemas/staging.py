@@ -1,8 +1,9 @@
 import datetime
 import uuid
 from decimal import Decimal
+from typing import Self
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from models.staged_transaction import StagedTransaction
 from services.importers.registry import get_importer_by_source
@@ -102,6 +103,41 @@ class StagingAcceptRequest(BaseModel):
 class StagingAcceptResponse(BaseModel):
     accepted_count: int
     ledger_transaction_ids: list[uuid.UUID]
+    marked_imported_count: int
+    mark_imported_errors: list[str]
+
+
+class StagedBulkAllocateRequest(BaseModel):
+    staged_transaction_ids: list[uuid.UUID]
+    is_personal: bool = False
+    company_id: uuid.UUID | None = None
+    clear: bool = False
+
+    @model_validator(mode="after")
+    def validate_entity_choice(self) -> Self:
+        if self.clear:
+            if self.is_personal or self.company_id is not None:
+                raise ValueError("Cannot specify is_personal or company_id when clear is True")
+            return self
+        if self.is_personal and self.company_id is not None:
+            raise ValueError("Cannot specify both is_personal and company_id")
+        if not self.is_personal and self.company_id is None:
+            raise ValueError("Must specify either is_personal=True, a company_id, or clear=True")
+        return self
+
+
+class StagedBulkAllocateResponse(BaseModel):
+    updated_count: int
+    staged_transaction_ids: list[uuid.UUID]
+
+
+class StagedBulkDismissRequest(BaseModel):
+    staged_transaction_ids: list[uuid.UUID]
+
+
+class StagedBulkDismissResponse(BaseModel):
+    dismissed_count: int
+    staged_transaction_ids: list[uuid.UUID]
     marked_imported_count: int
     mark_imported_errors: list[str]
 

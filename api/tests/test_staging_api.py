@@ -117,6 +117,8 @@ def test_staging_unauthenticated_blocked(client):
     assert client.post(f"/api/staging/{sid}/dismiss").status_code == 401
     assert client.post(f"/api/staging/{sid}/restore").status_code == 401
     assert client.post("/api/staging/accept").status_code == 401
+    assert client.post("/api/staging/bulk-allocate", json={"staged_transaction_ids": [str(sid)], "clear": True}).status_code == 401
+    assert client.post("/api/staging/bulk-dismiss", json={"staged_transaction_ids": [str(sid)]}).status_code == 401
 
 
 def test_list_staged_transactions_filtering_and_pagination(client, auth_headers, db_session, markable_importer):
@@ -549,3 +551,395 @@ def test_batch_accept_staged_transactions_and_mark_imported_hooks(client, auth_h
     assert refreshed_3.status == "ACCEPTED"
     assert refreshed_3.is_marked_imported is False
     assert refreshed_3.ledger_transaction_id is not None
+
+
+def test_bulk_allocate_personal(client, auth_headers, db_session):
+    c1 = Company(id=uuid.uuid4(), name="Company A")
+    db_session.add(c1)
+    st1 = StagedTransaction(
+        id=uuid.uuid4(),
+        source="csv",
+        date=date(2026, 4, 1),
+        description="Office Supplies",
+        total_amount=Decimal("45.00"),
+        status="STAGED",
+    )
+    st2 = StagedTransaction(
+        id=uuid.uuid4(),
+        source="csv",
+        date=date(2026, 4, 2),
+        description="Software Subscription",
+        total_amount=Decimal("120.00"),
+        status="STAGED",
+    )
+    db_session.add_all([st1, st2])
+    db_session.flush()
+    # Add an existing company allocation to st2 to verify replacement
+    db_session.add(StagedAllocation(staged_transaction_id=st2.id, amount=Decimal("120.00"), is_personal=False, company_id=c1.id))
+    db_session.commit()
+
+    res = client.post(
+        "/api/staging/bulk-allocate",
+        json={"staged_transaction_ids": [str(st1.id), str(st2.id)], "is_personal": True},
+        headers=auth_headers,
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["updated_count"] == 2
+    assert set(body["staged_transaction_ids"]) == {str(st1.id), str(st2.id)}
+
+    db_session.expire_all()
+    for st_id, expected_amount in [(st1.id, Decimal("45.00")), (st2.id, Decimal("120.00"))]:
+        st = db_session.get(StagedTransaction, st_id)
+        assert len(st.allocations) == 1
+        alloc = st.allocations[0]
+        assert alloc.is_personal is True
+        assert alloc.company_id is None
+        assert alloc.amount == expected_amount
+
+    # Also verify through GET /api/staging that is_ready is computed as True
+    list_res = client.get("/api/staging", headers=auth_headers)
+    assert list_res.status_code == 200
+    items_by_id = {item["id"]: item for item in list_res.json()["items"]}
+    assert items_by_id[str(st1.id)]["is_ready"] is True
+    assert items_by_id[str(st2.id)]["is_ready"] is True
+
+
+def test_bulk_allocate_company(client, auth_headers, db_session):
+    c1 = Company(id=uuid.uuid4(), name="Company A")
+    db_session.add(c1)
+    st1 = StagedTransaction(
+        id=uuid.uuid4(),
+        source="csv",
+        date=date(2026, 4, 3),
+        description="Printer Ink",
+        total_amount=Decimal("89.99"),
+        status="STAGED",
+    )
+    st2 = StagedTransaction(
+        id=uuid.uuid4(),
+        source="csv",
+        date=date(2026, 4, 4),
+        description="Cloud Hosting",
+        total_amount=Decimal("250.00"),
+        status="STAGED",
+    )
+    db_session.add_all([st1, st2])
+    db_session.commit()
+
+    res = client.post(
+        "/api/staging/bulk-allocate",
+        json={"staged_transaction_ids": [str(st1.id), str(st2.id)], "company_id": str(c1.id)},
+        headers=auth_headers,
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["updated_count"] == 2
+
+    db_session.expire_all()
+    for st_id, expected_amount in [(st1.id, Decimal("89.99")), (st2.id, Decimal("250.00"))]:
+        st = db_session.get(StagedTransaction, st_id)
+        assert len(st.allocations) == 1
+        alloc = st.allocations[0]
+        assert alloc.is_personal is False
+        assert alloc.company_id == c1.id
+        assert alloc.amount == expected_amount
+
+    list_res = client.get("/api/staging", headers=auth_headers)
+    items_by_id = {item["id"]: item for item in list_res.json()["items"]}
+    assert items_by_id[str(st1.id)]["is_ready"] is True
+    assert items_by_id[str(st2.id)]["is_ready"] is True
+
+
+def test_bulk_allocate_clear(client, auth_headers, db_session):
+    c1 = Company(id=uuid.uuid4(), name="Company A")
+    db_session.add(c1)
+    st = StagedTransaction(
+        id=uuid.uuid4(),
+        source="csv",
+        date=date(2026, 4, 5),
+        description="Team Lunch",
+        total_amount=Decimal("60.00"),
+        status="STAGED",
+    )
+    db_session.add(st)
+    db_session.flush()
+    db_session.add(StagedAllocation(staged_transaction_id=st.id, amount=Decimal("60.00"), is_personal=False, company_id=c1.id))
+    db_session.commit()
+
+    # Clear allocations
+    res = client.post(
+        "/api/staging/bulk-allocate",
+        json={"staged_transaction_ids": [str(st.id)], "clear": True},
+        headers=auth_headers,
+    )
+    assert res.status_code == 200
+    assert res.json()["updated_count"] == 1
+
+    db_session.expire_all()
+    refreshed = db_session.get(StagedTransaction, st.id)
+    assert len(refreshed.allocations) == 0
+
+    list_res = client.get("/api/staging", headers=auth_headers)
+    items_by_id = {item["id"]: item for item in list_res.json()["items"]}
+    assert items_by_id[str(st.id)]["is_ready"] is False
+
+
+def test_bulk_allocate_overwrites_existing_splits(client, auth_headers, db_session):
+    c1 = Company(id=uuid.uuid4(), name="Company 1")
+    c2 = Company(id=uuid.uuid4(), name="Company 2")
+    db_session.add_all([c1, c2])
+    st = StagedTransaction(
+        id=uuid.uuid4(),
+        source="csv",
+        date=date(2026, 4, 6),
+        description="Shared Equipment",
+        total_amount=Decimal("100.00"),
+        status="STAGED",
+    )
+    db_session.add(st)
+    db_session.flush()
+    # Add two split allocations
+    db_session.add(StagedAllocation(staged_transaction_id=st.id, amount=Decimal("60.00"), is_personal=False, company_id=c1.id))
+    db_session.add(StagedAllocation(staged_transaction_id=st.id, amount=Decimal("40.00"), is_personal=False, company_id=c2.id))
+    db_session.commit()
+
+    res = client.post(
+        "/api/staging/bulk-allocate",
+        json={"staged_transaction_ids": [str(st.id)], "company_id": str(c1.id)},
+        headers=auth_headers,
+    )
+    assert res.status_code == 200
+    assert res.json()["updated_count"] == 1
+
+    db_session.expire_all()
+    refreshed = db_session.get(StagedTransaction, st.id)
+    assert len(refreshed.allocations) == 1
+    assert refreshed.allocations[0].amount == Decimal("100.00")
+    assert refreshed.allocations[0].company_id == c1.id
+
+
+def test_bulk_allocate_skips_non_staged(client, auth_headers, db_session):
+    st_staged = StagedTransaction(
+        id=uuid.uuid4(),
+        source="csv",
+        date=date(2026, 4, 7),
+        description="Active Staged",
+        total_amount=Decimal("25.00"),
+        status="STAGED",
+    )
+    st_accepted = StagedTransaction(
+        id=uuid.uuid4(),
+        source="csv",
+        date=date(2026, 4, 7),
+        description="Already Accepted",
+        total_amount=Decimal("50.00"),
+        status="ACCEPTED",
+    )
+    st_dismissed = StagedTransaction(
+        id=uuid.uuid4(),
+        source="csv",
+        date=date(2026, 4, 7),
+        description="Already Dismissed",
+        total_amount=Decimal("75.00"),
+        status="DISMISSED",
+    )
+    db_session.add_all([st_staged, st_accepted, st_dismissed])
+    db_session.commit()
+
+    res = client.post(
+        "/api/staging/bulk-allocate",
+        json={
+            "staged_transaction_ids": [str(st_staged.id), str(st_accepted.id), str(st_dismissed.id)],
+            "is_personal": True,
+        },
+        headers=auth_headers,
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["updated_count"] == 1
+    assert body["staged_transaction_ids"] == [str(st_staged.id)]
+
+    db_session.expire_all()
+    assert len(db_session.get(StagedTransaction, st_staged.id).allocations) == 1
+    assert len(db_session.get(StagedTransaction, st_accepted.id).allocations) == 0
+    assert len(db_session.get(StagedTransaction, st_dismissed.id).allocations) == 0
+
+
+def test_bulk_allocate_validation_errors(client, auth_headers, db_session):
+    st = StagedTransaction(
+        id=uuid.uuid4(),
+        source="csv",
+        date=date(2026, 4, 8),
+        description="Test Item",
+        total_amount=Decimal("30.00"),
+        status="STAGED",
+    )
+    st_no_amount = StagedTransaction(
+        id=uuid.uuid4(),
+        source="csv",
+        date=date(2026, 4, 8),
+        description="Missing Amount",
+        total_amount=None,
+        status="STAGED",
+    )
+    db_session.add_all([st, st_no_amount])
+    db_session.commit()
+
+    # 1. Empty list
+    res = client.post(
+        "/api/staging/bulk-allocate",
+        json={"staged_transaction_ids": [], "is_personal": True},
+        headers=auth_headers,
+    )
+    assert res.status_code == 400
+    assert "staged_transaction_ids must not be empty" in res.json()["detail"]
+
+    # 2. Both personal and company
+    res = client.post(
+        "/api/staging/bulk-allocate",
+        json={
+            "staged_transaction_ids": [str(st.id)],
+            "is_personal": True,
+            "company_id": str(uuid.uuid4()),
+        },
+        headers=auth_headers,
+    )
+    assert res.status_code == 422
+
+    # 3. Clear with personal/company
+    res = client.post(
+        "/api/staging/bulk-allocate",
+        json={
+            "staged_transaction_ids": [str(st.id)],
+            "clear": True,
+            "is_personal": True,
+        },
+        headers=auth_headers,
+    )
+    assert res.status_code == 422
+
+    # 4. Omitting all entity fields (is_personal=False, company_id=None, clear=False)
+    res = client.post(
+        "/api/staging/bulk-allocate",
+        json={"staged_transaction_ids": [str(st.id)]},
+        headers=auth_headers,
+    )
+    assert res.status_code == 422
+
+    # 5. Non-existent company ID
+    res = client.post(
+        "/api/staging/bulk-allocate",
+        json={"staged_transaction_ids": [str(st.id)], "company_id": str(uuid.uuid4())},
+        headers=auth_headers,
+    )
+    assert res.status_code == 400
+    assert "Company not found" in res.json()["detail"]
+
+    # 6. Transaction with missing total_amount
+    res = client.post(
+        "/api/staging/bulk-allocate",
+        json={"staged_transaction_ids": [str(st_no_amount.id)], "is_personal": True},
+        headers=auth_headers,
+    )
+    assert res.status_code == 400
+    assert "Cannot allocate staged transaction without a total amount" in res.json()["detail"]
+
+
+def test_bulk_dismiss(client, auth_headers, db_session, markable_importer, tmp_path):
+    # Setup dummy receipt file
+    receipt_dir = tmp_path / "receipts"
+    receipt_dir.mkdir(parents=True, exist_ok=True)
+    file_path = receipt_dir / "dummy_bulk.pdf"
+    file_path.write_text("dummy receipt content")
+
+    c1 = Company(id=uuid.uuid4(), name="Company A")
+    db_session.add(c1)
+    st1 = StagedTransaction(
+        id=uuid.uuid4(),
+        source="markable_source",
+        external_id="DISM-1",
+        date=date(2026, 4, 9),
+        description="Dismissable 1",
+        total_amount=Decimal("15.00"),
+        receipt_file_path=str(file_path),
+        status="STAGED",
+    )
+    st2 = StagedTransaction(
+        id=uuid.uuid4(),
+        source="markable_source",
+        external_id="DISM-2",
+        date=date(2026, 4, 10),
+        description="Dismissable 2",
+        total_amount=Decimal("25.00"),
+        status="STAGED",
+    )
+    db_session.add_all([st1, st2])
+    db_session.flush()
+    db_session.add(StagedAllocation(staged_transaction_id=st1.id, amount=Decimal("15.00"), is_personal=True))
+    db_session.add(StagedAllocation(staged_transaction_id=st2.id, amount=Decimal("25.00"), is_personal=False, company_id=c1.id))
+    db_session.commit()
+
+    # Empty list error
+    res_empty = client.post(
+        "/api/staging/bulk-dismiss",
+        json={"staged_transaction_ids": []},
+        headers=auth_headers,
+    )
+    assert res_empty.status_code == 400
+
+    # Successful bulk dismiss
+    res = client.post(
+        "/api/staging/bulk-dismiss",
+        json={"staged_transaction_ids": [str(st1.id), str(st2.id)]},
+        headers=auth_headers,
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["dismissed_count"] == 2
+    assert set(body["staged_transaction_ids"]) == {str(st1.id), str(st2.id)}
+    assert body["marked_imported_count"] == 2
+    assert body["mark_imported_errors"] == []
+    assert markable_importer.marked_batches == [["DISM-1", "DISM-2"]]
+
+    # Verify disk receipt cleanup and DB state
+    assert not file_path.exists()
+    db_session.expire_all()
+    for st_id in [st1.id, st2.id]:
+        refreshed = db_session.get(StagedTransaction, st_id)
+        assert refreshed.status == "DISMISSED"
+        assert refreshed.receipt_file_path is None
+        assert len(refreshed.allocations) == 0
+        assert refreshed.is_marked_imported is True
+
+
+def test_bulk_dismiss_handles_importer_error(client, auth_headers, db_session, markable_importer):
+    markable_importer.should_fail = True
+    st = StagedTransaction(
+        id=uuid.uuid4(),
+        source="markable_source",
+        external_id="FAIL-1",
+        date=date(2026, 4, 11),
+        description="Importer Will Fail",
+        total_amount=Decimal("40.00"),
+        status="STAGED",
+    )
+    db_session.add(st)
+    db_session.commit()
+
+    res = client.post(
+        "/api/staging/bulk-dismiss",
+        json={"staged_transaction_ids": [str(st.id)]},
+        headers=auth_headers,
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["dismissed_count"] == 1
+    assert body["marked_imported_count"] == 0
+    assert len(body["mark_imported_errors"]) == 1
+    assert "External API timeout" in body["mark_imported_errors"][0]
+
+    db_session.expire_all()
+    refreshed = db_session.get(StagedTransaction, st.id)
+    assert refreshed.status == "DISMISSED"
+    assert refreshed.is_marked_imported is False

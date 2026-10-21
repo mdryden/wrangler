@@ -85,3 +85,26 @@ export interface StagingAcceptResponse {
   marked_imported_count: number
   mark_imported_errors: string[]
 }
+
+export interface StagedBulkAllocateRequest {
+  staged_transaction_ids: string[]
+  is_personal?: boolean
+  company_id?: string | null
+  clear?: boolean
+}
+
+export interface StagedBulkAllocateResponse {
+  updated_count: number
+  staged_transaction_ids: string[]
+}
+
+export interface StagedBulkDismissRequest {
+  staged_transaction_ids: string[]
+}
+
+export interface StagedBulkDismissResponse {
+  dismissed_count: number
+  staged_transaction_ids: string[]
+  marked_imported_count: number
+  mark_imported_errors: string[]
+}

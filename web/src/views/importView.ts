@@ -88,3 +88,48 @@ export function getImportNotificationType(result: { failed_files?: string[]; ski
   }
   return "positive"
 }
+
+/**
+ * Checks whether all visible STAGED rows are currently selected.
+ */
+export function isMasterHeaderChecked(visibleStagedRowIds: string[], selectedRowIds: string[]): boolean {
+  if (visibleStagedRowIds.length === 0) return false
+  return visibleStagedRowIds.every(id => selectedRowIds.includes(id))
+}
+
+/**
+ * Checks whether some (but not all) visible STAGED rows are currently selected.
+ */
+export function isMasterHeaderIndeterminate(visibleStagedRowIds: string[], selectedRowIds: string[]): boolean {
+  if (visibleStagedRowIds.length === 0) return false
+  const selectedCount = visibleStagedRowIds.filter(id => selectedRowIds.includes(id)).length
+  return selectedCount > 0 && selectedCount < visibleStagedRowIds.length
+}
+
+/**
+ * Toggles selection of all visible STAGED rows.
+ * If all or some are selected, deselects all visible STAGED rows.
+ * Otherwise, selects all visible STAGED rows.
+ */
+export function toggleVisibleStagedRows(visibleStagedRowIds: string[], currentSelectedRowIds: string[]): string[] {
+  const isAllOrSomeSelected = visibleStagedRowIds.some(id => currentSelectedRowIds.includes(id))
+  if (isAllOrSomeSelected) {
+    return currentSelectedRowIds.filter(id => !visibleStagedRowIds.includes(id))
+  }
+  const toAdd = visibleStagedRowIds.filter(id => !currentSelectedRowIds.includes(id))
+  return [...currentSelectedRowIds, ...toAdd]
+}
+
+/**
+ * Returns the count of selected transactions that are ready to accept into the ledger.
+ */
+export function getSelectedReadyCount(selectedRowIds: string[], stagedTransactions: StagedTransaction[]): number {
+  return stagedTransactions.filter(tx => selectedRowIds.includes(tx.id) && tx.is_ready).length
+}
+
+/**
+ * Returns the IDs of selected transactions that are ready to accept into the ledger.
+ */
+export function getSelectedReadyIds(selectedRowIds: string[], stagedTransactions: StagedTransaction[]): string[] {
+  return stagedTransactions.filter(tx => selectedRowIds.includes(tx.id) && tx.is_ready).map(tx => tx.id)
+}

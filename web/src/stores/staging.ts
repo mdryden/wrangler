@@ -6,6 +6,10 @@ import type {
   ImporterMetadata,
   ImporterRunResponse,
   PaginatedStagedTransactions,
+  StagedBulkAllocateRequest,
+  StagedBulkAllocateResponse,
+  StagedBulkDismissRequest,
+  StagedBulkDismissResponse,
   StagedStatus,
   StagedTransaction,
   StagedTransactionUpdatePayload,
@@ -386,6 +390,32 @@ export const useStagingStore = defineStore("staging", () => {
     }
   }
 
+  async function bulkAllocateStaged(payload: StagedBulkAllocateRequest): Promise<StagedBulkAllocateResponse> {
+    error.value = null
+    try {
+      const res = await apiClient.post<StagedBulkAllocateResponse>("/api/staging/bulk-allocate", payload)
+      return res
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to bulk allocate staged transactions"
+      error.value = msg
+      throw err
+    }
+  }
+
+  async function bulkDismissStaged(stagedTransactionIds: string[]): Promise<StagedBulkDismissResponse> {
+    error.value = null
+    try {
+      const res = await apiClient.post<StagedBulkDismissResponse>("/api/staging/bulk-dismiss", {
+        staged_transaction_ids: stagedTransactionIds,
+      })
+      return res
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to bulk dismiss staged transactions"
+      error.value = msg
+      throw err
+    }
+  }
+
   return {
     importers,
     loadingImporters,
@@ -407,5 +437,7 @@ export const useStagingStore = defineStore("staging", () => {
     dismissStagedTransaction,
     restoreStagedTransaction,
     acceptStagedTransactions,
+    bulkAllocateStaged,
+    bulkDismissStaged,
   }
 })

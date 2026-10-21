@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue"
 import { Notify, useQuasar, type QTableColumn } from "quasar"
+import BulkAllocateDialog from "../components/BulkAllocateDialog.vue"
 import StagedTransactionEditDialog from "../components/StagedTransactionEditDialog.vue"
 import { useCompanyStore } from "../stores/companies"
 import {
@@ -18,8 +19,17 @@ import {
 } from "../stores/staging"
 import { useTransactionStore } from "../stores/transactions"
 import type { ImporterMetadata, StagedStatus, StagedTransaction } from "../types/staging"
-import { formatStagedAmount, getImportNotificationType, stagingTableColumns } from "./importView"
+import {
+  formatStagedAmount,
+  getImportNotificationType,
+  getSelectedReadyIds,
+  isMasterHeaderChecked,
+  isMasterHeaderIndeterminate,
+  stagingTableColumns,
+  toggleVisibleStagedRows,
+} from "./importView"
 
+const $q = useQuasar()
 const companyStore = useCompanyStore()
 const stagingStore = useStagingStore()
 const transactionStore = useTransactionStore()
@@ -40,6 +50,7 @@ const selectedRowIds = ref<string[]>([])
 const acceptingBatch = ref<boolean>(false)
 
 const editDialogVisible = ref<boolean>(false)
+const bulkAllocateDialogVisible = ref<boolean>(false)
 const selectedStagedTransaction = ref<StagedTransaction | null>(null)
 
 const pagination = ref({
@@ -123,6 +134,28 @@ const readyTransactionsToAccept = computed(() => getReadyToAcceptTransactions(st
 
 const readyAcceptCount = computed(() => readyTransactionsToAccept.value.length)
 
+const totalReadyCount = computed(() => stagingStore.stagedTransactions.filter(r => r.status === "STAGED" && r.is_ready).length)
+
+const visibleStagedRows = computed(() => stagingStore.stagedTransactions.filter(r => r.status === "STAGED"))
+
+const isHeaderChecked = computed(() =>
+  isMasterHeaderChecked(
+    visibleStagedRows.value.map(r => r.id),
+    selectedRowIds.value,
+  ),
+)
+
+const isHeaderIndeterminate = computed(() =>
+  isMasterHeaderIndeterminate(
+    visibleStagedRows.value.map(r => r.id),
+    selectedRowIds.value,
+  ),
+)
+
+const selectedTransactions = computed(() => stagingStore.stagedTransactions.filter(r => selectedRowIds.value.includes(r.id)))
+
+const selectedReadyCount = computed(() => readyTransactionsToAccept.value.length)
+
 const columns: QTableColumn[] = stagingTableColumns
 
 function onSelectImporter(importerId: string | null): void {
@@ -161,6 +194,9 @@ async function onRequest(props: {
   }
 }): Promise<void> {
   const { page, rowsPerPage } = props.pagination
+  if (pagination.value.page !== page || pagination.value.rowsPerPage !== rowsPerPage) {
+    selectedRowIds.value = []
+  }
   try {
     await stagingStore.fetchStagedTransactions({
       status: filters.value.status,
@@ -172,9 +208,9 @@ async function onRequest(props: {
     pagination.value.rowsPerPage = stagingStore.pageSize
     pagination.value.rowsNumber = stagingStore.total
 
-    // Prune any selected row IDs that are no longer ready STAGED rows
-    const validReadyIds = new Set(stagingStore.stagedTransactions.filter(r => r.status === "STAGED" && r.is_ready).map(r => r.id))
-    selectedRowIds.value = selectedRowIds.value.filter(id => validReadyIds.has(id))
+    // Prune any selected row IDs that are no longer STAGED
+    const validStagedIds = new Set(stagingStore.stagedTransactions.filter(r => r.status === "STAGED").map(r => r.id))
+    selectedRowIds.value = selectedRowIds.value.filter(id => validStagedIds.has(id))
   } catch {
     // Error handled in store banner
   }
@@ -205,7 +241,7 @@ function isRowSelected(id: string): boolean {
 }
 
 function toggleRowSelection(row: StagedTransaction, checked: boolean): void {
-  if (row.status !== "STAGED" || !row.is_ready) return
+  if (row.status !== "STAGED") return
   if (checked) {
     if (!selectedRowIds.value.includes(row.id)) {
       selectedRowIds.value = [...selectedRowIds.value, row.id]
@@ -215,14 +251,60 @@ function toggleRowSelection(row: StagedTransaction, checked: boolean): void {
   }
 }
 
+function toggleAllVisibleRows(): void {
+  selectedRowIds.value = toggleVisibleStagedRows(
+    visibleStagedRows.value.map(r => r.id),
+    selectedRowIds.value,
+  )
+}
+
+function clearSelection(): void {
+  selectedRowIds.value = []
+}
+
+function openBulkAllocateDialog(): void {
+  bulkAllocateDialogVisible.value = true
+}
+
+async function onBulkAllocateApplied(): Promise<void> {
+  selectedRowIds.value = []
+  await refreshStagingTable()
+}
+
+function onBulkDismiss(): void {
+  if (selectedRowIds.value.length === 0) return
+  const count = selectedRowIds.value.length
+  $q.dialog({
+    title: "Confirm Bulk Dismiss",
+    message: `Are you sure you want to dismiss ${count} selected transaction${count === 1 ? "" : "s"}?`,
+    cancel: true,
+    persistent: true,
+    ok: {
+      label: "Dismiss",
+      color: "negative",
+      unelevated: true,
+    },
+  }).onOk(async () => {
+    try {
+      const res = await stagingStore.bulkDismissStaged(selectedRowIds.value)
+      selectedRowIds.value = []
+      notifySuccess(`Successfully dismissed ${res.dismissed_count} transaction(s)`)
+      if (res.mark_imported_errors && res.mark_imported_errors.length > 0) {
+        notifyWarning(`Dismissed, but failed to mark imported: ${res.mark_imported_errors.join("; ")}`)
+      }
+      await refreshStagingTable()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to bulk dismiss transactions"
+      notifyError(msg)
+    }
+  })
+}
+
 async function onQuickAssignChange(row: StagedTransaction, value: string | null): Promise<void> {
   if (row.status !== "STAGED") return
   try {
     const payload = buildQuickAssignPayload(row, value)
-    const updated = await stagingStore.updateStagedTransaction(row.id, payload)
-    if (!updated.is_ready) {
-      selectedRowIds.value = selectedRowIds.value.filter(id => id !== row.id)
-    }
+    await stagingStore.updateStagedTransaction(row.id, payload)
     notifySuccess(value ? "Allocation updated" : "Reset to Unallocated")
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Failed to update allocation"
@@ -301,14 +383,13 @@ async function onRestoreRow(row: StagedTransaction): Promise<void> {
   }
 }
 
-async function onAcceptBatch(): Promise<void> {
-  const targetRows = readyTransactionsToAccept.value
-  if (targetRows.length === 0) return
+async function onAcceptSelected(): Promise<void> {
+  const readyIds = getSelectedReadyIds(selectedRowIds.value, stagingStore.stagedTransactions)
+  if (readyIds.length === 0) return
 
   acceptingBatch.value = true
   try {
-    const targetIds = targetRows.map(r => r.id)
-    const response = await stagingStore.acceptStagedTransactions(targetIds)
+    const response = await stagingStore.acceptStagedTransactions(readyIds)
     selectedRowIds.value = []
     notifySuccess(`Accepted ${response.accepted_count} transaction(s) into Ledger`)
     if (response.mark_imported_errors && response.mark_imported_errors.length > 0) {
@@ -322,6 +403,38 @@ async function onAcceptBatch(): Promise<void> {
     notifyError(msg)
   } finally {
     acceptingBatch.value = false
+  }
+}
+
+async function onAcceptAllReady(): Promise<void> {
+  const allReady = stagingStore.stagedTransactions.filter(r => r.status === "STAGED" && r.is_ready)
+  if (allReady.length === 0) return
+
+  acceptingBatch.value = true
+  try {
+    const allReadyIds = allReady.map(r => r.id)
+    const response = await stagingStore.acceptStagedTransactions(allReadyIds)
+    selectedRowIds.value = []
+    notifySuccess(`Accepted ${response.accepted_count} transaction(s) into Ledger`)
+    if (response.mark_imported_errors && response.mark_imported_errors.length > 0) {
+      notifyWarning(
+        `Accepted into Ledger, but failed to mark as imported in external source: ${response.mark_imported_errors.join("; ")}. Please mark manually in the source system.`,
+      )
+    }
+    await refreshStagingTable()
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Failed to accept staged transactions"
+    notifyError(msg)
+  } finally {
+    acceptingBatch.value = false
+  }
+}
+
+async function onAcceptBatch(): Promise<void> {
+  if (selectedRowIds.value.length > 0) {
+    await onAcceptSelected()
+  } else {
+    await onAcceptAllReady()
   }
 }
 
@@ -513,73 +626,101 @@ defineExpose({
       </q-card-section>
     </q-card>
 
-    <!-- Filter Controls & Batch Action Bar -->
+    <!-- Filter Controls & Action Bar -->
     <q-card flat bordered class="q-mb-md bg-grey-1">
+      <!-- Filters (Full Width) -->
       <q-card-section class="q-py-sm">
-        <div class="row q-col-gutter-sm items-center justify-between">
-          <div class="col-12 col-md-7 row q-col-gutter-sm items-center">
-            <!-- Status Filter -->
-            <div class="col-12 col-sm-4">
-              <q-select
-                v-model="filters.status"
-                dense
-                outlined
-                emit-value
-                map-options
-                bg-color="white"
-                label="Status"
-                :options="statusOptions"
-                data-testid="filter-staging-status"
-                @update:model-value="applyFilters"
-              />
-            </div>
-
-            <!-- Source Filter -->
-            <div class="col-12 col-sm-5">
-              <q-select
-                v-model="filters.source"
-                dense
-                outlined
-                clearable
-                emit-value
-                map-options
-                bg-color="white"
-                label="Source"
-                :options="SOURCE_FILTER_OPTIONS"
-                data-testid="filter-staging-source"
-                @update:model-value="applyFilters"
-              />
-            </div>
-
-            <!-- Filter Buttons -->
-            <div class="col-12 col-sm-3 row items-center q-gutter-xs">
-              <q-btn
-                color="primary"
-                unelevated
-                icon="filter_list"
-                label="Filter"
-                data-testid="btn-apply-staging-filters"
-                @click="applyFilters"
-              />
-              <q-btn flat color="grey-7" icon="clear" label="Reset" data-testid="btn-reset-staging-filters" @click="resetFilters" />
-            </div>
+        <div class="row q-col-gutter-sm items-center">
+          <!-- Status Filter -->
+          <div class="col-12 col-sm-4 col-md-3">
+            <q-select
+              v-model="filters.status"
+              dense
+              outlined
+              emit-value
+              map-options
+              bg-color="white"
+              label="Status"
+              :options="statusOptions"
+              data-testid="filter-staging-status"
+              @update:model-value="applyFilters"
+            />
           </div>
 
-          <!-- Batch Action Bar -->
-          <div class="col-12 col-md-5 row items-center justify-end q-gutter-sm" data-testid="batch-action-bar">
+          <!-- Source Filter -->
+          <div class="col-12 col-sm-5 col-md-4">
+            <q-select
+              v-model="filters.source"
+              dense
+              outlined
+              clearable
+              emit-value
+              map-options
+              bg-color="white"
+              label="Source"
+              :options="SOURCE_FILTER_OPTIONS"
+              data-testid="filter-staging-source"
+              @update:model-value="applyFilters"
+            />
+          </div>
+
+          <!-- Filter Button -->
+          <div class="col-auto">
             <q-btn
+              color="primary"
               unelevated
-              color="positive"
-              icon="done_all"
-              :label="`Accept Ready into Ledger (${readyAcceptCount})`"
-              :loading="acceptingBatch"
-              :disable="readyAcceptCount === 0 || acceptingBatch"
-              data-testid="btn-accept-ready"
-              @click="onAcceptBatch"
-            >
-              <q-tooltip v-if="readyAcceptCount === 0"> Allocate at least one staged transaction to accept into the Ledger </q-tooltip>
-            </q-btn>
+              icon="filter_list"
+              label="Filter"
+              data-testid="btn-apply-staging-filters"
+              @click="applyFilters"
+            />
           </div>
+        </div>
+      </q-card-section>
+
+      <q-separator />
+
+      <!-- Action Toolbar (Below Filters, Oriented Horizontally, Always Visible & Disabled When Inapplicable) -->
+      <q-card-section class="q-py-sm" data-testid="batch-action-bar">
+        <div class="row items-center q-gutter-sm">
+          <q-chip dense color="blue-1" text-color="primary" class="text-weight-bold" data-testid="chip-selected-count">
+            {{ selectedRowIds.length }} selected
+          </q-chip>
+
+          <q-space />
+
+          <q-btn
+            flat
+            color="negative"
+            icon="delete_outline"
+            :label="`Dismiss (${selectedRowIds.length})`"
+            :disable="selectedRowIds.length === 0"
+            data-testid="btn-dismiss-selected"
+            @click="onBulkDismiss"
+          />
+
+          <q-btn
+            unelevated
+            color="primary"
+            icon="tune"
+            :label="`Allocate (${selectedRowIds.length})`"
+            :disable="selectedRowIds.length === 0"
+            data-testid="btn-bulk-allocate"
+            @click="openBulkAllocateDialog"
+          />
+
+          <q-btn
+            unelevated
+            color="positive"
+            icon="done_all"
+            :label="`Accept (${selectedReadyCount} ready)`"
+            :loading="acceptingBatch"
+            :disable="selectedReadyCount === 0 || acceptingBatch"
+            data-testid="btn-accept-selected"
+            @click="onAcceptSelected"
+          >
+            <q-tooltip v-if="selectedReadyCount === 0"> None of the selected transactions are ready to accept </q-tooltip>
+          </q-btn>
         </div>
       </q-card-section>
     </q-card>
@@ -598,6 +739,21 @@ defineExpose({
       data-testid="table-staging"
       @request="onRequest"
     >
+      <!-- Master Selection Checkbox in Header -->
+      <template #header-cell-select="props">
+        <q-th :props="props" align="center">
+          <q-checkbox
+            :model-value="isHeaderChecked"
+            :indeterminate="isHeaderIndeterminate"
+            dense
+            color="primary"
+            data-testid="checkbox-select-all"
+            :disable="visibleStagedRows.length === 0"
+            @update:model-value="toggleAllVisibleRows"
+          />
+        </q-th>
+      </template>
+
       <!-- Selection Checkbox Column -->
       <template #body-cell-select="props">
         <q-td :props="props" align="center">
@@ -606,7 +762,7 @@ defineExpose({
             dense
             color="primary"
             :data-testid="`checkbox-select-${props.row.id}`"
-            :disable="props.row.status !== 'STAGED' || !props.row.is_ready"
+            :disable="props.row.status !== 'STAGED'"
             @update:model-value="(val: boolean) => toggleRowSelection(props.row, val)"
           />
         </q-td>
@@ -872,5 +1028,12 @@ defineExpose({
 
     <!-- Staged Transaction & Allocation Editor Dialog -->
     <StagedTransactionEditDialog v-model="editDialogVisible" :staged-transaction="selectedStagedTransaction" @saved="onStagedSaved" />
+
+    <!-- Bulk Allocation Dialog -->
+    <BulkAllocateDialog
+      v-model="bulkAllocateDialogVisible"
+      :selected-transactions="selectedTransactions"
+      @applied="onBulkAllocateApplied"
+    />
   </q-page>
 </template>
