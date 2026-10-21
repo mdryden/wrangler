@@ -1,5 +1,5 @@
 param (
-    [int]$Port = 8000,
+    [int]$Port = 10000,
     [string]$HostAddress = "0.0.0.0",
     [switch]$Migrate,
     [switch]$SkipMigration

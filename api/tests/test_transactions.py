@@ -833,10 +833,23 @@ def test_update_transaction_lock_endpoint(client, auth_headers, db_session):
     assert lock_resp.status_code == 200
     assert all(a["is_locked"] is True for a in lock_resp.json()["allocations"])
 
+    # Seed wave_transaction_id on locked child allocations
+    a1.wave_transaction_id = "wave_tx_1"
+    a2.wave_transaction_id = "wave_tx_2"
+    db_session.commit()
+
     # Unlock all allocations on transaction
     unlock_resp = client.put(f"/api/transactions/{tx.id}/lock", json={"is_locked": False}, headers=auth_headers)
     assert unlock_resp.status_code == 200
     assert all(a["is_locked"] is False for a in unlock_resp.json()["allocations"])
+    assert all(a["wave_transaction_id"] is None for a in unlock_resp.json()["allocations"])
+
+    # Refresh child allocations from database and assert wave_transaction_id is None
+    db_session.expire_all()
+    refreshed_a1 = db_session.get(Allocation, a1.id)
+    refreshed_a2 = db_session.get(Allocation, a2.id)
+    assert refreshed_a1.wave_transaction_id is None
+    assert refreshed_a2.wave_transaction_id is None
 
     # Non-existent transaction returns 404
     not_found = client.put(f"/api/transactions/{uuid.uuid4()}/lock", json={"is_locked": True}, headers=auth_headers)

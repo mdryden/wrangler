@@ -106,7 +106,7 @@ const categoryOptions = computed(() =>
 )
 
 // Select all toggle logic
-const eligibleRows = computed(() => allocationRows.value.filter(r => !r.is_locked && !isWaveAlreadySynced(r)))
+const eligibleRows = computed(() => allocationRows.value.filter(r => canSyncRowToWave(r)))
 
 const isAllSelected = computed(() => eligibleRows.value.length > 0 && selectedRows.value.length === eligibleRows.value.length)
 
@@ -689,7 +689,7 @@ defineExpose({
         <q-td :props="props" auto-width>
           <q-checkbox
             :model-value="isRowSelected(props.row)"
-            :disable="props.row.is_locked || isWaveAlreadySynced(props.row)"
+            :disable="props.row.is_locked"
             dense
             :data-testid="`checkbox-row-${props.row.id}`"
             @update:model-value="() => toggleRowSelect(props.row)"
@@ -775,19 +775,6 @@ defineExpose({
             >
               <q-icon name="check_circle" size="12px" class="q-mr-xs" />
               Synced to Wave
-            </q-badge>
-
-            <!-- Already in Wave (Unlocked after sync) -->
-            <q-badge
-              v-else-if="!props.row.is_locked && props.row.wave_transaction_id"
-              color="warning"
-              text-color="white"
-              class="q-px-sm q-py-xs text-weight-bold cursor-pointer"
-              data-testid="badge-already-in-wave"
-            >
-              <q-icon name="warning" size="12px" class="q-mr-xs" />
-              Already in Wave
-              <q-tooltip>Previously pushed to Wave. Wave does not allow updates via API; adjust in Wave directly.</q-tooltip>
             </q-badge>
 
             <!-- Locked (CSV export locked) -->

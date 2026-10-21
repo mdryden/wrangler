@@ -604,6 +604,7 @@ def test_unlock_allocations_all_locked_when_omitted_payload(client, auth_headers
         amount=Decimal("100.00"),
         is_personal=False,
         is_locked=True,
+        wave_transaction_id="wave_batch_id",
     )
     a2 = Allocation(
         transaction_id=tx.id,
@@ -611,6 +612,7 @@ def test_unlock_allocations_all_locked_when_omitted_payload(client, auth_headers
         amount=Decimal("100.00"),
         is_personal=False,
         is_locked=True,
+        wave_transaction_id="wave_batch_id",
     )
     # Personal allocation (should remain locked)
     a3 = Allocation(
@@ -638,10 +640,13 @@ def test_unlock_allocations_all_locked_when_omitted_payload(client, auth_headers
     assert len(res_data) == 2
     assert {item["id"] for item in res_data} == {str(a1.id), str(a2.id)}
     assert all(item["is_locked"] is False for item in res_data)
+    assert all(item["wave_transaction_id"] is None for item in res_data)
 
     db_session.expire_all()
     assert db_session.get(Allocation, a1.id).is_locked is False
+    assert db_session.get(Allocation, a1.id).wave_transaction_id is None
     assert db_session.get(Allocation, a2.id).is_locked is False
+    assert db_session.get(Allocation, a2.id).wave_transaction_id is None
     assert db_session.get(Allocation, a3.id).is_locked is True
     assert db_session.get(Allocation, a4.id).is_locked is True
 
@@ -666,6 +671,7 @@ def test_unlock_allocations_specific_allocations(client, auth_headers, db_sessio
         amount=Decimal("100.00"),
         is_personal=False,
         is_locked=True,
+        wave_transaction_id="wave_batch_id",
     )
     a2 = Allocation(
         transaction_id=tx.id,
@@ -673,6 +679,7 @@ def test_unlock_allocations_specific_allocations(client, auth_headers, db_sessio
         amount=Decimal("100.00"),
         is_personal=False,
         is_locked=True,
+        wave_transaction_id="wave_batch_id",
     )
     db_session.add_all([a1, a2])
     db_session.commit()
@@ -685,10 +692,13 @@ def test_unlock_allocations_specific_allocations(client, auth_headers, db_sessio
     assert len(res_data) == 1
     assert res_data[0]["id"] == str(a1.id)
     assert res_data[0]["is_locked"] is False
+    assert res_data[0]["wave_transaction_id"] is None
 
     db_session.expire_all()
     assert db_session.get(Allocation, a1.id).is_locked is False
+    assert db_session.get(Allocation, a1.id).wave_transaction_id is None
     assert db_session.get(Allocation, a2.id).is_locked is True
+    assert db_session.get(Allocation, a2.id).wave_transaction_id == "wave_batch_id"
 
 
 def test_list_and_get_companies_summary_stats(client, auth_headers, db_session):

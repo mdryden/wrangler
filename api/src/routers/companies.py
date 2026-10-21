@@ -434,22 +434,6 @@ async def sync_company_to_wave(
             detail="Company is not connected to Wave",
         )
 
-    if payload is not None and payload.allocation_ids:
-        already_synced = list(
-            db.scalars(
-                select(Allocation).where(
-                    Allocation.company_id == company_id,
-                    Allocation.id.in_(payload.allocation_ids),
-                    Allocation.wave_transaction_id.is_not(None),
-                )
-            ).all()
-        )
-        if already_synced:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Allocation {already_synced[0].id} was already synced to Wave",
-            )
-
     fallback_stmt = select(WaveCategory).where(
         WaveCategory.company_id == company_id,
         WaveCategory.is_uncategorized.is_(True),
@@ -477,11 +461,6 @@ async def sync_company_to_wave(
     allocations = list(db.scalars(stmt).unique().all())
 
     for alloc in allocations:
-        if alloc.wave_transaction_id is not None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Allocation {alloc.id} was already synced to Wave",
-            )
         if alloc.wave_category_id is None and fallback_category is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -656,6 +635,7 @@ def unlock_company_allocations(
     allocations = list(db.scalars(stmt).all())
     for alloc in allocations:
         alloc.is_locked = False
+        alloc.wave_transaction_id = None
         db.add(alloc)
 
     db.commit()

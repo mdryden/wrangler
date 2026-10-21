@@ -27,6 +27,8 @@ def update_allocation_lock(
         )
 
     allocation.is_locked = payload.is_locked
+    if not payload.is_locked:
+        allocation.wave_transaction_id = None
     db.add(allocation)
     db.commit()
     db.refresh(allocation)

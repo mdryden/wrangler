@@ -229,3 +229,54 @@ def test_alembic_migration_rename_equity_account_upgrade_downgrade(tmp_path):
     company_cols_downgrade = {col["name"] for col in inspector.get_columns("companies")}
     assert "wave_equity_account_id" in company_cols_downgrade
     assert "wave_anchor_account_id" not in company_cols_downgrade
+
+
+def test_alembic_migration_reset_unlocked_wave_transaction_ids(tmp_path):
+    db_file = tmp_path / "test_reset_wave_tx_ids.db"
+    db_url = f"sqlite:///{db_file.as_posix()}"
+
+    ini_path = Path(__file__).resolve().parent.parent / "alembic.ini"
+    alembic_cfg = Config(str(ini_path))
+    alembic_cfg.set_main_option("sqlalchemy.url", db_url)
+
+    # Upgrade to revision before reset: a1c4e9b8f3d2
+    command.upgrade(alembic_cfg, "a1c4e9b8f3d2")
+
+    engine = create_engine(db_url)
+    tx_id = uuid.uuid4().hex
+    alloc_a_id = uuid.uuid4().hex
+    alloc_b_id = uuid.uuid4().hex
+    alloc_c_id = uuid.uuid4().hex
+
+    with engine.begin() as conn:
+        conn.execute(
+            text("INSERT INTO transactions (id, source, date, description, total_amount) VALUES (:id, 'manual', '2026-10-21', 'Migration Test', 100.00)"),
+            {"id": tx_id},
+        )
+        conn.execute(
+            text(
+                "INSERT INTO allocations (id, transaction_id, amount, is_personal, is_locked, wave_transaction_id) "
+                "VALUES (:id, :tx_id, 30.00, 1, 0, 'wave_tx_unlocked')"
+            ),
+            {"id": alloc_a_id, "tx_id": tx_id},
+        )
+        conn.execute(
+            text(
+                "INSERT INTO allocations (id, transaction_id, amount, is_personal, is_locked, wave_transaction_id) "
+                "VALUES (:id, :tx_id, 40.00, 1, 1, 'wave_tx_locked')"
+            ),
+            {"id": alloc_b_id, "tx_id": tx_id},
+        )
+        conn.execute(
+            text("INSERT INTO allocations (id, transaction_id, amount, is_personal, is_locked, wave_transaction_id) VALUES (:id, :tx_id, 30.00, 1, 0, NULL)"),
+            {"id": alloc_c_id, "tx_id": tx_id},
+        )
+
+    # Upgrade to head (c7b9e2d1f4a6)
+    command.upgrade(alembic_cfg, "head")
+
+    with engine.connect() as conn:
+        rows = dict(conn.execute(text("SELECT id, wave_transaction_id FROM allocations")).fetchall())
+        assert rows[alloc_a_id] is None
+        assert rows[alloc_b_id] == "wave_tx_locked"
+        assert rows[alloc_c_id] is None

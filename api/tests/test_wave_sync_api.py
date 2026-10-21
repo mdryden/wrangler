@@ -137,7 +137,7 @@ def test_sync_wave_unlinked_company(client, auth_headers, db_session):
     assert resp.json()["detail"] == "Company is not connected to Wave"
 
 
-def test_sync_wave_already_synced_safeguard(client, auth_headers, db_session):
+def test_sync_wave_unlocked_re_sync(client, auth_headers, db_session):
     company = Company(
         name="Safeguard Corp",
         wave_api_token="tok_123",
@@ -146,6 +146,15 @@ def test_sync_wave_already_synced_safeguard(client, auth_headers, db_session):
         wave_anchor_account_id="anchor_123",
     )
     db_session.add(company)
+    db_session.commit()
+
+    cat = WaveCategory(
+        company_id=company.id,
+        wave_account_id="cat_123",
+        name="Advertising & Promotion",
+        account_type="EXPENSE",
+    )
+    db_session.add(cat)
     db_session.commit()
 
     tx = Transaction(
@@ -163,18 +172,28 @@ def test_sync_wave_already_synced_safeguard(client, auth_headers, db_session):
         is_personal=False,
         company_id=company.id,
         is_locked=False,
+        wave_category_id=cat.id,
         wave_transaction_id="wave_existing_tx_id",
     )
     db_session.add(alloc)
     db_session.commit()
 
-    resp = client.post(
-        f"/api/companies/{company.id}/sync-wave",
-        json={"allocation_ids": [str(alloc.id)]},
-        headers=auth_headers,
-    )
-    assert resp.status_code == 400
-    assert f"Allocation {alloc.id} was already synced to Wave" in resp.json()["detail"]
+    with patch.object(WaveClient, "create_money_transaction", new_callable=AsyncMock) as mock_create:
+        mock_create.return_value = "wave_re_sync_tx_id"
+        resp = client.post(
+            f"/api/companies/{company.id}/sync-wave",
+            json={"allocation_ids": [str(alloc.id)]},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["synced_count"] == 1
+        assert data["failed_count"] == 0
+
+    db_session.expire_all()
+    refreshed = db_session.get(Allocation, alloc.id)
+    assert refreshed.is_locked is True
+    assert refreshed.wave_transaction_id == "wave_re_sync_tx_id"
 
 
 def test_sync_wave_category_fallback_and_validation(client, auth_headers, db_session):

@@ -127,7 +127,7 @@ describe("Wave UI Integration & Adaptive Sync View (Tasks 6.1 - 6.4)", () => {
       expect(exportTemplate).toContain('data-testid="btn-quick-sync-categories"')
       expect(exportTemplate).toContain('data-testid="checkbox-select-all"')
       expect(exportTemplate).toContain('data-testid="badge-synced-to-wave"')
-      expect(exportTemplate).toContain('data-testid="badge-already-in-wave"')
+      expect(exportTemplate).not.toContain('data-testid="badge-already-in-wave"')
       expect(exportTemplate).toContain('data-testid="dialog-sync-summary"')
     })
 
@@ -177,7 +177,8 @@ describe("Wave UI Integration & Adaptive Sync View (Tasks 6.1 - 6.4)", () => {
       }
 
       expect(isWaveAlreadySynced(alreadySyncedRow)).toBe(true)
-      expect(canSyncRowToWave(alreadySyncedRow)).toBe(false)
+      // In Amendment 2, unlocked rows with category are eligible to sync even if wave_transaction_id is present
+      expect(canSyncRowToWave(alreadySyncedRow)).toBe(true)
 
       const normalUnlockedRow: ExportAllocationRow = {
         ...alreadySyncedRow,
@@ -202,6 +203,26 @@ describe("Wave UI Integration & Adaptive Sync View (Tasks 6.1 - 6.4)", () => {
       }
 
       expect(canSyncRowToWave(uncategorizedRow)).toBe(false)
+
+      const lockedRow: ExportAllocationRow = {
+        id: "alloc-3",
+        transaction_id: "tx-3",
+        date: "2026-10-20",
+        description: "Locked Tx",
+        amount: "50.00",
+        is_locked: true,
+        company_id: "comp-1",
+        receipt_file_path: null,
+        wave_category_id: "cat-1",
+        wave_transaction_id: null,
+      }
+      expect(canSyncRowToWave(lockedRow)).toBe(false)
+    })
+
+    it("verifies row checkbox is enabled when row is unlocked and already-in-wave badge is absent", () => {
+      expect(exportTemplate).toContain(':disable="props.row.is_locked"')
+      expect(exportTemplate).not.toContain("isWaveAlreadySynced(props.row)")
+      expect(exportTemplate).not.toContain("badge-already-in-wave")
     })
 
     it("changing row category dispatches updateAllocationCategory", async () => {

@@ -91,6 +91,11 @@ def test_lock_and_unlock_allocation_success(client, auth_headers, db_session):
     assert lock_resp.status_code == 200
     assert lock_resp.json()["is_locked"] is True
 
+    # Seed wave_transaction_id on locked allocation
+    alloc.wave_transaction_id = "wave_sample_id"
+    db_session.add(alloc)
+    db_session.commit()
+
     # Verify parent transaction editing is blocked when locked
     edit_payload = [{"amount": "150.00", "is_personal": True}]
     block_resp = client.put(f"/api/transactions/{tx.id}/allocations", json=edit_payload, headers=auth_headers)
@@ -102,12 +107,14 @@ def test_lock_and_unlock_allocation_success(client, auth_headers, db_session):
     data = unlock_resp.json()
     assert data["id"] == str(alloc.id)
     assert data["is_locked"] is False
+    assert data["wave_transaction_id"] is None
 
     # Database verification
     db_session.expire_all()
     refreshed = db_session.get(Allocation, alloc.id)
     assert refreshed is not None
     assert refreshed.is_locked is False
+    assert refreshed.wave_transaction_id is None
 
     # Transaction is now unlocked and can be modified
     allow_resp = client.put(f"/api/transactions/{tx.id}/allocations", json=edit_payload, headers=auth_headers)

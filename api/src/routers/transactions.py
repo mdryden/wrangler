@@ -609,6 +609,8 @@ def update_transaction_lock(
 
     for alloc in transaction.allocations:
         alloc.is_locked = payload.is_locked
+        if not payload.is_locked:
+            alloc.wave_transaction_id = None
         db.add(alloc)
 
     db.add(transaction)

@@ -246,6 +246,34 @@ describe("Wave Store Integration", () => {
     expect(result).toEqual(mockSyncResponse)
   })
 
+  it("syncCompanyToWave allows re-syncing unlocked allocations and dispatches selected allocation IDs", async () => {
+    const store = useCompanyStore()
+    const mockSyncResponse: WaveSyncResponse = {
+      total_processed: 1,
+      synced_count: 1,
+      failed_count: 0,
+      errors: [],
+    }
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => mockSyncResponse,
+    })
+
+    const result = await store.syncCompanyToWave("comp_1", ["alloc_resync_1"])
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/companies/comp_1/sync-wave",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ allocation_ids: ["alloc_resync_1"] }),
+      }),
+    )
+    expect(result).toEqual(mockSyncResponse)
+  })
+
   it("updateAllocationCategory updates allocation category and locally syncs transaction store state", async () => {
     const txStore = useTransactionStore()
     const initialTx: Transaction = {

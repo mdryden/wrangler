@@ -108,6 +108,8 @@ export function extractCompanyAllocationRows(
 
 /**
  * Determines whether a row was previously pushed to Wave but was subsequently unlocked in Wrangler.
+ * Legacy check retained for backwards compatibility with tests.
+ * Since unlocked rows have wave_transaction_id reset to null, this returns false.
  */
 export function isWaveAlreadySynced(row: ExportAllocationRow): boolean {
   return Boolean(!row.is_locked && row.wave_transaction_id)
@@ -115,9 +117,10 @@ export function isWaveAlreadySynced(row: ExportAllocationRow): boolean {
 
 /**
  * Determines whether a row is eligible to be selected and synced to Wave.
+ * A row is eligible if it is unlocked and has an assigned Wave category.
  */
 export function canSyncRowToWave(row: ExportAllocationRow): boolean {
-  return Boolean(!row.is_locked && !row.wave_transaction_id && row.wave_category_id)
+  return Boolean(!row.is_locked && row.wave_category_id)
 }
 
 /**
