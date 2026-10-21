@@ -45,7 +45,7 @@ if (-not $BackupDirValue) {
 if (-not $BackupDirValue) {
     Write-Host "`n****************************************************************" -ForegroundColor Red
     Write-Host " WARNING: BACKUP_DIR is not configured!" -ForegroundColor Red
-    Write-Host " Automatic database snapshots & receipt mirroring on exit will be skipped." -ForegroundColor Yellow
+    Write-Host " Automatic database snapshots on exit will be skipped." -ForegroundColor Yellow
     Write-Host "****************************************************************`n" -ForegroundColor Red
 } else {
     Write-Host "Backup Destination: $BackupDirValue" -ForegroundColor DarkGray
@@ -98,7 +98,7 @@ try {
     Write-Host "`nShutting down Wrangler..." -ForegroundColor Yellow
     
     if ($ServerStartedCleanly) {
-        Write-Host "Executing clean SQLite snapshot and mirroring receipts..." -ForegroundColor Cyan
+        Write-Host "Executing clean SQLite snapshot..." -ForegroundColor Cyan
         & uv run --directory $ApiDir --link-mode copy python scripts/wal_backup.py
         if ($LASTEXITCODE -eq 0) {
             Write-Host "Backup completed successfully." -ForegroundColor Green

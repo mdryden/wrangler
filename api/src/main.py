@@ -1,3 +1,4 @@
+import asyncio
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -22,6 +23,7 @@ from routers.importers import router as importers_router
 from routers.receipts import router as receipts_router
 from routers.staging import router as staging_router
 from routers.transactions import router as transactions_router
+from services.backup_scheduler import run_backup_scheduler
 from services.mcp import mcp
 
 _mcp_security = TransportSecuritySettings(enable_dns_rebinding_protection=False)
@@ -60,9 +62,14 @@ async def lifespan(app: FastAPI):
     if not settings.BACKUP_DIR and not os.getenv("BACKUP_DIR"):
         print("\n" + "=" * 64)
         print(" WARNING: BACKUP_DIR is not configured!")
-        print(" Automatic database snapshots & receipt mirroring on exit will be skipped.")
+        print(" Automatic database snapshots on exit will be skipped.")
         print(" Set BACKUP_DIR in your .env to safeguard your financial data.")
         print("=" * 64 + "\n")
+
+    # Start background backup scheduler task if BACKUP_DIR is configured
+    scheduler_task = None
+    if settings.BACKUP_DIR:
+        scheduler_task = asyncio.create_task(run_backup_scheduler())
 
     session_mgr = getattr(mcp._lowlevel_server, "_session_manager", None)
     if session_mgr is not None:
@@ -71,6 +78,12 @@ async def lifespan(app: FastAPI):
         async with mcp_stream_app.router.lifespan_context(mcp_stream_app):
             yield
     finally:
+        if scheduler_task is not None:
+            scheduler_task.cancel()
+            try:
+                await scheduler_task
+            except asyncio.CancelledError:
+                pass
         if session_mgr is not None:
             session_mgr._has_started = False
 

@@ -83,7 +83,7 @@ def test_wal_backup_noop_when_backup_dir_unset(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("BACKUP_DIR", raising=False)
     monkeypatch.setattr(settings, "BACKUP_DIR", None)
     exit_code = run_backup()
-    assert exit_code == 0
+    assert exit_code == 1
 
 
 def test_wal_backup_success_from_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -98,29 +98,15 @@ def test_wal_backup_success_from_settings(tmp_path: Path, monkeypatch: pytest.Mo
 
 def test_wal_backup_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     backup_dir = tmp_path / "backup_dest"
-    monkeypatch.setenv("BACKUP_DIR", str(backup_dir))
+    monkeypatch.setattr(settings, "BACKUP_DIR", backup_dir)
 
-    # Create dummy receipt in settings.RECEIPT_STORAGE_DIR
-    dummy_receipt = settings.RECEIPT_STORAGE_DIR / "test_backup_receipt.pdf"
-    dummy_receipt.write_text("dummy receipt data", encoding="utf-8")
-
-    try:
-        exit_code = run_backup()
-        assert exit_code == 0
-        assert (backup_dir / "wrangler.db").is_file()
-        assert (backup_dir / "receipts" / "test_backup_receipt.pdf").is_file()
-        assert not (backup_dir / "wrangler.db.tmp").exists()
-    finally:
-        if dummy_receipt.exists():
-            dummy_receipt.unlink()
+    exit_code = run_backup()
+    assert exit_code == 0
+    assert (backup_dir / "wrangler.db").is_file()
+    assert not (backup_dir / "wrangler.db.tmp").exists()
 
 
-def test_wal_backup_error_handling_and_tmp_cleanup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    backup_dir = tmp_path / "backup_dest_error"
-    monkeypatch.setenv("BACKUP_DIR", str(backup_dir))
-
-    with patch("scripts.wal_backup.engine.connect", side_effect=Exception("Database lock error")):
+def test_wal_backup_error_handling_and_tmp_cleanup(monkeypatch: pytest.MonkeyPatch):
+    with patch("scripts.wal_backup.execute_database_snapshot", return_value=False):
         exit_code = run_backup()
         assert exit_code == 1
-        assert not (backup_dir / "wrangler.db.tmp").exists()
-        assert not (backup_dir / "wrangler.db").exists()

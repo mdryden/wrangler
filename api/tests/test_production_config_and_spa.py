@@ -9,33 +9,39 @@ from core.config import Settings, settings
 from core.security import create_access_token
 
 
-def test_data_dir_dynamic_path_resolution(tmp_path: Path):
-    data_dir = tmp_path / "custom_data"
-    assert not data_dir.exists()
-
-    custom_settings = Settings(DATA_DIR=data_dir)
-
-    assert data_dir.exists()
-    expected_db = f"sqlite:///{(data_dir / 'wrangler.db').as_posix()}"
-    assert custom_settings.DATABASE_URL == expected_db
-    assert custom_settings.RECEIPT_STORAGE_DIR == (data_dir / "receipts").resolve()
-    assert (data_dir / "receipts").is_dir()
+def test_receipt_storage_path_resolution_default_dev():
+    custom_settings = Settings(BACKUP_DIR=None)
+    assert custom_settings.RECEIPT_STORAGE_DIR == Path("receipts").resolve()
+    assert custom_settings.RECEIPT_STORAGE_DIR.is_dir()
+    assert custom_settings.BACKUP_SCHEDULE_TIME == "02:00"
+    assert custom_settings.DATABASE_URL == "sqlite:///./wrangler.db"
 
 
-def test_data_dir_explicit_overrides_preserved(tmp_path: Path):
-    data_dir = tmp_path / "custom_data_override"
-    custom_receipts = tmp_path / "override_receipts"
-    custom_db_url = "sqlite:///custom_db.sqlite"
+def test_receipt_storage_path_resolution_production(tmp_path: Path):
+    custom_backup_path = tmp_path / "backup_dest"
+    custom_settings = Settings(BACKUP_DIR=custom_backup_path)
+
+    expected_receipts = (custom_backup_path / "receipts").resolve()
+    assert custom_settings.RECEIPT_STORAGE_DIR == expected_receipts
+    assert expected_receipts.is_dir()
+
+
+def test_receipt_storage_path_explicit_override(tmp_path: Path):
+    custom_backup_path = tmp_path / "backup_dest"
+    custom_receipt_path = tmp_path / "custom_receipts"
 
     custom_settings = Settings(
-        DATA_DIR=data_dir,
-        DATABASE_URL=custom_db_url,
-        RECEIPT_STORAGE_DIR=custom_receipts,
+        BACKUP_DIR=custom_backup_path,
+        RECEIPT_STORAGE_DIR=custom_receipt_path,
     )
 
-    assert custom_settings.DATABASE_URL == custom_db_url
-    assert custom_settings.RECEIPT_STORAGE_DIR == custom_receipts.resolve()
-    assert custom_receipts.is_dir()
+    assert custom_settings.RECEIPT_STORAGE_DIR == custom_receipt_path.resolve()
+    assert custom_receipt_path.is_dir()
+
+
+def test_backup_schedule_time_custom():
+    custom_settings = Settings(BACKUP_SCHEDULE_TIME="03:45")
+    assert custom_settings.BACKUP_SCHEDULE_TIME == "03:45"
 
 
 def test_unified_spa_serving(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

@@ -19,12 +19,11 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # Centralized Local Data Directory
-    # If set, automatically derives default DATABASE_URL and RECEIPT_STORAGE_DIR
-    DATA_DIR: Path | None = None
-
     # Google Drive / External Cloud Backup Directory
     BACKUP_DIR: Path | None = None
+
+    # Scheduled Daily Backup Time (24h format, default 02:00 AM)
+    BACKUP_SCHEDULE_TIME: str = "02:00"
 
     # Admin Credentials
     ADMIN_USERNAME: str = "admin"
@@ -59,21 +58,11 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def resolve_paths(self) -> Settings:
-        if self.DATA_DIR is not None:
-            resolved_data = self.DATA_DIR.expanduser().resolve()
-            resolved_data.mkdir(parents=True, exist_ok=True)
-
-            # Default DATABASE_URL to DATA_DIR/wrangler.db if not explicitly customized
-            if self.DATABASE_URL == "sqlite:///./wrangler.db":
-                db_file = (resolved_data / "wrangler.db").as_posix()
-                self.DATABASE_URL = f"sqlite:///{db_file}"
-
-            # Default RECEIPT_STORAGE_DIR to DATA_DIR/receipts if not explicitly customized
-            if Path(self.RECEIPT_STORAGE_DIR).resolve() == Path("receipts").resolve():
-                self.RECEIPT_STORAGE_DIR = (resolved_data / "receipts").resolve()
-
         if self.BACKUP_DIR is not None:
             self.BACKUP_DIR = Path(self.BACKUP_DIR).expanduser().resolve()
+            # Default receipt storage directly into the cloud backup folder
+            if Path(self.RECEIPT_STORAGE_DIR).resolve() == Path("receipts").resolve():
+                self.RECEIPT_STORAGE_DIR = (self.BACKUP_DIR / "receipts").resolve()
 
         # Ensure receipt storage directory exists
         self.RECEIPT_STORAGE_DIR = Path(self.RECEIPT_STORAGE_DIR).expanduser().resolve()
