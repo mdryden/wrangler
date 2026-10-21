@@ -12,7 +12,8 @@
     "format": "pnpm --filter \"./*\" format",
     "format:fix": "pnpm --filter \"./*\" format:fix",
     "test": "pnpm --filter \"./*\" test",
-    "test:changed": "pnpm --filter \"./*\" test:changed"
+    "test:changed": "pnpm --filter \"./*\" test:changed",
+    "specs": "node scripts/list-specs.js"
   },
   "packageManager": "pnpm@12.3.4",
   "devDependencies": {
