@@ -19,33 +19,38 @@ When acting as the Planning Agent and creating an implementation plan based on a
 ## 1. Principles
 - **No Guessing**: If there are gaps in the spec, do not attempt to guess them. Ask the user to address them in the spec before continuing.
 - **Spec is the Source of Truth**: The plan specifies the *how*, not the *what* or *why*. The spec defines what we're building. 
+- **Architectural Alignment**: Cross-reference `specs/ARCHITECTURE.md` to ensure planned tasks respect subsystem hand-off contracts and invariants (e.g., Ingestion routes through Staging; allocation splitting rules; locking immutability).
 - **No Extraneous Technical Details**: Do not add dependencies, frameworks, architectural patterns, or other technical details to the plan that are not explicitly stated in the spec.
 - **Completed tasks are immutable**: Once a task is marked as completed in `tasks.md`, it cannot be modified or removed. If the spec is updated, new tasks can be added, but existing completed tasks must remain unchanged.
 
 ## 2. Output Files
-You will produce two files, typically co-located in the same directory as the specification file (e.g., `specs/v1/`):
-1. `plan.md` (The detailed Implementation Plan)
-2. `tasks.md` (The Checkbox Task List)
+You will produce two files, co-located in the same directory as the target specification:
+- **For New Features:**
+  1. `plan.md` (The detailed Implementation Plan)
+  2. `tasks.md` (The Checkbox Task List)
+- **For Specification Amendments (`spec-amendment<N>.md`):**
+  1. `plan-amendment<N>.md`
+  2. `tasks-amendment<N>.md` (or adding distinct uncompleted tasks to existing `tasks.md` if directed)
 
 ### 2.1. File Modification Boundaries
-- **Specification Files (`**/spec*.md`)**:
-  - **STRICTLY READ-ONLY.** You must **NEVER** edit, update, or modify any specification file under any circumstances.
-- **Plan Files (`**/plan*.md`) ant Task Files (`**/tasks*.md`)**:
+- **Specification Files (`**/spec*.md`) & Architecture Docs**:
+  - **STRICTLY READ-ONLY.** You must **NEVER** edit, update, or modify any specification file, `specs/INDEX.md`, or `specs/ARCHITECTURE.md` under any circumstances.
+- **Plan Files (`**/plan*.md`) and Task Files (`**/tasks*.md`)**:
   - The **ONLY** files you are permitted to create or update.
-  - If any tasks in the tasks file are marked as completed, you must **NEVER** modify, reorder, or delete them. If changes to a spec conflict with the completed tasks, you must **NEVER** modify, reorder, or delete the completed tasks. Instead, create new tasks to address the conflicts and mark them as incomplete.
+  - If any tasks in the tasks file are marked as completed, you must **NEVER** modify, reorder, or delete them. If changes to a spec conflict with completed tasks, create new tasks to address the conflicts and mark them as incomplete.
 
 ## 3. Plan Structure (`plan.md`)
 - **Logical Phases**: Divide the implementation into logical, deliverable-driven phases.
 - **Strictly Implementation-Focused Tasks**: Every task in `plan.md` must represent a concrete engineering deliverable (e.g., database schema, ORM model, API endpoint, service function, component, or utility).
-- **No Verification Tasks**: Do **NOT** include tasks for manual testing, browser verification, REST client verification, or end-of-phase sanity checks (e.g., do not write tasks like "Verify Phase X via REST client" or "Verify UI in browser"). User acceptance testing is left to the user at phase completion, while automated test coverage is strictly enforced within each individual implementation task.
+- **No Verification Tasks**: Do **NOT** include tasks for manual testing, browser verification, REST client verification, or end-of-phase sanity checks. User acceptance testing is left to the user at phase completion, while automated test coverage is strictly enforced within each individual implementation task.
 - **Atomic Tasks**: Within each phase, define a specific list of atomic tasks in dependency order, even if some could theoretically be parallelized.
 - **Task Numbering**: Number all tasks sequentially by phase and item number (e.g., `1.1`, `1.2`, `2.1`).
-- **No Checkboxes**: `plan.md` will contain the full details and implementation steps for each task, but **must not** contain any markdown checkboxes (`- [ ]`). The implementation agent will not make changes to the plan.
-- **No reference to tasks.md**: Do not reference `tasks.md` in `plan.md`. The plan is the source of truth for the implementation agent, while `tasks.md` is a separate checklist for tracking progress and will be removed from the repo once all tasks are completed.
+- **No Checkboxes**: `plan.md` will contain the full details and implementation steps for each task, but **must not** contain any markdown checkboxes (`- [ ]`).
+- **No reference to tasks.md**: Do not reference `tasks.md` in `plan.md`. The plan is the source of truth for the implementation agent, while `tasks.md` is a separate checklist for tracking progress.
 
 ## 4. Task List Structure (`tasks.md`)
-- Create a separate file called `tasks.md`.
+- Create a separate file called `tasks.md` (or `tasks-amendment<N>.md` for amendments).
 - It must contain the exact tasks from the plan, numbered identically, but structured as a checklist with markdown checkboxes (e.g., `- [ ] 1.1 Initialize project`).
 - Organize the checkboxes by phase, matching the structure of `plan.md`.
-- Keep the task descriptions brief in this file; the implementation agent will refer to `plan.md` for the full details and mark tasks off in `tasks.md` as they are completed.
-- Ensure that tasks only contain actionable implementation items that an autonomous agent can complete and verify via automated tests. Never include user-facing verification or manual sanity check tasks in `tasks.md`.
+- Keep task descriptions brief in this file; the implementation agent will refer to `plan.md` for full details and mark tasks off in `tasks.md` as they are completed.
+- Ensure tasks only contain actionable implementation items that an autonomous agent can complete and verify via automated tests. Never include user-facing verification or manual sanity check tasks in `tasks.md`.

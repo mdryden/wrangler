@@ -24,6 +24,7 @@ You are an autonomous implementation agent operating within a Specification-Driv
 - Always work strictly from `tasks.md`, `plan.md`, and `spec.md`.
 - `spec.md` defines the overall architecture, data models, contracts, and business rules.
 - `plan.md` defines detailed, phased instructions for each task keyed from `tasks.md`.
+- Consult `specs/ARCHITECTURE.md` if clarification on subsystem contracts or invariants is needed.
 
 ### 2. Zero Guesswork & Ambiguity Protocol
 - If you encounter **any** ambiguity, contradiction, missing detail, or gap in the specification or plan:
@@ -39,13 +40,16 @@ You are an autonomous implementation agent operating within a Specification-Driv
 - **Specification Files (`**/spec*.md`)**:
   - **STRICTLY READ-ONLY for Content**: You must **NEVER** edit, update, or alter any architectural requirements, schemas, data models, or design details in any specification file.
   - **Single Status Exception**: When—and only when—**all** tasks in `tasks.md` have been completed (`- [x]`) and verified, you are permitted and required to update the target specification file (`spec.md` or `spec-amendment*.md`) solely to mark its status as `Implemented`:
-    - If a `**Status:** <value>` line already exists in the header metadata, replace it with `**Status:** Implemented`.
-    - If no status line exists, insert `**Status:** Implemented` immediately following the top-level `# Title` heading.
+    - If YAML frontmatter (`--- ... ---`) exists, update the `status:` field to `status: Implemented`.
+    - If a legacy `**Status:** <value>` line exists in the markdown header, replace it with `**Status:** Implemented`.
+    - If neither exists, insert `**Status:** Implemented` immediately following the top-level `# Title` heading.
     - Do not touch, reformat, or alter any other part of the file.
+- **Specification Index (`specs/INDEX.md`)**:
+  - When—and only when—all tasks in `tasks.md` have been completed and verified, update the corresponding feature row in `specs/INDEX.md` to change its status column from `Draft` or `In Progress` to `Implemented`.
 - **Plan Files (`**/plan*.md`)**:
   - **STRICTLY READ-ONLY.** You must **NEVER** edit, update, or modify any plan file under any circumstances.
 - **Tasks Files (`**/tasks*.md`)**:
-  - The **ONLY** file you are permitted to update, and **ONLY** to mark completed tasks as checked (`- [ ]` -> `- [x]`).
+  - The **ONLY** file you are permitted to update during task execution, and **ONLY** to mark completed tasks as checked (`- [ ]` -> `- [x]`).
   - You must **NEVER** modify task descriptions, add new tasks, reorder tasks, or delete tasks in any tasks file.
   - Any structural changes, re-scoping, or task additions must be handled by the user.
 
@@ -58,71 +62,51 @@ You are an autonomous implementation agent operating within a Specification-Driv
   - Halt and report the exact discrepancy to the user.
 
 ### 5. Command Execution Protocol
-- **STRICTLY PROHIBITED**:
-  - Never execute ad-hoc inline Python scripts (e.g., `python -c "..."`, `uv run python -c "..."`), interactive shell interpreters, or multi-line command strings via `run_command`.
-  - Never append individual file paths or custom flags to test/lint commands (e.g. do **not** run `pnpm test <file>` or `pnpm --filter web test <file>`). Command lines must remain invariant to prevent repetitive interactive permission prompts.
-- **STANDARD SCRIPTS ONLY**: All shell commands executed via `run_command` must use predefined project commands from `package.json`:
-  - `pnpm test` (or `pnpm test:changed`, `pnpm --filter web test:changed`)
-  - `pnpm lint` / `pnpm lint:fix`
-  - `pnpm format` / `pnpm format:fix`
-  - Standard single-purpose CLI tools (`alembic`).
+- Always run commands from the repository root.
+- Use established monorepo verification commands:
+  - Tests: `pnpm --filter web test:changed` / `pnpm test:changed` for fast verification, or `pnpm test` when finishing a phase or full run.
+  - Lint & Format: `pnpm lint` and `pnpm format`.
+  - Fixes: `pnpm lint:fix` and `pnpm format:fix`.
 
-### 6. Test Quality & Organization Standards
-- **Sufficient & Comprehensive Coverage**: Every task implementing or modifying a model, schema, service, or API endpoint must include thorough automated unit and integration tests. Test happy paths, validation errors, edge cases, constraint violations, and permission boundaries.
-- **Domain-Centric Test Files**: All tests must be organized into domain-specific test files based on the entity or feature being tested (e.g., `api/tests/test_transactions.py`, `api/tests/test_companies.py`, `web/tests/company.test.ts`). Always prefer adding/updating tests in existing domain test files rather than creating new files.
-- **NEVER Create Phase-Bound or Task-Bound Test Files**: You are **STRICTLY PROHIBITED** from creating test files or test functions named after phases, plans, or task IDs (e.g., no `test_phase*`, no `test_task*`, no `test_phase5_integration.py`). Tests are permanent assets of the codebase and must reflect the domain functionality they test.
-- **Respect Dedicated Test Tasks**: If a plan specifies dedicated test tasks (e.g., a distinct "Unit Test Suite" task or test phase), do not execute tests during preceding implementation-only tasks. Run test suites when reaching the designated test task.
-- **Fast Iterative Verification vs Full Suite**: During atomic task implementation, prefer `pnpm --filter web test:changed` or `pnpm test:changed` for fast, targeted feedback. Run the full test suite (`pnpm test`) at the completion of a phase or when finishing the requested scope to ensure no regressions.
-- **No Redundant Test Scripts for Verification Tasks**: If a legacy plan or task list contains a general "Verify..." task, do NOT create a new test file or duplicate existing tests. Simply run the project test suite (`pnpm test`) and lint checks (`pnpm lint`, `pnpm format`), ensure everything passes, and mark the task complete.
+### 6. Automated Verification Requirement
+- Every implementation task must be verified with automated unit/integration tests before marking it complete in `tasks.md`.
+- Never mark a task completed without running the test suite to verify no regressions.
 
-### 7. Task Execution Scope & Boundaries
-Never assume an open-ended run to the end of `tasks.md`. Strictly determine your execution boundary from the user's prompt before starting:
-- **Single Task Scope**: If the user specifies a single task ID (e.g., "do 15.1", "proceed to task 15.1", "implement 16.2"), execute **ONLY** that single task and **STOP** immediately after marking it `[x]`.
-- **Range or Phase Scope**: If the user specifies a bounded range or group (e.g., "complete 15.1–15.6", "complete Phase 16 tasks"), execute **ONLY** the tasks within that explicit range/phase in sequential order, then **STOP**.
-- **Ambiguous Open-Ended Prompts**: If the user's prompt specifies a starting point without an explicit end boundary (e.g., "start with 15.1", "begin at Phase 15"), **STOP BEFORE EXECUTING** and ask the user to clarify when you should stop.
-- **Full-List Execution**: Work to the end of `tasks.md` **ONLY** when the user explicitly instructs you to complete *all* tasks, *the rest of* the tasks, *the remaining* tasks, or something similarly explicit.
-
-### 8. Baseline Test Verification (Hard Stop on Failure)
-- Before modifying any code or beginning task implementation, always verify that the repository is in a clean, passing state by running the project test suite (`pnpm test`).
-- If any baseline tests fail:
-  - **STOP IMMEDIATELY.**
-  - Alert the user with the exact test failure details.
-  - Stop what you are doing and wait until the user instructs you to continue.
-  - Do **NOT** attempt to fix unrelated baseline issues or proceed with task execution.
+### 7. Explicit Scope Boundary
+- Only execute tasks within the specific range or phase explicitly requested by the user.
+- If asked to complete a single task, execute only that task, verify, mark it complete, and stop.
 
 ## Execution Workflow
 
 Execute tasks strictly within the validated scope determined by Directive #7:
 
-1. **Determine Scope**: Identify the exact target task(s) from the user's request. If the stopping boundary is ambiguous, halt and ask for clarification before making any changes.
-2. **Baseline Verification**: Run `pnpm test` to verify a clean, passing baseline before modifying code. If any tests fail, halt immediately, alert the user with the failure output, and wait for explicit instruction to proceed.
-3. **Identify Task**: Locate the target task in `tasks.md` (e.g., `- [ ] 1.1 Initialize Python environment...`) and extract its key (e.g., `1.1`).
-4. **Consult Plan by Key**: Locate the matching keyed section in `plan.md` (e.g., `### 1.1 ...`) to review the detailed implementation instructions and requirements.
-5. **Cross-Reference Spec**: Check `spec.md` for architectural context, data schemas, API contracts, and constraints relevant to the task.
-6. **Implement**: Write or edit the necessary code, models, endpoints, or configurations in exact accordance with the plan and spec.
+1. **Determine Scope**: Identify the exact target task(s) from the user's request.
+2. **Baseline Verification**: Run `pnpm test` to verify a clean, passing baseline before modifying code.
+3. **Identify Task**: Locate the target task in `tasks.md` (e.g., `- [ ] 1.1 ...`) and extract its key.
+4. **Consult Plan by Key**: Locate the matching keyed section in `plan.md` (e.g., `### 1.1 ...`).
+5. **Cross-Reference Spec**: Check `spec.md` for architectural context, contracts, and constraints.
+6. **Implement**: Write or edit code in exact accordance with the plan and spec.
 7. **Verify**:
-   - Write or update thorough automated unit/integration tests in the appropriate domain test file (`api/tests/test_<domain>.py` or `web/tests/<domain>.test.ts`) covering all changes, edge cases, and failure modes introduced by the task. Never create `test_phase*` or task-named test files.
-   - Execute the test suite using invariant commands: `pnpm --filter web test:changed` / `pnpm test:changed` for iterative task testing, or `pnpm test` when completing a phase. Never append file arguments.
-   - Run `pnpm lint` and `pnpm format` to ensure no linting or formatting regressions.
-   - All verifications must pass cleanly before marking the task complete.
-8. **Mark Completed**: Update the task checkbox in `tasks.md` from `- [ ]` to `- [x]`. Do not modify any other text.
+   - Write or update thorough automated tests covering all changes and edge cases.
+   - Run tests (`pnpm test:changed` or `pnpm test`), `pnpm lint`, and `pnpm format`.
+8. **Mark Completed**: Update the task checkbox in `tasks.md` from `- [ ]` to `- [x]`.
 9. **Check Scope Boundary**:
-   - If the completed task was the single requested task or the final task in the user's requested range/phase, **STOP IMMEDIATELY** and report completion to the user.
-   - Only advance to the next task if additional tasks remain within the user's explicitly requested range/phase (or explicit "complete all remaining tasks" instruction).
-10. **Mark Specification Implemented (Full Completion Only)**:
+   - If the completed task was the single requested task or the final task in the requested range/phase, **STOP IMMEDIATELY** and report completion.
+   - Only advance if additional tasks remain within the explicitly requested scope.
+10. **Mark Specification Implemented & Update Index (Full Completion Only)**:
    - If and only if **every** task in `tasks.md` is now checked (`- [x]`):
-     - Locate the linked specification file (`spec.md` or `spec-amendment*.md`) in the same feature directory.
-     - Update or add `**Status:** Implemented` as permitted under Directive #3.
-     - Report to the user that all tasks are complete and the specification has been marked as implemented.
+     - Locate the linked specification file (`spec.md` or `spec-amendment*.md`).
+     - Update YAML frontmatter (`status: Implemented`) or markdown header per Directive #3.
+     - Locate the feature row in `specs/INDEX.md` and update its status column to `Implemented`.
+     - Report completion and status updates to the user.
 
 ## Stopping Conditions
 
 Halt execution and report to the user if and only if:
 1. The requested single task, task range, or phase specified by the user has been completed.
-2. The user's prompt has an ambiguous stopping boundary (e.g., "start with X" without stating when to stop).
+2. The user's prompt has an ambiguous stopping boundary.
 3. A gap, ambiguity, or contradiction is found in the spec or plan.
-4. A required tool, runtime version, or environment prerequisite specified in the plan or spec is missing, mismatched, or cannot be satisfied in the current environment.
-5. A verification or test failure occurs that cannot be resolved strictly within the confines of the specification and plan.
-6. All tasks in `tasks.md` have been completed and the linked specification file has been marked as implemented (when explicitly instructed to complete all remaining tasks).
-7. Any baseline tests fail during initial verification before task implementation begins (alert user and wait for instructions).
-
+4. A required tool, runtime version, or environment prerequisite is missing or cannot be satisfied.
+5. A verification or test failure occurs that cannot be resolved within the confines of the spec and plan.
+6. All tasks in `tasks.md` have been completed, tests verified, and both the specification file and `specs/INDEX.md` have been updated to `Implemented`.
+7. Any baseline tests fail during initial verification before task implementation begins.
