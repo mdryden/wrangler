@@ -1,9 +1,8 @@
 # Specification Amendment 1: Due to Owner Anchor Classification & Column Renaming
 
 **Target Specification:** [`specs/v3/2-wave-integration/spec.md`](file:///D:/src/personal/wrangler/specs/v3/2-wave-integration/spec.md)  
-**Status:** Implemented  
-**Author:** Application Architecture  
-**Date:** 2026-10-20  
+**Status:** Implemented
+**Date:** 2026-10-20
 
 ---
 
@@ -14,6 +13,7 @@ In [`specs/v3/2-wave-integration/spec.md`](file:///D:/src/personal/wrangler/spec
 In actual operational accounting, personal expenses incurred on behalf of a company that must be reimbursed are tracked on the balance sheet under **Liabilities & Credit Cards** in Wave—specifically within the **"Due to You and Other Business Owners"** account ledger rather than an equity or bank account ledger.
 
 Because the initial filter in `WaveClient.get_business_accounts` only allowed `{"CASH_AND_BANK", "CREDIT_CARD", "MONEY_MARKET", "OWNERS_EQUITY"}`:
+
 1. Liability accounts with the Wave subtype `DUE_TO_YOU_AND_OTHER_OWNERS` were excluded from the anchor account dropdown.
 2. The column and API schema specifically referenced "equity" (`wave_equity_account_id`, `equity_account_id`), which is inaccurate and misleading for liability-anchored reimbursement flows.
 
@@ -24,7 +24,7 @@ This amendment formally defines the scope, data model migration, backend updates
 ## 2. Summary of Changes
 
 1. **Subtype Reclassification:**
-   - **Add:** `DUE_TO_YOU_AND_OTHER_OWNERS` (Wave's programmatic enum for *"Due to You and Other Business Owners"* under `LIABILITY`).
+   - **Add:** `DUE_TO_YOU_AND_OTHER_OWNERS` (Wave's programmatic enum for _"Due to You and Other Business Owners"_ under `LIABILITY`).
    - **Remove:** `OWNERS_EQUITY` from candidate anchor accounts.
    - **Retain:** `CASH_AND_BANK`, `CREDIT_CARD`, and `MONEY_MARKET` for bank clearing or corporate card usage.
 2. **Column & Schema Renaming:**
@@ -38,6 +38,7 @@ This amendment formally defines the scope, data model migration, backend updates
 ## 3. Data Model & Database Migration
 
 ### 3.1 Alembic Migration
+
 A new migration script must be created in `api/alembic/versions/` revising current head `f2a7b1c9d8e3`:
 
 - **Revision ID:** Auto-generated (e.g., `a1c4e9b8f3d2`)
@@ -65,11 +66,15 @@ A new migration script must be created in `api/alembic/versions/` revising curre
   ```
 
 ### 3.2 SQLAlchemy Model Changes ([`api/src/models/company.py`](file:///D:/src/personal/wrangler/api/src/models/company.py))
+
 Replace:
+
 ```python
 wave_equity_account_id: Mapped[str | None] = mapped_column(String, nullable=True)
 ```
+
 with:
+
 ```python
 wave_anchor_account_id: Mapped[str | None] = mapped_column(String, nullable=True)
 ```
@@ -81,13 +86,15 @@ wave_anchor_account_id: Mapped[str | None] = mapped_column(String, nullable=True
 ### 4.1 Wave Client Filtering ([`api/src/services/wave/client.py`](file:///D:/src/personal/wrangler/api/src/services/wave/client.py))
 
 #### `get_business_accounts(token: str, business_id: str) -> WaveAccountsResult`
+
 Update the filtering rules for candidate anchor accounts:
+
 - **Valid Anchor Types:** `{"ASSET", "LIABILITY"}`
 - **Valid Anchor Subtypes:**
-  - `DUE_TO_YOU_AND_OTHER_OWNERS` *(New: Due to You and Other Business Owners liability account)*
-  - `CASH_AND_BANK` *(Retained: Bank / Checking / Operating)*
-  - `CREDIT_CARD` *(Retained: Corporate / Business Credit Card)*
-  - `MONEY_MARKET` *(Retained: Liquid cash management)*
+  - `DUE_TO_YOU_AND_OTHER_OWNERS` _(New: Due to You and Other Business Owners liability account)_
+  - `CASH_AND_BANK` _(Retained: Bank / Checking / Operating)_
+  - `CREDIT_CARD` _(Retained: Corporate / Business Credit Card)_
+  - `MONEY_MARKET` _(Retained: Liquid cash management)_
 - Exclude accounts where `subtype.value == "OWNERS_EQUITY"` or where `isArchived == True`.
 
 ```python
@@ -101,7 +108,9 @@ valid_anchor_types = {"ASSET", "LIABILITY"}
 ```
 
 #### `create_money_transaction(...) -> str`
+
 Rename parameter `equity_account_id` to `anchor_account_id`:
+
 ```python
 @classmethod
 async def create_money_transaction(
@@ -116,11 +125,13 @@ async def create_money_transaction(
     category_account_id: str,
 ) -> str:
 ```
+
 The payload construction remains structurally unchanged, mapping `anchor.accountId = anchor_account_id`:
+
 - When `amount > 0`: `anchor.direction = "WITHDRAWAL"`, `anchor.accountId = anchor_account_id`.
-  *(In Wave accounting, a WITHDRAWAL on a Liability account like `DUE_TO_YOU_AND_OTHER_OWNERS` credits/increases the liability owed to the owner, while the line item increases expense. The ledger entry balances perfectly).*
+  _(In Wave accounting, a WITHDRAWAL on a Liability account like `DUE_TO_YOU_AND_OTHER_OWNERS` credits/increases the liability owed to the owner, while the line item increases expense. The ledger entry balances perfectly)._
 - When `amount < 0`: `anchor.direction = "DEPOSIT"`, `anchor.accountId = anchor_account_id`.
-  *(Credits/refunds debit/reduce the liability owed to the owner).*
+  _(Credits/refunds debit/reduce the liability owed to the owner)._
 
 ### 4.2 Pydantic Schemas ([`api/src/schemas/company.py`](file:///D:/src/personal/wrangler/api/src/schemas/company.py))
 
@@ -144,7 +155,7 @@ The payload construction remains structurally unchanged, mapping `anchor.account
        business_name: str = Field(..., min_length=1, description="Wave Business Name")
        anchor_account_id: str = Field(..., min_length=1, description="Selected Wave Anchor Account ID")
    ```
-   *Note for backward compatibility:* Accept `equity_account_id` as an optional fallback alias if `anchor_account_id` is missing in transitional payload calls.
+   _Note for backward compatibility:_ Accept `equity_account_id` as an optional fallback alias if `anchor_account_id` is missing in transitional payload calls.
 
 ### 4.3 Companies Router ([`api/src/routers/companies.py`](file:///D:/src/personal/wrangler/api/src/routers/companies.py))
 
@@ -164,7 +175,9 @@ The payload construction remains structurally unchanged, mapping `anchor.account
 ## 5. Frontend UI & State Updates
 
 ### 5.1 TypeScript Types ([`web/src/types/company.ts`](file:///D:/src/personal/wrangler/web/src/types/company.ts))
+
 Update interface properties:
+
 ```typescript
 export interface Company {
   id: string
@@ -185,10 +198,12 @@ export interface WaveConnectPayload {
 ```
 
 ### 5.2 Company Pinia Store ([`web/src/stores/companies.ts`](file:///D:/src/personal/wrangler/web/src/stores/companies.ts))
+
 In `connectWave(companyId: string, payload: WaveConnectPayload)`:
 Pass `{ token, business_id, business_name, anchor_account_id: payload.anchor_account_id }` in the POST request to `/api/companies/${companyId}/wave/connect`.
 
 ### 5.3 Company Form Dialog ([`web/src/components/CompanyFormDialog.vue`](file:///D:/src/personal/wrangler/web/src/components/CompanyFormDialog.vue))
+
 - Update select label:
   ```html
   <q-select
@@ -224,16 +239,17 @@ Pass `{ token, business_id, business_name, anchor_account_id: payload.anchor_acc
 
 Wave's `moneyTransactionCreate` mutation enforces double-entry balance constraints. The table below documents how transactions anchor against `DUE_TO_YOU_AND_OTHER_OWNERS`:
 
-| Scenario | Amount | Direction / Balance | Wave Meaning & Balance Sheet Impact |
-| :--- | :--- | :--- | :--- |
-| **Standard Expense** (e.g., $150 personal spend for business) | `+150.00` | Anchor: `WITHDRAWAL`<br>Line Item: `INCREASE` | **Credit** Liability (`DUE_TO_YOU_AND_OTHER_OWNERS`) by $150.<br>**Debit** Expense category by $150.<br>*Result:* Debt owed to business owner increases. |
-| **Refund / Return** (e.g., -$30 refund credited back to personal card) | `-30.00` | Anchor: `DEPOSIT`<br>Line Item: `DECREASE` | **Debit** Liability (`DUE_TO_YOU_AND_OTHER_OWNERS`) by $30.<br>**Credit** Expense category by $30.<br>*Result:* Debt owed to business owner decreases. |
+| Scenario                                                               | Amount    | Direction / Balance                           | Wave Meaning & Balance Sheet Impact                                                                                                                      |
+| :--------------------------------------------------------------------- | :-------- | :-------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Standard Expense** (e.g., $150 personal spend for business)          | `+150.00` | Anchor: `WITHDRAWAL`<br>Line Item: `INCREASE` | **Credit** Liability (`DUE_TO_YOU_AND_OTHER_OWNERS`) by $150.<br>**Debit** Expense category by $150.<br>_Result:_ Debt owed to business owner increases. |
+| **Refund / Return** (e.g., -$30 refund credited back to personal card) | `-30.00`  | Anchor: `DEPOSIT`<br>Line Item: `DECREASE`    | **Debit** Liability (`DUE_TO_YOU_AND_OTHER_OWNERS`) by $30.<br>**Credit** Expense category by $30.<br>_Result:_ Debt owed to business owner decreases.   |
 
 ---
 
 ## 7. Test Suite Updates & Acceptance Criteria
 
 ### 7.1 Backend Tests (`api/tests/`)
+
 1. **[`test_migrations.py`](file:///D:/src/personal/wrangler/api/tests/test_migrations.py) & [`test_schema.py`](file:///D:/src/personal/wrangler/api/tests/test_schema.py):**
    - Verify `wave_anchor_account_id` is present in `companies` columns and `wave_equity_account_id` is absent.
 2. **[`test_wave_client.py`](file:///D:/src/personal/wrangler/api/tests/test_wave_client.py):**
@@ -247,6 +263,7 @@ Wave's `moneyTransactionCreate` mutation enforces double-entry balance constrain
    - Verify transactions are created with `anchor.accountId == company.wave_anchor_account_id`.
 
 ### 7.2 Frontend Tests (`web/tests/`)
+
 1. **[`waveStores.test.ts`](file:///D:/src/personal/wrangler/web/tests/waveStores.test.ts):**
    - Assert `connectWave` sends `anchor_account_id` payload and updates `company.wave_anchor_account_id`.
 2. **[`waveUi.test.ts`](file:///D:/src/personal/wrangler/web/tests/waveUi.test.ts):**
