@@ -411,7 +411,7 @@ defineExpose({
     <q-card flat bordered class="q-mb-md bg-white" data-testid="importer-runner-panel">
       <q-card-section class="q-py-md">
         <div class="text-subtitle1 text-weight-bold text-grey-9 q-mb-sm">Run Importer</div>
-        <div class="row q-col-gutter-md items-center">
+        <div class="row q-col-gutter-md items-start">
           <!-- Importer Select Dropdown -->
           <div class="col-12 col-md-4">
             <q-select
@@ -464,6 +464,7 @@ defineExpose({
             <div
               v-else-if="selectedImporter && selectedImporter.input_type === 'none'"
               class="row items-center q-gutter-sm"
+              style="min-height: 40px"
               data-testid="badge-importer-integration-source"
             >
               <q-badge color="blue-1" text-color="primary" class="q-px-sm q-py-xs text-weight-medium">
@@ -472,11 +473,13 @@ defineExpose({
               </q-badge>
             </div>
 
-            <div v-else class="text-caption text-grey-6">Select an importer above to configure its input source.</div>
+            <div v-else class="text-caption text-grey-6 row items-center" style="min-height: 40px">
+              Select an importer above to configure its input source.
+            </div>
           </div>
 
           <!-- Run Importer Button -->
-          <div class="col-12 col-md-3 row justify-end">
+          <div class="col-12 col-md-3 row justify-end items-center" style="min-height: 40px">
             <q-btn
               unelevated
               color="primary"
