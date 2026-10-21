@@ -10,6 +10,7 @@ import type {
   TransactionQueryParams,
   TransactionUpdatePayload,
 } from "../types/transaction"
+import type { BulkAllocationCategoryUpdateResponse } from "../types/wave"
 
 export const useTransactionStore = defineStore("transactions", () => {
   const transactions = ref<Transaction[]>([])
@@ -253,6 +254,38 @@ export const useTransactionStore = defineStore("transactions", () => {
     }
   }
 
+  /**
+   * Bulk update Wave categories on multiple allocations.
+   */
+  async function bulkUpdateAllocationCategory(
+    allocationIds: string[],
+    waveCategoryId: string,
+  ): Promise<BulkAllocationCategoryUpdateResponse> {
+    error.value = null
+    try {
+      const res = await apiClient.post<BulkAllocationCategoryUpdateResponse>("/api/allocations/bulk-category", {
+        allocation_ids: allocationIds,
+        wave_category_id: waveCategoryId,
+      })
+
+      // Update in-memory transactions reactively
+      const updatedIdSet = new Set(allocationIds)
+      for (const tx of transactions.value) {
+        for (const alloc of tx.allocations ?? []) {
+          if (updatedIdSet.has(alloc.id)) {
+            alloc.wave_category_id = waveCategoryId
+          }
+        }
+      }
+
+      return res
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to bulk update allocation categories"
+      error.value = msg
+      throw err
+    }
+  }
+
   return {
     transactions,
     total,
@@ -268,6 +301,7 @@ export const useTransactionStore = defineStore("transactions", () => {
     lockTransaction,
     lockAllocation,
     updateAllocationCategory,
+    bulkUpdateAllocationCategory,
     uploadReceipt,
     deleteReceipt,
     openReceiptInNewTab,

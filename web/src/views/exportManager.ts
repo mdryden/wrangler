@@ -171,3 +171,41 @@ export function canExportCompany(company: Company | null | undefined, includeLoc
   }
   return unlockedCount > 0
 }
+
+/**
+ * Determines whether the master header checkbox should be fully checked.
+ * True when visibleRowIds is non-empty and every visible ID is selected.
+ */
+export function isMasterHeaderChecked(visibleRowIds: string[], selectedRowIds: string[]): boolean {
+  if (visibleRowIds.length === 0) return false
+  const selectedSet = new Set(selectedRowIds)
+  return visibleRowIds.every(id => selectedSet.has(id))
+}
+
+/**
+ * Determines whether the master header checkbox should be in an indeterminate state.
+ * True when some, but not all, visible IDs are selected.
+ */
+export function isMasterHeaderIndeterminate(visibleRowIds: string[], selectedRowIds: string[]): boolean {
+  if (visibleRowIds.length === 0) return false
+  const selectedSet = new Set(selectedRowIds)
+  const count = visibleRowIds.filter(id => selectedSet.has(id)).length
+  return count > 0 && count < visibleRowIds.length
+}
+
+/**
+ * Counts how many rows in selectedRows have an existing assigned wave_category_id.
+ */
+export function countOverwrittenCategories(selectedRows: ExportAllocationRow[]): number {
+  if (!Array.isArray(selectedRows)) return 0
+  return selectedRows.filter(row => Boolean(row.wave_category_id)).length
+}
+
+/**
+ * Determines whether all selected rows are eligible to sync to Wave.
+ * True if selectedRows is non-empty and every selected row is unlocked and has a wave_category_id.
+ */
+export function canSyncSelectedToWave(selectedRows: ExportAllocationRow[]): boolean {
+  if (!Array.isArray(selectedRows) || selectedRows.length === 0) return false
+  return selectedRows.every(row => !row.is_locked && Boolean(row.wave_category_id))
+}

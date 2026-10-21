@@ -1,7 +1,7 @@
 import uuid
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class AllocationResponse(BaseModel):
@@ -47,3 +47,20 @@ class AllocationCategoryUpdateRequest(BaseModel):
 
 class LockUpdateRequest(BaseModel):
     is_locked: bool
+
+
+class BulkAllocationCategoryUpdateRequest(BaseModel):
+    allocation_ids: list[uuid.UUID]
+    wave_category_id: uuid.UUID
+
+    @field_validator("allocation_ids")
+    @classmethod
+    def validate_non_empty(cls, v: list[uuid.UUID]) -> list[uuid.UUID]:
+        if not v:
+            raise ValueError("allocation_ids list cannot be empty")
+        return v
+
+
+class BulkAllocationCategoryUpdateResponse(BaseModel):
+    updated_count: int
+    allocation_ids: list[uuid.UUID]

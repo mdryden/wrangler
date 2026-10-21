@@ -9,17 +9,21 @@ import {
   buildCompanyExportOptions,
   canExportCompany,
   canSyncRowToWave,
+  canSyncSelectedToWave as canSyncSelectedToWaveHelper,
   createInitialExportControlsState,
   DEFAULT_EXPORT_PAGE_SIZE,
   extractCompanyAllocationRows,
   formatCurrency,
   getCompanyExportSummary,
   getLedgerTransactionUrl,
+  isMasterHeaderChecked,
+  isMasterHeaderIndeterminate,
   isWaveAlreadySynced,
   openTransactionInLedgerNewTab,
   resetExportControlsState,
   type ExportAllocationRow,
 } from "./exportManager"
+import BulkCategorizeDialog from "../components/BulkCategorizeDialog.vue"
 
 const $q = useQuasar()
 const companyStore = useCompanyStore()
@@ -32,6 +36,7 @@ const syncingCategories = ref<boolean>(false)
 
 const cachedCategories = ref<WaveCategory[]>([])
 const selectedRows = ref<ExportAllocationRow[]>([])
+const showBulkCategorizeDialog = ref<boolean>(false)
 
 // Sync result dialog
 const showSyncSummary = ref<boolean>(false)
@@ -105,16 +110,31 @@ const categoryOptions = computed(() =>
   })),
 )
 
-// Select all toggle logic
-const eligibleRows = computed(() => allocationRows.value.filter(r => canSyncRowToWave(r)))
+// Visible unlocked selection logic
+const visibleUnlockedRows = computed(() => allocationRows.value.filter(r => !r.is_locked))
 
-const isAllSelected = computed(() => eligibleRows.value.length > 0 && selectedRows.value.length === eligibleRows.value.length)
+const isMasterChecked = computed(() =>
+  isMasterHeaderChecked(
+    visibleUnlockedRows.value.map(r => r.id),
+    selectedRows.value.map(r => r.id),
+  ),
+)
 
-function toggleSelectAll(): void {
-  if (isAllSelected.value) {
-    selectedRows.value = []
+const isMasterIndeterminate = computed(() =>
+  isMasterHeaderIndeterminate(
+    visibleUnlockedRows.value.map(r => r.id),
+    selectedRows.value.map(r => r.id),
+  ),
+)
+
+function onToggleMasterHeader(): void {
+  if (isMasterChecked.value || isMasterIndeterminate.value) {
+    const visibleIds = new Set(visibleUnlockedRows.value.map(r => r.id))
+    selectedRows.value = selectedRows.value.filter(r => !visibleIds.has(r.id))
   } else {
-    selectedRows.value = [...eligibleRows.value]
+    const currentSelectedIds = new Set(selectedRows.value.map(r => r.id))
+    const toAdd = visibleUnlockedRows.value.filter(r => !currentSelectedIds.has(r.id))
+    selectedRows.value = [...selectedRows.value, ...toAdd]
   }
 }
 
@@ -123,6 +143,9 @@ function isRowSelected(row: ExportAllocationRow): boolean {
 }
 
 function toggleRowSelect(row: ExportAllocationRow): void {
+  if (!isWaveMode.value || row.is_locked) {
+    return
+  }
   const idx = selectedRows.value.findIndex(r => r.id === row.id)
   if (idx !== -1) {
     selectedRows.value.splice(idx, 1)
@@ -131,10 +154,7 @@ function toggleRowSelect(row: ExportAllocationRow): void {
   }
 }
 
-const canSyncSelectedToWave = computed(() => {
-  if (!isWaveMode.value || selectedRows.value.length === 0) return false
-  return selectedRows.value.every(r => r.wave_category_id)
-})
+const canSyncSelectedToWave = computed(() => isWaveMode.value && canSyncSelectedToWaveHelper(selectedRows.value))
 
 const selectedRowsTotalFormatted = computed(() => {
   const sum = selectedRows.value.reduce((acc, r) => {
@@ -239,6 +259,29 @@ watch(
   },
 )
 
+// Automatic selection reset on filter or pagination changes
+watch(
+  [
+    () => controls.value.company_id,
+    () => controls.value.start_date,
+    () => controls.value.end_date,
+    () => controls.value.include_locked,
+    () => pagination.value.page,
+    () => pagination.value.rowsPerPage,
+  ],
+  () => {
+    selectedRows.value = []
+  },
+)
+
+async function onBulkCategorizeApplied(count: number): Promise<void> {
+  notifySuccess(`Assigned category to ${count} transactions`)
+  selectedRows.value = []
+  if (controls.value.company_id) {
+    await onRequest({ pagination: pagination.value })
+  }
+}
+
 async function onQuickSyncCategories(): Promise<void> {
   const compId = controls.value.company_id
   if (!compId) return
@@ -281,6 +324,7 @@ async function onRequest(props: {
     rowsNumber?: number
   }
 }): Promise<void> {
+  selectedRows.value = []
   if (!controls.value.company_id) {
     transactionStore.transactions = []
     pagination.value.page = 1
@@ -575,39 +619,21 @@ defineExpose({
     <!-- Action Bar -->
     <q-card flat bordered class="q-mb-md bg-white" data-testid="export-action-bar">
       <q-card-section class="q-py-sm row items-center justify-between q-col-gutter-sm">
-        <div class="row items-center q-gutter-md">
-          <template v-if="selectedCompany && selectedCompanySummary">
-            <div class="row items-center no-wrap">
-              <q-avatar size="28px" color="blue-1" text-color="primary" icon="business" class="q-mr-sm" />
-              <span class="text-subtitle1 text-weight-bold" data-testid="selected-company-name">
-                {{ selectedCompany.name }}
-              </span>
-            </div>
-            <q-badge
-              :color="isWaveMode ? 'green-1' : 'green-1'"
-              :text-color="isWaveMode ? 'positive' : 'positive'"
-              class="q-px-sm q-py-xs text-weight-bold"
-              data-testid="summary-unlocked-badge"
-            >
-              {{ selectedCompanySummary.unlockedCount }} Unlocked ({{ selectedCompanySummary.unlockedTotalFormatted }})
-            </q-badge>
-            <q-badge color="amber-2" text-color="amber-10" class="q-px-sm q-py-xs text-weight-bold" data-testid="summary-locked-badge">
-              <q-icon name="lock" size="12px" class="q-mr-xs" />
-              {{ selectedCompanySummary.lockedCount }} Locked
-            </q-badge>
-            <q-chip v-if="isWaveMode" dense color="positive" text-color="white" icon="cloud_done" class="text-weight-bold">
-              Wave Connected
-            </q-chip>
-          </template>
-          <div v-else class="text-body2 text-grey-7" data-testid="export-no-company-prompt">
-            Select a company in the filter bar above to preview allocations and synchronize or export.
-          </div>
-        </div>
-
-        <!-- Action Buttons -->
-        <div class="row items-center q-gutter-sm">
-          <!-- Wave Connected Mode -->
-          <template v-if="isWaveMode">
+        <!-- Contextual Bulk Toolbar (Wave Mode with Selected Rows) -->
+        <template v-if="isWaveMode && selectedRows.length > 0">
+          <q-chip color="primary" text-color="white" icon="check_circle" class="text-weight-bold" data-testid="chip-bulk-selected-count">
+            {{ selectedRows.length }} selected
+          </q-chip>
+          <q-space />
+          <div class="row items-center q-gutter-sm">
+            <q-btn
+              unelevated
+              color="primary"
+              icon="label"
+              label="Assign Category"
+              data-testid="btn-bulk-assign-category"
+              @click="showBulkCategorizeDialog = true"
+            />
             <q-btn
               unelevated
               color="primary"
@@ -618,42 +644,98 @@ defineExpose({
               data-testid="btn-sync-to-wave"
               @click="onSyncToWave"
             >
-              <q-tooltip v-if="selectedRows.length === 0">Select one or more categorized rows to sync to Wave</q-tooltip>
-              <q-tooltip v-else-if="!canSyncSelectedToWave">All selected rows must have a category assigned</q-tooltip>
+              <q-tooltip v-if="!canSyncSelectedToWave"
+                >All selected transactions must have a category assigned before syncing to Wave</q-tooltip
+              >
               <q-tooltip v-else>Push {{ selectedRows.length }} categorized transactions directly to Wave</q-tooltip>
             </q-btn>
+          </div>
+        </template>
 
-            <q-btn
-              flat
-              color="grey-8"
-              icon="download"
-              label="Export CSV"
-              :loading="exporting"
-              :disable="!controls.company_id || exporting"
-              data-testid="btn-export-csv"
-              @click="onExportCsv"
-            >
-              <q-tooltip>Download Wave CSV backup</q-tooltip>
-            </q-btn>
-          </template>
+        <!-- Standard Default Action Bar -->
+        <template v-else>
+          <div class="row items-center q-gutter-md">
+            <template v-if="selectedCompany && selectedCompanySummary">
+              <div class="row items-center no-wrap">
+                <q-avatar size="28px" color="blue-1" text-color="primary" icon="business" class="q-mr-sm" />
+                <span class="text-subtitle1 text-weight-bold" data-testid="selected-company-name">
+                  {{ selectedCompany.name }}
+                </span>
+              </div>
+              <q-badge
+                :color="isWaveMode ? 'green-1' : 'green-1'"
+                :text-color="isWaveMode ? 'positive' : 'positive'"
+                class="q-px-sm q-py-xs text-weight-bold"
+                data-testid="summary-unlocked-badge"
+              >
+                {{ selectedCompanySummary.unlockedCount }} Unlocked ({{ selectedCompanySummary.unlockedTotalFormatted }})
+              </q-badge>
+              <q-badge color="amber-2" text-color="amber-10" class="q-px-sm q-py-xs text-weight-bold" data-testid="summary-locked-badge">
+                <q-icon name="lock" size="12px" class="q-mr-xs" />
+                {{ selectedCompanySummary.lockedCount }} Locked
+              </q-badge>
+              <q-chip v-if="isWaveMode" dense color="positive" text-color="white" icon="cloud_done" class="text-weight-bold">
+                Wave Connected
+              </q-chip>
+            </template>
+            <div v-else class="text-body2 text-grey-7" data-testid="export-no-company-prompt">
+              Select a company in the filter bar above to preview allocations and synchronize or export.
+            </div>
+          </div>
 
-          <!-- Standard Unlinked Mode -->
-          <template v-else>
-            <q-btn
-              unelevated
-              color="primary"
-              icon="download"
-              label="Export CSV"
-              :loading="exporting"
-              :disable="!controls.company_id || exporting"
-              data-testid="btn-export-csv"
-              @click="onExportCsv"
-            >
-              <q-tooltip v-if="!controls.company_id">Select a company first to export CSV</q-tooltip>
-              <q-tooltip v-else>Download Wave CSV and automatically lock exported allocations</q-tooltip>
-            </q-btn>
-          </template>
-        </div>
+          <!-- Action Buttons -->
+          <div class="row items-center q-gutter-sm">
+            <!-- Wave Connected Mode -->
+            <template v-if="isWaveMode">
+              <q-btn
+                unelevated
+                color="primary"
+                icon="cloud_upload"
+                label="Sync to Wave"
+                :loading="syncingToWave"
+                :disable="!canSyncSelectedToWave || syncingToWave"
+                data-testid="btn-sync-to-wave"
+                @click="onSyncToWave"
+              >
+                <q-tooltip v-if="selectedRows.length === 0">Select one or more categorized rows to sync to Wave</q-tooltip>
+                <q-tooltip v-else-if="!canSyncSelectedToWave"
+                  >All selected transactions must have a category assigned before syncing to Wave</q-tooltip
+                >
+                <q-tooltip v-else>Push {{ selectedRows.length }} categorized transactions directly to Wave</q-tooltip>
+              </q-btn>
+
+              <q-btn
+                flat
+                color="grey-8"
+                icon="download"
+                label="Export CSV"
+                :loading="exporting"
+                :disable="!controls.company_id || exporting"
+                data-testid="btn-export-csv"
+                @click="onExportCsv"
+              >
+                <q-tooltip>Download Wave CSV backup</q-tooltip>
+              </q-btn>
+            </template>
+
+            <!-- Standard Unlinked Mode -->
+            <template v-else>
+              <q-btn
+                unelevated
+                color="primary"
+                icon="download"
+                label="Export CSV"
+                :loading="exporting"
+                :disable="!controls.company_id || exporting"
+                data-testid="btn-export-csv"
+                @click="onExportCsv"
+              >
+                <q-tooltip v-if="!controls.company_id">Select a company first to export CSV</q-tooltip>
+                <q-tooltip v-else>Download Wave CSV and automatically lock exported allocations</q-tooltip>
+              </q-btn>
+            </template>
+          </div>
+        </template>
       </q-card-section>
     </q-card>
 
@@ -675,11 +757,12 @@ defineExpose({
       <template #header-cell-selection="props">
         <q-th :props="props" auto-width>
           <q-checkbox
-            :model-value="isAllSelected"
-            :disable="eligibleRows.length === 0"
+            :model-value="isMasterChecked"
+            :indeterminate="isMasterIndeterminate"
+            :disable="visibleUnlockedRows.length === 0"
             dense
             data-testid="checkbox-select-all"
-            @update:model-value="toggleSelectAll"
+            @update:model-value="onToggleMasterHeader"
           />
         </q-th>
       </template>
@@ -707,7 +790,13 @@ defineExpose({
       <!-- Description Column -->
       <template #body-cell-description="props">
         <q-td :props="props">
-          <div class="text-weight-medium">{{ props.row.description }}</div>
+          <div
+            class="text-weight-medium"
+            :class="{ 'cursor-pointer': isWaveMode && !props.row.is_locked }"
+            @click="toggleRowSelect(props.row)"
+          >
+            {{ props.row.description }}
+          </div>
         </q-td>
       </template>
 
@@ -753,9 +842,6 @@ defineExpose({
                 </q-item>
               </template>
             </q-select>
-            <div v-if="!props.row.wave_category_id" class="q-mt-xs">
-              <q-chip dense color="warning" text-color="white" size="xs" data-testid="chip-category-required"> Category Required </q-chip>
-            </div>
           </div>
         </q-td>
       </template>
@@ -920,5 +1006,13 @@ defineExpose({
         </q-card-actions>
       </q-card>
     </q-dialog>
+
+    <!-- Bulk Categorization Dialog -->
+    <BulkCategorizeDialog
+      v-model="showBulkCategorizeDialog"
+      :selected-rows="selectedRows"
+      :categories="cachedCategories"
+      @applied="onBulkCategorizeApplied"
+    />
   </q-page>
 </template>

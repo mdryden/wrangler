@@ -46,3 +46,13 @@ export interface WaveSyncResponse {
   failed_count: number
   errors: WaveSyncErrorItem[]
 }
+
+export interface BulkAllocationCategoryUpdateRequest {
+  allocation_ids: string[]
+  wave_category_id: string
+}
+
+export interface BulkAllocationCategoryUpdateResponse {
+  updated_count: number
+  allocation_ids: string[]
+}
