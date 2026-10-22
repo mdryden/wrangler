@@ -541,8 +541,22 @@ defineExpose({
                 <template #prepend>
                   <q-icon name="link" />
                 </template>
-                <template #append v-if="form.url">
-                  <q-btn flat round dense size="sm" icon="open_in_new" :href="form.url" target="_blank" />
+                <template #append v-if="form.url && form.url.trim()">
+                  <q-btn
+                    flat
+                    round
+                    dense
+                    size="sm"
+                    icon="open_in_new"
+                    color="primary"
+                    :href="form.url.trim()"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-testid="btn-open-url"
+                    @click.stop
+                  >
+                    <q-tooltip>Open URL</q-tooltip>
+                  </q-btn>
                 </template>
               </q-input>
             </div>

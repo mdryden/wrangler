@@ -355,5 +355,19 @@ describe("stagedTransactionEdit", () => {
       expect(dialogTemplate).toContain('data-testid="btn-dismiss-suggestion-description"')
       expect(dialogTemplate).toContain('data-testid="match-indicator-description"')
     })
+
+    it("configures investigation URL open button with click propagation stopped and link attributes", () => {
+      const urlInputRegex = /<q-input[^>]*data-testid="input-staged-url"[^>]*>([\s\S]*?)<\/q-input>/
+      const inputMatch = dialogTemplate.match(urlInputRegex)
+      expect(inputMatch).not.toBeNull()
+      const appendSlotContent = inputMatch![1]
+
+      // Must have open URL button with stop propagation so Quasar's append slot does not cancel navigation
+      expect(appendSlotContent).toContain('data-testid="btn-open-url"')
+      expect(appendSlotContent).toContain("@click.stop")
+      expect(appendSlotContent).toContain('target="_blank"')
+      expect(appendSlotContent).toContain('rel="noopener noreferrer"')
+      expect(appendSlotContent).toContain("<q-tooltip>Open URL</q-tooltip>")
+    })
   })
 })
