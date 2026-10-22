@@ -1,5 +1,5 @@
 ---
-status: Draft
+status: Implemented
 subsystems:
   - Staging Layer
   - Platform & Shell
@@ -11,7 +11,7 @@ superseded_by: null
 # Specification Amendment 3: URL-Activated Staging Row Quick Actions & Keyboard Triage Workstation
 
 **Target Specification:** [`specs/15-streamlined-intake-and-ledger-urls/spec.md`](file:///D:/src/personal/wrangler/specs/15-streamlined-intake-and-ledger-urls/spec.md)  
-**Status:** Draft  
+**Status:** Implemented  
 **Subsystems:** Staging Layer & Platform & Shell  
 **Date:** 2026-10-22  
 

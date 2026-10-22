@@ -1,4 +1,5 @@
 import type { QTableColumn } from "quasar"
+import type { Company } from "../types/company"
 import type { StagedTransaction } from "../types/staging"
 import { formatCurrency } from "./ledger"
 
@@ -162,4 +163,72 @@ export const SOURCE_FRIENDLY_NAMES: Record<string, string> = {
 
 export function getSourceFriendlyName(source: string): string {
   return SOURCE_FRIENDLY_NAMES[source] || source.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())
+}
+
+export interface StagingShortcutContext {
+  activeActionRowId: string | null
+  stagedTransactions: StagedTransaction[]
+  companies: Company[]
+  isDialogOpen: boolean
+  onPersonal: (row: StagedTransaction) => void
+  onCompanyEdit: (row: StagedTransaction, defaultCompanyId?: string | null) => void
+  onDismissStrip: () => void
+}
+
+/**
+ * Evaluates keyboard shortcuts when an active staging action strip is open.
+ * Returns true if a shortcut was handled and default event behavior should be prevented.
+ */
+export function handleStagingKeyboardShortcut(event: KeyboardEvent, context: StagingShortcutContext): boolean {
+  if (!context.activeActionRowId || context.isDialogOpen) {
+    return false
+  }
+
+  // Guard: Ignore modifier key combinations (Ctrl, Meta, Alt) to preserve browser/system shortcuts (e.g. Ctrl+C)
+  if (event.ctrlKey || event.metaKey || event.altKey) {
+    return false
+  }
+
+  // Guard: Do not intercept typing inside form inputs, textareas, selects, or editable elements
+  const target = event.target as HTMLElement | null
+  if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable)) {
+    return false
+  }
+
+  const activeRow = context.stagedTransactions.find(r => r.id === context.activeActionRowId)
+  if (!activeRow || activeRow.status !== "STAGED") {
+    return false
+  }
+
+  const key = event.key.toLowerCase()
+
+  if (key === "x") {
+    event.preventDefault()
+    context.onPersonal(activeRow)
+    return true
+  }
+
+  if (key === "c") {
+    event.preventDefault()
+    context.onCompanyEdit(activeRow, null)
+    return true
+  }
+
+  if (/^[1-9]$/.test(event.key)) {
+    const companyIndex = Number(event.key) - 1
+    if (companyIndex >= 0 && companyIndex < context.companies.length) {
+      event.preventDefault()
+      const targetCompany = context.companies[companyIndex]
+      context.onCompanyEdit(activeRow, targetCompany.id)
+      return true
+    }
+  }
+
+  if (key === "escape") {
+    event.preventDefault()
+    context.onDismissStrip()
+    return true
+  }
+
+  return false
 }

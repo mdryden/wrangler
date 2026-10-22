@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { nextTick } from "vue"
 import { DOMWrapper } from "@vue/test-utils"
+import { createPinia } from "pinia"
 import { apiClient } from "../../api/client"
+import { useCompanyStore } from "../../stores/companies"
 import { useStagingStore } from "../../stores/staging"
 import { useTransactionStore } from "../../stores/transactions"
 import type { StagedTransaction } from "../../types/staging"
@@ -315,6 +317,49 @@ describe("StagedTransactionEditDialog Component Specification", () => {
       const deleteBtn = findInBody('[data-testid="staged-edit-btn-remove-split-0"]')
       expect(deleteBtn).not.toBeNull()
       expect(deleteBtn?.hasAttribute("disabled") || deleteBtn?.classList.contains("disabled")).toBe(true)
+    })
+  })
+
+  describe("defaultCompanyId Prop & Pre-selection", () => {
+    it("pre-selects defaultCompanyId on the form split when prop is provided", async () => {
+      const pinia = createPinia()
+      const companyStore = useCompanyStore(pinia)
+      companyStore.companies = [
+        { id: "comp-1", name: "Company 1" },
+        { id: "comp-2", name: "Company 2" },
+      ]
+      const tx = makeStagedTx({ allocations: [] })
+      const wrapper = mountWithQuasar(StagedTransactionEditDialog, {
+        pinia,
+        props: {
+          modelValue: true,
+          stagedTransaction: tx,
+          defaultCompanyId: "comp-2",
+        },
+      })
+      await nextTick()
+
+      expect((wrapper.vm as any).form.splits).toHaveLength(1)
+      expect((wrapper.vm as any).form.splits[0].company_id).toBe("comp-2")
+      expect((wrapper.vm as any).form.is_personal).toBe(false)
+    })
+
+    it("falls back to single company in store when defaultCompanyId is not provided and only 1 company exists", async () => {
+      const pinia = createPinia()
+      const companyStore = useCompanyStore(pinia)
+      companyStore.companies = [{ id: "comp-solo", name: "Solo Company" }]
+      const tx = makeStagedTx({ allocations: [] })
+      const wrapper = mountWithQuasar(StagedTransactionEditDialog, {
+        pinia,
+        props: {
+          modelValue: true,
+          stagedTransaction: tx,
+        },
+      })
+      await nextTick()
+
+      expect((wrapper.vm as any).form.splits).toHaveLength(1)
+      expect((wrapper.vm as any).form.splits[0].company_id).toBe("comp-solo")
     })
   })
 })

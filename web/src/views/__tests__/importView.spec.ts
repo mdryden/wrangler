@@ -1,7 +1,13 @@
 import fs from "fs"
 import path from "path"
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { defineComponent, h, nextTick } from "vue"
+import { flushPromises } from "@vue/test-utils"
 import { createPinia, setActivePinia } from "pinia"
+import { QLayout, QPageContainer } from "quasar"
+import { mountWithQuasar } from "../../../tests/utils/testHarness"
+import { useCompanyStore } from "../../stores/companies"
+import ImportView from "../ImportView.vue"
 import {
   buildQuickAssignPayload,
   canRunImporter,
@@ -18,7 +24,14 @@ import {
 import { apiClient } from "../../api/client"
 import type { Company } from "../../types/company"
 import type { ImporterMetadata, StagedTransaction } from "../../types/staging"
-import { formatStagedAmount, getSourceFriendlyName, isRowPersonal, stagingTableColumns } from "../importView"
+import {
+  formatStagedAmount,
+  getSourceFriendlyName,
+  handleStagingKeyboardShortcut,
+  isRowPersonal,
+  stagingTableColumns,
+  type StagingShortcutContext,
+} from "../importView"
 
 vi.mock("../../api/client", () => ({
   apiClient: {
@@ -412,6 +425,17 @@ describe("ImportView Logic & Workflow", () => {
 
       // Double-click row affordance to open edit dialog
       expect(templateContent).toContain('@row-dblclick="(_evt, row) => openEditDialog(row)"')
+
+      // Quick triage action strip sub-row, quick action buttons, tooltips, and defaultCompanyId dialog binding
+      expect(templateContent).toContain('data-testid="row-staged-action-strip"')
+      expect(templateContent).toContain('data-testid="btn-action-strip-personal"')
+      expect(templateContent).toContain("<q-tooltip>Mark 100% Personal (Shortcut: X)</q-tooltip>")
+      expect(templateContent).toContain('data-testid="btn-action-strip-company"')
+      expect(templateContent).toContain("<q-tooltip>Open Edit Dialog (Shortcut: C)</q-tooltip>")
+      expect(templateContent).toContain(':data-testid="`btn-action-strip-comp-${comp.id}`"')
+      expect(templateContent).toContain('data-testid="btn-action-strip-close"')
+      expect(templateContent).toContain("<q-tooltip>Close quick actions (Esc)</q-tooltip>")
+      expect(templateContent).toContain(':default-company-id="editDialogDefaultCompanyId"')
     })
 
     it("verifies isRowPersonal identifies 100% personal staged transactions", () => {
@@ -496,6 +520,435 @@ describe("ImportView Logic & Workflow", () => {
         textColor: "positive",
       })
       expect(getQuickAssignValue(updatedPersonalTx)).toBe(PERSONAL_QUICK_ASSIGN_VALUE)
+    })
+  })
+
+  describe("handleStagingKeyboardShortcut", () => {
+    function createMockEvent(key: string, overrides: Partial<KeyboardEvent> = {}): KeyboardEvent {
+      const preventDefault = vi.fn()
+      return {
+        key,
+        ctrlKey: false,
+        metaKey: false,
+        altKey: false,
+        target: document.body,
+        preventDefault,
+        ...overrides,
+      } as unknown as KeyboardEvent
+    }
+
+    it("dispatches onPersonal and calls preventDefault on 'x' and 'X'", () => {
+      const activeRow = makeStagedTx({ id: "staged-1", status: "STAGED" })
+      const onPersonal = vi.fn()
+      const context: StagingShortcutContext = {
+        activeActionRowId: "staged-1",
+        stagedTransactions: [activeRow],
+        companies: sampleCompanies,
+        isDialogOpen: false,
+        onPersonal,
+        onCompanyEdit: vi.fn(),
+        onDismissStrip: vi.fn(),
+      }
+
+      const evtLower = createMockEvent("x")
+      const handledLower = handleStagingKeyboardShortcut(evtLower, context)
+      expect(handledLower).toBe(true)
+      expect(evtLower.preventDefault).toHaveBeenCalled()
+      expect(onPersonal).toHaveBeenCalledWith(activeRow)
+
+      const evtUpper = createMockEvent("X")
+      const handledUpper = handleStagingKeyboardShortcut(evtUpper, context)
+      expect(handledUpper).toBe(true)
+      expect(evtUpper.preventDefault).toHaveBeenCalled()
+      expect(onPersonal).toHaveBeenCalledTimes(2)
+    })
+
+    it("dispatches onCompanyEdit with null company ID and calls preventDefault on 'c' and 'C'", () => {
+      const activeRow = makeStagedTx({ id: "staged-1", status: "STAGED" })
+      const onCompanyEdit = vi.fn()
+      const context: StagingShortcutContext = {
+        activeActionRowId: "staged-1",
+        stagedTransactions: [activeRow],
+        companies: sampleCompanies,
+        isDialogOpen: false,
+        onPersonal: vi.fn(),
+        onCompanyEdit,
+        onDismissStrip: vi.fn(),
+      }
+
+      const evtLower = createMockEvent("c")
+      const handledLower = handleStagingKeyboardShortcut(evtLower, context)
+      expect(handledLower).toBe(true)
+      expect(evtLower.preventDefault).toHaveBeenCalled()
+      expect(onCompanyEdit).toHaveBeenCalledWith(activeRow, null)
+
+      const evtUpper = createMockEvent("C")
+      const handledUpper = handleStagingKeyboardShortcut(evtUpper, context)
+      expect(handledUpper).toBe(true)
+      expect(evtUpper.preventDefault).toHaveBeenCalled()
+      expect(onCompanyEdit).toHaveBeenCalledWith(activeRow, null)
+    })
+
+    it("dispatches onCompanyEdit with matching company ID on digit keys 1..N and ignores out-of-range digits", () => {
+      const activeRow = makeStagedTx({ id: "staged-1", status: "STAGED" })
+      const onCompanyEdit = vi.fn()
+      const context: StagingShortcutContext = {
+        activeActionRowId: "staged-1",
+        stagedTransactions: [activeRow],
+        companies: sampleCompanies, // length = 2: comp-1, comp-2
+        isDialogOpen: false,
+        onPersonal: vi.fn(),
+        onCompanyEdit,
+        onDismissStrip: vi.fn(),
+      }
+
+      const evt1 = createMockEvent("1")
+      expect(handleStagingKeyboardShortcut(evt1, context)).toBe(true)
+      expect(evt1.preventDefault).toHaveBeenCalled()
+      expect(onCompanyEdit).toHaveBeenCalledWith(activeRow, "comp-1")
+
+      const evt2 = createMockEvent("2")
+      expect(handleStagingKeyboardShortcut(evt2, context)).toBe(true)
+      expect(evt2.preventDefault).toHaveBeenCalled()
+      expect(onCompanyEdit).toHaveBeenCalledWith(activeRow, "comp-2")
+
+      const evt3 = createMockEvent("3")
+      expect(handleStagingKeyboardShortcut(evt3, context)).toBe(false)
+      expect(evt3.preventDefault).not.toHaveBeenCalled()
+      expect(onCompanyEdit).toHaveBeenCalledTimes(2)
+    })
+
+    it("dispatches onDismissStrip and calls preventDefault on 'Escape'", () => {
+      const activeRow = makeStagedTx({ id: "staged-1", status: "STAGED" })
+      const onDismissStrip = vi.fn()
+      const context: StagingShortcutContext = {
+        activeActionRowId: "staged-1",
+        stagedTransactions: [activeRow],
+        companies: sampleCompanies,
+        isDialogOpen: false,
+        onPersonal: vi.fn(),
+        onCompanyEdit: vi.fn(),
+        onDismissStrip,
+      }
+
+      const evt = createMockEvent("Escape")
+      expect(handleStagingKeyboardShortcut(evt, context)).toBe(true)
+      expect(evt.preventDefault).toHaveBeenCalled()
+      expect(onDismissStrip).toHaveBeenCalled()
+    })
+
+    it("returns false when isDialogOpen is true, activeActionRowId is null, or active row status is not STAGED", () => {
+      const activeRow = makeStagedTx({ id: "staged-1", status: "STAGED" })
+      const dismissedRow = makeStagedTx({ id: "staged-2", status: "DISMISSED" })
+      const onPersonal = vi.fn()
+
+      // Dialog open
+      const ctxDialog: StagingShortcutContext = {
+        activeActionRowId: "staged-1",
+        stagedTransactions: [activeRow],
+        companies: sampleCompanies,
+        isDialogOpen: true,
+        onPersonal,
+        onCompanyEdit: vi.fn(),
+        onDismissStrip: vi.fn(),
+      }
+      expect(handleStagingKeyboardShortcut(createMockEvent("x"), ctxDialog)).toBe(false)
+      expect(onPersonal).not.toHaveBeenCalled()
+
+      // activeActionRowId is null
+      const ctxNoActive: StagingShortcutContext = {
+        ...ctxDialog,
+        activeActionRowId: null,
+        isDialogOpen: false,
+      }
+      expect(handleStagingKeyboardShortcut(createMockEvent("x"), ctxNoActive)).toBe(false)
+
+      // Active row status is DISMISSED
+      const ctxDismissed: StagingShortcutContext = {
+        ...ctxDialog,
+        activeActionRowId: "staged-2",
+        stagedTransactions: [dismissedRow],
+        isDialogOpen: false,
+      }
+      expect(handleStagingKeyboardShortcut(createMockEvent("x"), ctxDismissed)).toBe(false)
+
+      // Active row not found in list
+      const ctxNotFound: StagingShortcutContext = {
+        ...ctxDialog,
+        activeActionRowId: "nonexistent",
+        stagedTransactions: [activeRow],
+        isDialogOpen: false,
+      }
+      expect(handleStagingKeyboardShortcut(createMockEvent("x"), ctxNotFound)).toBe(false)
+    })
+
+    it("returns false when focused element is INPUT, TEXTAREA, SELECT, or contenteditable", () => {
+      const activeRow = makeStagedTx({ id: "staged-1", status: "STAGED" })
+      const context: StagingShortcutContext = {
+        activeActionRowId: "staged-1",
+        stagedTransactions: [activeRow],
+        companies: sampleCompanies,
+        isDialogOpen: false,
+        onPersonal: vi.fn(),
+        onCompanyEdit: vi.fn(),
+        onDismissStrip: vi.fn(),
+      }
+
+      const inputEl = document.createElement("input")
+      expect(handleStagingKeyboardShortcut(createMockEvent("x", { target: inputEl }), context)).toBe(false)
+
+      const textareaEl = document.createElement("textarea")
+      expect(handleStagingKeyboardShortcut(createMockEvent("x", { target: textareaEl }), context)).toBe(false)
+
+      const selectEl = document.createElement("select")
+      expect(handleStagingKeyboardShortcut(createMockEvent("x", { target: selectEl }), context)).toBe(false)
+
+      const divEditable = document.createElement("div")
+      divEditable.contentEditable = "true"
+      expect(handleStagingKeyboardShortcut(createMockEvent("x", { target: divEditable }), context)).toBe(false)
+    })
+
+    it("returns false when ctrlKey, metaKey, or altKey is pressed", () => {
+      const activeRow = makeStagedTx({ id: "staged-1", status: "STAGED" })
+      const context: StagingShortcutContext = {
+        activeActionRowId: "staged-1",
+        stagedTransactions: [activeRow],
+        companies: sampleCompanies,
+        isDialogOpen: false,
+        onPersonal: vi.fn(),
+        onCompanyEdit: vi.fn(),
+        onDismissStrip: vi.fn(),
+      }
+
+      expect(handleStagingKeyboardShortcut(createMockEvent("c", { ctrlKey: true }), context)).toBe(false)
+      expect(handleStagingKeyboardShortcut(createMockEvent("c", { metaKey: true }), context)).toBe(false)
+      expect(handleStagingKeyboardShortcut(createMockEvent("c", { altKey: true }), context)).toBe(false)
+    })
+  })
+
+  describe("Quick Triage Action Strip & Keyboard Component Integration", () => {
+    const LayoutWrapper = defineComponent({
+      setup: () => () => h(QLayout, () => h(QPageContainer, () => h(ImportView))),
+    })
+
+    it("opens action strip on URL button click and executes personal, company, indexed company, and dismiss actions", async () => {
+      const pinia = createPinia()
+      setActivePinia(pinia)
+      const stagingStore = useStagingStore(pinia)
+      const companyStore = useCompanyStore(pinia)
+
+      companyStore.companies = [...sampleCompanies]
+
+      const stagedWithUrl = makeStagedTx({
+        id: "staged-101",
+        status: "STAGED",
+        url: "https://amazon.ca/orders/123",
+        total_amount: "55.00",
+        allocations: [],
+      })
+      stagingStore.stagedTransactions = [stagedWithUrl]
+
+      vi.mocked(apiClient.get).mockImplementation(async (url: string) => {
+        if (url === "/api/companies") {
+          return sampleCompanies
+        }
+        if (url === "/api/staging/importers") {
+          return []
+        }
+        if (url.startsWith("/api/staging")) {
+          return {
+            items: [stagedWithUrl],
+            total: 1,
+            page: 1,
+            page_size: 50,
+            total_pages: 1,
+          }
+        }
+        return []
+      })
+
+      const wrapper = mountWithQuasar(LayoutWrapper, { pinia })
+      await flushPromises()
+      const importView = wrapper.findComponent(ImportView)
+
+      // 1. Initial state: action strip is not rendered
+      expect(wrapper.find('[data-testid="row-staged-action-strip"]').exists()).toBe(false)
+
+      // 2. Click URL button -> opens action strip
+      const urlBtn = wrapper.find('[data-testid="btn-open-url"]')
+      expect(urlBtn.exists()).toBe(true)
+      await urlBtn.trigger("click")
+      await nextTick()
+
+      expect(importView.vm.activeActionRowId).toBe("staged-101")
+      expect(wrapper.find('[data-testid="row-staged-action-strip"]').exists()).toBe(true)
+
+      // Verify buttons exist in strip
+      expect(wrapper.find('[data-testid="btn-action-strip-personal"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="btn-action-strip-company"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="btn-action-strip-comp-comp-1"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="btn-action-strip-comp-comp-2"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="btn-action-strip-close"]').exists()).toBe(true)
+
+      // 3. Click btn-action-strip-personal -> updates allocation and dismisses strip
+      vi.mocked(apiClient.put).mockResolvedValueOnce({
+        ...stagedWithUrl,
+        allocations: [{ id: "a-1", staged_transaction_id: "staged-101", amount: "55.00", is_personal: true, company_id: null }],
+        is_ready: true,
+      })
+      await wrapper.find('[data-testid="btn-action-strip-personal"]').trigger("click")
+      await nextTick()
+
+      expect(importView.vm.activeActionRowId).toBeNull()
+      expect(apiClient.put).toHaveBeenCalledWith(
+        "/api/staging/staged-101",
+        expect.objectContaining({
+          allocations: [{ amount: "55.00", is_personal: true, company_id: null }],
+        }),
+      )
+
+      // 4. Re-open strip and test Company Edit button
+      importView.vm.activeActionRowId = "staged-101"
+      await nextTick()
+      expect(wrapper.find('[data-testid="row-staged-action-strip"]').exists()).toBe(true)
+
+      await wrapper.find('[data-testid="btn-action-strip-company"]').trigger("click")
+      await nextTick()
+
+      expect(importView.vm.activeActionRowId).toBeNull()
+      expect(importView.vm.editDialogVisible).toBe(true)
+      expect(importView.vm.editDialogDefaultCompanyId).toBeNull()
+
+      // Close dialog
+      importView.vm.editDialogVisible = false
+      await nextTick()
+
+      // 5. Re-open strip and test direct Numbered Company button
+      importView.vm.activeActionRowId = "staged-101"
+      await nextTick()
+
+      await wrapper.find('[data-testid="btn-action-strip-comp-comp-2"]').trigger("click")
+      await nextTick()
+
+      expect(importView.vm.activeActionRowId).toBeNull()
+      expect(importView.vm.editDialogVisible).toBe(true)
+      expect(importView.vm.editDialogDefaultCompanyId).toBe("comp-2")
+
+      // Close dialog
+      importView.vm.editDialogVisible = false
+      await nextTick()
+
+      // 6. Re-open strip and test Close button
+      importView.vm.activeActionRowId = "staged-101"
+      await nextTick()
+
+      await wrapper.find('[data-testid="btn-action-strip-close"]').trigger("click")
+      await nextTick()
+
+      expect(importView.vm.activeActionRowId).toBeNull()
+      expect(wrapper.find('[data-testid="row-staged-action-strip"]').exists()).toBe(false)
+      wrapper.unmount()
+    })
+
+    it("evaluates window keyboard shortcuts when triage strip is active", async () => {
+      const pinia = createPinia()
+      setActivePinia(pinia)
+      const stagingStore = useStagingStore(pinia)
+      const companyStore = useCompanyStore(pinia)
+
+      companyStore.companies = [...sampleCompanies]
+
+      const stagedWithUrl = makeStagedTx({
+        id: "staged-102",
+        status: "STAGED",
+        url: "https://amazon.ca/orders/456",
+        total_amount: "80.00",
+        allocations: [],
+      })
+      stagingStore.stagedTransactions = [stagedWithUrl]
+
+      vi.mocked(apiClient.get).mockImplementation(async (url: string) => {
+        if (url === "/api/companies") {
+          return sampleCompanies
+        }
+        if (url === "/api/staging/importers") {
+          return []
+        }
+        if (url.startsWith("/api/staging")) {
+          return {
+            items: [stagedWithUrl],
+            total: 1,
+            page: 1,
+            page_size: 50,
+            total_pages: 1,
+          }
+        }
+        return []
+      })
+
+      const wrapper = mountWithQuasar(LayoutWrapper, { pinia })
+      await flushPromises()
+      const importView = wrapper.findComponent(ImportView)
+
+      // 1. Activate strip
+      importView.vm.activeActionRowId = "staged-102"
+      await nextTick()
+
+      // Press 'x' on window
+      vi.mocked(apiClient.put).mockResolvedValueOnce({
+        ...stagedWithUrl,
+        allocations: [{ id: "a-2", staged_transaction_id: "staged-102", amount: "80.00", is_personal: true, company_id: null }],
+        is_ready: true,
+      })
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "x" }))
+      await nextTick()
+
+      expect(importView.vm.activeActionRowId).toBeNull()
+      expect(apiClient.put).toHaveBeenCalledWith(
+        "/api/staging/staged-102",
+        expect.objectContaining({
+          allocations: [{ amount: "80.00", is_personal: true, company_id: null }],
+        }),
+      )
+
+      // 2. Activate strip and press 'c' on window
+      importView.vm.activeActionRowId = "staged-102"
+      await nextTick()
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "c" }))
+      await nextTick()
+
+      expect(importView.vm.activeActionRowId).toBeNull()
+      expect(importView.vm.editDialogVisible).toBe(true)
+      expect(importView.vm.editDialogDefaultCompanyId).toBeNull()
+
+      importView.vm.editDialogVisible = false
+      await nextTick()
+
+      // 3. Activate strip and press '1' on window
+      importView.vm.activeActionRowId = "staged-102"
+      await nextTick()
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "1" }))
+      await nextTick()
+
+      expect(importView.vm.activeActionRowId).toBeNull()
+      expect(importView.vm.editDialogVisible).toBe(true)
+      expect(importView.vm.editDialogDefaultCompanyId).toBe("comp-1")
+
+      importView.vm.editDialogVisible = false
+      await nextTick()
+
+      // 4. Activate strip and press 'Escape' on window
+      importView.vm.activeActionRowId = "staged-102"
+      await nextTick()
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
+      await nextTick()
+
+      expect(importView.vm.activeActionRowId).toBeNull()
+
+      // 5. Unmount cleans up listener
+      wrapper.unmount()
+      // Dispatch keydown after unmount should not trigger errors
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "x" }))
     })
   })
 })

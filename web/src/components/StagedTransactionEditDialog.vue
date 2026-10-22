@@ -42,6 +42,7 @@ import {
 const props = defineProps<{
   modelValue: boolean
   stagedTransaction: StagedTransaction | null
+  defaultCompanyId?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -125,12 +126,12 @@ function notifyError(message: string) {
 }
 
 watch(
-  () => [props.modelValue, props.stagedTransaction] as const,
-  ([visible, staged]) => {
+  () => [props.modelValue, props.stagedTransaction, props.defaultCompanyId] as const,
+  ([visible, staged, defaultCompId]) => {
     if (visible && staged) {
       errorMessage.value = ""
-      const defaultCompId = companyStore.companies.length === 1 ? companyStore.companies[0].id : null
-      form.value = createStagedTransactionEditState(staged, defaultCompId)
+      const resolvedCompId = defaultCompId ?? (companyStore.companies.length === 1 ? companyStore.companies[0].id : null)
+      form.value = createStagedTransactionEditState(staged, resolvedCompId)
       aiSuggestions.value = createInitialAiSuggestionsState()
     } else {
       aiSuggestions.value = createInitialAiSuggestionsState()

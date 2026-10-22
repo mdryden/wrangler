@@ -370,4 +370,81 @@ describe("stagedTransactionEdit pure helpers", () => {
     state.splits[0].company_id = "comp-1"
     expect(canSaveStagedTransactionEdit(state)).toBe(false)
   })
+
+  it("handles explicit defaultCompanyId pre-selection on unallocated, personal, and multi-split items", () => {
+    // 1. Explicit defaultCompanyId on unallocated item initializes single split with that company ID and is_personal = false
+    const stateUnallocated = createStagedTransactionEditState(unallocatedStaged, "comp-2")
+    expect(stateUnallocated.is_personal).toBe(false)
+    expect(stateUnallocated.splits).toEqual([
+      {
+        amount: "100.00",
+        is_personal: false,
+        company_id: "comp-2",
+      },
+    ])
+
+    // 2. Explicit defaultCompanyId on transaction currently marked Personal overrides Personal with target company split
+    const personalStaged: StagedTransaction = {
+      ...unallocatedStaged,
+      allocations: [
+        {
+          id: "alloc-pers-1",
+          staged_transaction_id: "stx-1",
+          amount: "100.00",
+          is_personal: true,
+          company_id: null,
+        },
+      ],
+    }
+    const statePersonalOverridden = createStagedTransactionEditState(personalStaged, "comp-3")
+    expect(statePersonalOverridden.is_personal).toBe(false)
+    expect(statePersonalOverridden.splits).toEqual([
+      {
+        amount: "100.00",
+        is_personal: false,
+        company_id: "comp-3",
+      },
+    ])
+
+    // Retains Personal when defaultCompanyId is null
+    const statePersonalRetained = createStagedTransactionEditState(personalStaged, null)
+    expect(statePersonalRetained.is_personal).toBe(true)
+    expect(statePersonalRetained.splits[0].is_personal).toBe(true)
+
+    // 3. Multi-split transaction (rawAllocations.length > 1) preserves existing splits even if defaultCompanyId is supplied
+    const multiSplitStaged: StagedTransaction = {
+      ...unallocatedStaged,
+      allocations: [
+        {
+          id: "alloc-1",
+          staged_transaction_id: "stx-1",
+          amount: "60.00",
+          is_personal: false,
+          company_id: "comp-1",
+        },
+        {
+          id: "alloc-2",
+          staged_transaction_id: "stx-1",
+          amount: "40.00",
+          is_personal: false,
+          company_id: "comp-2",
+        },
+      ],
+    }
+    const stateMultiSplit = createStagedTransactionEditState(multiSplitStaged, "comp-999")
+    expect(stateMultiSplit.is_personal).toBe(false)
+    expect(stateMultiSplit.splits).toHaveLength(2)
+    expect(stateMultiSplit.splits[0]).toEqual({
+      id: "alloc-1",
+      amount: "60.00",
+      is_personal: false,
+      company_id: "comp-1",
+    })
+    expect(stateMultiSplit.splits[1]).toEqual({
+      id: "alloc-2",
+      amount: "40.00",
+      is_personal: false,
+      company_id: "comp-2",
+    })
+  })
 })

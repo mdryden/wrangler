@@ -29,7 +29,15 @@ export function createStagedTransactionEditState(
   const rawAllocations = staged.allocations ?? []
 
   let splits: EditableStagedSplitItem[]
-  if (rawAllocations.length > 0) {
+  if (defaultCompanyId !== null && defaultCompanyId !== undefined && rawAllocations.length <= 1) {
+    splits = [
+      {
+        amount: formattedTotal,
+        is_personal: false,
+        company_id: defaultCompanyId,
+      },
+    ]
+  } else if (rawAllocations.length > 0) {
     splits = rawAllocations.map(alloc => ({
       id: alloc.id,
       amount: formatAmount(alloc.amount),

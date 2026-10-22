@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue"
+import { computed, onMounted, onUnmounted, ref } from "vue"
 import { Notify, useQuasar, type QTableColumn } from "quasar"
 import BulkAllocateDialog from "../components/BulkAllocateDialog.vue"
 import StagedTransactionEditDialog from "../components/StagedTransactionEditDialog.vue"
@@ -24,6 +24,7 @@ import {
   getImportNotificationType,
   getSelectedReadyIds,
   getSourceFriendlyName,
+  handleStagingKeyboardShortcut,
   isMasterHeaderChecked,
   isMasterHeaderIndeterminate,
   isRowPersonal,
@@ -55,6 +56,8 @@ const editDialogVisible = ref<boolean>(false)
 const bulkAllocateDialogVisible = ref<boolean>(false)
 const selectedStagedTransaction = ref<StagedTransaction | null>(null)
 const activeRowId = ref<string | null>(null)
+const activeActionRowId = ref<string | null>(null)
+const editDialogDefaultCompanyId = ref<string | null>(null)
 
 function tableRowClass(row: StagedTransaction): string {
   return row.id === activeRowId.value ? "active-staged-row" : ""
@@ -232,6 +235,7 @@ async function refreshStagingTable(): Promise<void> {
 }
 
 function applyFilters(): void {
+  activeActionRowId.value = null
   pagination.value.page = 1
   selectedRowIds.value = []
   onRequest({ pagination: pagination.value })
@@ -244,6 +248,7 @@ function resetFilters(): void {
   }
   selectedRowIds.value = []
   activeRowId.value = null
+  activeActionRowId.value = null
   pagination.value.page = 1
   onRequest({ pagination: pagination.value })
 }
@@ -338,10 +343,48 @@ async function onQuickAssignChange(row: StagedTransaction, value: string | null)
   }
 }
 
-function openEditDialog(row: StagedTransaction): void {
+function openEditDialog(row: StagedTransaction, defaultCompanyId: string | null = null): void {
   activeRowId.value = row.id
   selectedStagedTransaction.value = row
+  editDialogDefaultCompanyId.value = defaultCompanyId
   editDialogVisible.value = true
+}
+
+function onOpenUrl(row: StagedTransaction): void {
+  activeRowId.value = row.id
+  if (row.status === "STAGED") {
+    activeActionRowId.value = row.id
+  }
+}
+
+async function onActionStripPersonal(row: StagedTransaction): Promise<void> {
+  activeActionRowId.value = null
+  try {
+    const payload = buildQuickAssignPayload(row, PERSONAL_QUICK_ASSIGN_VALUE)
+    await stagingStore.updateStagedTransaction(row.id, payload)
+    notifySuccess("Marked as Personal")
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Failed to update allocation"
+    notifyError(msg)
+  }
+}
+
+function onActionStripCompany(row: StagedTransaction): void {
+  activeActionRowId.value = null
+  editDialogDefaultCompanyId.value = null
+  openEditDialog(row, null)
+}
+
+function onActionStripCompanyByIndex(row: StagedTransaction, idx: number): void {
+  activeActionRowId.value = null
+  const targetComp = companyStore.companies[idx]
+  const compId = targetComp ? targetComp.id : null
+  editDialogDefaultCompanyId.value = compId
+  openEditDialog(row, compId)
+}
+
+function dismissActionStrip(): void {
+  activeActionRowId.value = null
 }
 
 function onStagedSaved(): void {
@@ -370,6 +413,9 @@ async function onDismissRow(row: StagedTransaction): Promise<void> {
     if (activeRowId.value === row.id) {
       activeRowId.value = null
     }
+    if (activeActionRowId.value === row.id) {
+      activeActionRowId.value = null
+    }
     notifySuccess("Staged transaction dismissed")
     if (dismissed.mark_imported_error) {
       notifyWarning(
@@ -387,6 +433,9 @@ async function onRestoreRow(row: StagedTransaction): Promise<void> {
   if (row.status !== "DISMISSED") return
   try {
     await stagingStore.restoreStagedTransaction(row.id)
+    if (activeActionRowId.value === row.id) {
+      activeActionRowId.value = null
+    }
     notifySuccess("Transaction restored to staging")
     await refreshStagingTable()
   } catch (err) {
@@ -450,10 +499,31 @@ async function onAcceptBatch(): Promise<void> {
   }
 }
 
+function onKeydown(event: KeyboardEvent): void {
+  handleStagingKeyboardShortcut(event, {
+    activeActionRowId: activeActionRowId.value,
+    stagedTransactions: stagingStore.stagedTransactions,
+    companies: companyStore.companies,
+    isDialogOpen: editDialogVisible.value || bulkAllocateDialogVisible.value,
+    onPersonal: onActionStripPersonal,
+    onCompanyEdit: (row, defaultCompId) => {
+      activeActionRowId.value = null
+      editDialogDefaultCompanyId.value = defaultCompId ?? null
+      openEditDialog(row, defaultCompId ?? null)
+    },
+    onDismissStrip: dismissActionStrip,
+  })
+}
+
 onMounted(() => {
   companyStore.fetchCompanies().catch(() => {})
   stagingStore.fetchImporters().catch(() => {})
   refreshStagingTable()
+  window.addEventListener("keydown", onKeydown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener("keydown", onKeydown)
 })
 
 defineExpose({
@@ -473,6 +543,8 @@ defineExpose({
   editDialogVisible,
   selectedStagedTransaction,
   activeRowId,
+  activeActionRowId,
+  editDialogDefaultCompanyId,
   tableRowClass,
   onRowClick,
   companyMap,
@@ -489,6 +561,12 @@ defineExpose({
   onTogglePersonal,
   onQuickAssignChange,
   openEditDialog,
+  onOpenUrl,
+  onActionStripPersonal,
+  onActionStripCompany,
+  onActionStripCompanyByIndex,
+  dismissActionStrip,
+  onKeydown,
   onStagedSaved,
   openReceipt,
   onDismissRow,
@@ -772,179 +850,239 @@ defineExpose({
         </q-th>
       </template>
 
-      <!-- Selection Checkbox Column -->
-      <template #body-cell-select="props">
-        <q-td :props="props" align="center">
-          <q-checkbox
-            :model-value="isRowSelected(props.row.id)"
-            dense
-            color="primary"
-            :data-testid="`checkbox-select-${props.row.id}`"
-            :disable="props.row.status !== 'STAGED'"
-            @update:model-value="(val: boolean) => toggleRowSelection(props.row, val)"
-          />
-        </q-td>
-      </template>
+      <!-- Table Body Row & Sub-row -->
+      <template #body="props">
+        <q-tr :props="props" :class="tableRowClass(props.row)" @click="onRowClick($event, props.row)" @dblclick="openEditDialog(props.row)">
+          <!-- Selection Checkbox Column -->
+          <q-td auto-width align="center">
+            <q-checkbox
+              :model-value="isRowSelected(props.row.id)"
+              dense
+              color="primary"
+              :data-testid="`checkbox-select-${props.row.id}`"
+              :disable="props.row.status !== 'STAGED'"
+              @update:model-value="(val: boolean) => toggleRowSelection(props.row, val)"
+            />
+          </q-td>
 
-      <!-- URL Column -->
-      <template #body-cell-url="props">
-        <q-td :props="props" align="center">
-          <q-btn
-            v-if="props.row.url"
-            flat
-            round
-            dense
-            size="sm"
-            icon="open_in_new"
-            color="primary"
-            :href="props.row.url"
-            target="_blank"
-            rel="noopener noreferrer"
-            data-testid="btn-open-url"
-            @click.stop="activeRowId = props.row.id"
-          >
-            <q-tooltip>Open URL</q-tooltip>
-          </q-btn>
-          <q-btn v-else flat round dense size="sm" icon="open_in_new" disable class="text-grey-4" />
-        </q-td>
-      </template>
+          <!-- URL Column -->
+          <q-td auto-width align="center">
+            <q-btn
+              v-if="props.row.url"
+              flat
+              round
+              dense
+              size="sm"
+              icon="open_in_new"
+              color="primary"
+              :href="props.row.url"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="btn-open-url"
+              @click.stop="onOpenUrl(props.row)"
+            >
+              <q-tooltip>Open URL</q-tooltip>
+            </q-btn>
+            <q-btn v-else flat round dense size="sm" icon="open_in_new" disable class="text-grey-4" />
+          </q-td>
 
-      <!-- Actions Column -->
-      <template #body-cell-actions="props">
-        <q-td :props="props" align="left">
-          <div class="row items-center q-gutter-xs no-wrap">
-            <template v-if="props.row.status === 'STAGED'">
-              <!-- Mark Personal Toggle Button -->
-              <q-btn
-                flat
-                round
-                dense
-                size="sm"
-                :color="isRowPersonal(props.row) ? 'positive' : 'grey-7'"
-                :icon="isRowPersonal(props.row) ? 'person' : 'person_outline'"
-                :data-testid="`btn-mark-personal-${props.row.id}`"
-                @click.stop="onTogglePersonal(props.row)"
-              >
-                <q-tooltip>{{ isRowPersonal(props.row) ? "Marked as Personal (Click to unallocate)" : "Mark as Personal" }}</q-tooltip>
-              </q-btn>
+          <!-- Actions Column -->
+          <q-td align="left">
+            <div class="row items-center q-gutter-xs no-wrap">
+              <template v-if="props.row.status === 'STAGED'">
+                <!-- Mark Personal Toggle Button -->
+                <q-btn
+                  flat
+                  round
+                  dense
+                  size="sm"
+                  :color="isRowPersonal(props.row) ? 'positive' : 'grey-7'"
+                  :icon="isRowPersonal(props.row) ? 'person' : 'person_outline'"
+                  :data-testid="`btn-mark-personal-${props.row.id}`"
+                  @click.stop="onTogglePersonal(props.row)"
+                >
+                  <q-tooltip>{{ isRowPersonal(props.row) ? "Marked as Personal (Click to unallocate)" : "Mark as Personal" }}</q-tooltip>
+                </q-btn>
 
-              <!-- Edit Transaction Button -->
-              <q-btn
-                flat
-                round
-                dense
-                size="sm"
-                color="primary"
-                icon="edit"
-                data-testid="btn-action-edit"
+                <!-- Edit Transaction Button -->
+                <q-btn
+                  flat
+                  round
+                  dense
+                  size="sm"
+                  color="primary"
+                  icon="edit"
+                  data-testid="btn-action-edit"
+                  @click.stop="openEditDialog(props.row)"
+                >
+                  <q-tooltip>Edit Transaction</q-tooltip>
+                </q-btn>
+              </template>
+
+              <template v-else-if="props.row.status === 'DISMISSED'">
+                <q-btn
+                  flat
+                  round
+                  dense
+                  size="sm"
+                  color="primary"
+                  icon="restore"
+                  data-testid="btn-action-restore"
+                  @click.stop="onRestoreRow(props.row)"
+                >
+                  <q-tooltip>Restore Transaction</q-tooltip>
+                </q-btn>
+              </template>
+            </div>
+          </q-td>
+
+          <!-- Allocation Status / Summary Column -->
+          <q-td>
+            <div class="row items-center no-wrap q-gutter-xs">
+              <q-badge
+                :color="getStagedAllocationSummary(props.row, companyMap).color"
+                :text-color="getStagedAllocationSummary(props.row, companyMap).textColor"
+                class="q-px-sm q-py-xs text-weight-bold ellipsis cursor-pointer"
+                style="max-width: 140px"
+                data-testid="badge-staged-allocation"
                 @click.stop="openEditDialog(props.row)"
               >
-                <q-tooltip>Edit Transaction</q-tooltip>
-              </q-btn>
-            </template>
+                {{ getStagedAllocationSummary(props.row, companyMap).label }}
+                <q-tooltip>{{ getStagedAllocationSummary(props.row, companyMap).label }} (Click to edit)</q-tooltip>
+              </q-badge>
+              <q-icon
+                v-if="props.row.status === 'STAGED' && props.row.is_ready"
+                name="check_circle"
+                color="positive"
+                size="16px"
+                data-testid="icon-staged-ready"
+              >
+                <q-tooltip>Ready to accept</q-tooltip>
+              </q-icon>
+            </div>
+          </q-td>
 
-            <template v-else-if="props.row.status === 'DISMISSED'">
+          <!-- Date Column -->
+          <q-td>
+            <span class="text-weight-medium">{{ props.row.date }}</span>
+          </q-td>
+
+          <!-- Description Column -->
+          <q-td>
+            <div class="text-weight-medium">
+              <span v-if="props.row.description">{{ props.row.description }}</span>
+              <span
+                v-else-if="props.row.allocations && props.row.allocations.length === 1 && props.row.allocations[0].is_personal"
+                class="text-italic text-grey-7"
+              >
+                {{ getSourceFriendlyName(props.row.source) }}: Personal (Pending)
+              </span>
+              <span v-else class="text-italic text-grey-6">Unlabeled transaction</span>
+            </div>
+            <div class="row items-center q-gutter-xs text-caption no-wrap">
+              <q-chip dense size="xs" color="blue-1" text-color="primary" class="text-weight-bold">
+                {{ props.row.source }}
+              </q-chip>
+            </div>
+          </q-td>
+
+          <!-- Amount Column -->
+          <q-td align="right">
+            <span :class="Number(props.row.total_amount) < 0 ? 'text-negative text-weight-bold' : 'text-weight-bold'">
+              {{ formatStagedAmount(props.row.total_amount) }}
+            </span>
+          </q-td>
+
+          <!-- Receipt Column -->
+          <q-td align="center">
+            <q-btn
+              v-if="props.row.receipt_file_path"
+              flat
+              round
+              dense
+              size="sm"
+              icon="receipt"
+              color="primary"
+              aria-label="View Receipt"
+              data-testid="btn-view-staged-receipt"
+              @click.stop="openReceipt(props.row)"
+            >
+              <q-tooltip>View Receipt</q-tooltip>
+            </q-btn>
+            <span v-else class="text-grey-5">—</span>
+          </q-td>
+        </q-tr>
+
+        <!-- Expanded Quick Action Strip Sub-Row -->
+        <q-tr
+          v-if="activeActionRowId === props.row.id && props.row.status === 'STAGED'"
+          :props="props"
+          class="staged-action-strip-row"
+          data-testid="row-staged-action-strip"
+        >
+          <q-td :colspan="columns.length" class="q-pa-xs">
+            <div class="staged-action-strip row items-center justify-between q-px-md q-py-xs bg-blue-grey-1 rounded-borders">
+              <div class="row items-center q-gutter-sm">
+                <span class="text-caption text-weight-bold text-grey-8 row items-center q-mr-xs">
+                  <q-icon name="bolt" color="amber-9" size="18px" class="q-mr-xs" />
+                  Quick Triage:
+                </span>
+                <q-btn
+                  unelevated
+                  dense
+                  size="sm"
+                  color="positive"
+                  icon="person"
+                  label="Personal Expense (X)"
+                  data-testid="btn-action-strip-personal"
+                  @click.stop="onActionStripPersonal(props.row)"
+                >
+                  <q-tooltip>Mark 100% Personal (Shortcut: X)</q-tooltip>
+                </q-btn>
+                <q-btn
+                  unelevated
+                  dense
+                  size="sm"
+                  color="primary"
+                  icon="business"
+                  label="Company Expense (C)"
+                  data-testid="btn-action-strip-company"
+                  @click.stop="onActionStripCompany(props.row)"
+                >
+                  <q-tooltip>Open Edit Dialog (Shortcut: C)</q-tooltip>
+                </q-btn>
+                <q-separator vertical class="q-mx-xs" v-if="companyStore.companies.length > 0" />
+                <q-btn
+                  v-for="(comp, idx) in companyStore.companies"
+                  :key="comp.id"
+                  outline
+                  dense
+                  size="sm"
+                  color="primary"
+                  class="bg-white"
+                  :label="`${comp.name} (${idx + 1})`"
+                  :data-testid="`btn-action-strip-comp-${comp.id}`"
+                  @click.stop="onActionStripCompanyByIndex(props.row, idx)"
+                >
+                  <q-tooltip>Edit with {{ comp.name }} pre-selected (Shortcut: {{ idx + 1 }})</q-tooltip>
+                </q-btn>
+              </div>
               <q-btn
                 flat
                 round
                 dense
-                size="sm"
-                color="primary"
-                icon="restore"
-                data-testid="btn-action-restore"
-                @click.stop="onRestoreRow(props.row)"
+                size="xs"
+                icon="close"
+                color="grey-6"
+                aria-label="Close triage actions"
+                data-testid="btn-action-strip-close"
+                @click.stop="dismissActionStrip"
               >
-                <q-tooltip>Restore Transaction</q-tooltip>
+                <q-tooltip>Close quick actions (Esc)</q-tooltip>
               </q-btn>
-            </template>
-          </div>
-        </q-td>
-      </template>
-
-      <!-- Allocation Status / Summary Column -->
-      <template #body-cell-allocations="props">
-        <q-td :props="props">
-          <div class="row items-center no-wrap q-gutter-xs">
-            <q-badge
-              :color="getStagedAllocationSummary(props.row, companyMap).color"
-              :text-color="getStagedAllocationSummary(props.row, companyMap).textColor"
-              class="q-px-sm q-py-xs text-weight-bold ellipsis cursor-pointer"
-              style="max-width: 140px"
-              data-testid="badge-staged-allocation"
-              @click.stop="openEditDialog(props.row)"
-            >
-              {{ getStagedAllocationSummary(props.row, companyMap).label }}
-              <q-tooltip>{{ getStagedAllocationSummary(props.row, companyMap).label }} (Click to edit)</q-tooltip>
-            </q-badge>
-            <q-icon
-              v-if="props.row.status === 'STAGED' && props.row.is_ready"
-              name="check_circle"
-              color="positive"
-              size="16px"
-              data-testid="icon-staged-ready"
-            >
-              <q-tooltip>Ready to accept</q-tooltip>
-            </q-icon>
-          </div>
-        </q-td>
-      </template>
-
-      <!-- Date Column -->
-      <template #body-cell-date="props">
-        <q-td :props="props">
-          <span class="text-weight-medium">{{ props.row.date }}</span>
-        </q-td>
-      </template>
-
-      <!-- Description Column -->
-      <template #body-cell-description="props">
-        <q-td :props="props">
-          <div class="text-weight-medium">
-            <span v-if="props.row.description">{{ props.row.description }}</span>
-            <span
-              v-else-if="props.row.allocations && props.row.allocations.length === 1 && props.row.allocations[0].is_personal"
-              class="text-italic text-grey-7"
-            >
-              {{ getSourceFriendlyName(props.row.source) }}: Personal (Pending)
-            </span>
-            <span v-else class="text-italic text-grey-6">Unlabeled transaction</span>
-          </div>
-          <div class="row items-center q-gutter-xs text-caption no-wrap">
-            <q-chip dense size="xs" color="blue-1" text-color="primary" class="text-weight-bold">
-              {{ props.row.source }}
-            </q-chip>
-          </div>
-        </q-td>
-      </template>
-
-      <!-- Amount Column -->
-      <template #body-cell-total_amount="props">
-        <q-td :props="props" align="right">
-          <span :class="Number(props.row.total_amount) < 0 ? 'text-negative text-weight-bold' : 'text-weight-bold'">
-            {{ formatStagedAmount(props.row.total_amount) }}
-          </span>
-        </q-td>
-      </template>
-
-      <!-- Receipt Column -->
-      <template #body-cell-receipt="props">
-        <q-td :props="props" align="center">
-          <q-btn
-            v-if="props.row.receipt_file_path"
-            flat
-            round
-            dense
-            size="sm"
-            icon="receipt"
-            color="primary"
-            aria-label="View Receipt"
-            data-testid="btn-view-staged-receipt"
-            @click.stop="openReceipt(props.row)"
-          >
-            <q-tooltip>View Receipt</q-tooltip>
-          </q-btn>
-          <span v-else class="text-grey-5">—</span>
-        </q-td>
+            </div>
+          </q-td>
+        </q-tr>
       </template>
 
       <!-- Empty State -->
@@ -957,7 +1095,12 @@ defineExpose({
     </q-table>
 
     <!-- Staged Transaction & Allocation Editor Dialog -->
-    <StagedTransactionEditDialog v-model="editDialogVisible" :staged-transaction="selectedStagedTransaction" @saved="onStagedSaved" />
+    <StagedTransactionEditDialog
+      v-model="editDialogVisible"
+      :staged-transaction="selectedStagedTransaction"
+      :default-company-id="editDialogDefaultCompanyId"
+      @saved="onStagedSaved"
+    />
 
     <!-- Bulk Allocation Dialog -->
     <BulkAllocateDialog
@@ -987,5 +1130,9 @@ defineExpose({
 
 :deep(.body--dark .staging-table tr.active-staged-row:hover) {
   background-color: rgba(66, 165, 245, 0.22) !important;
+}
+
+.staged-action-strip {
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 </style>
