@@ -3,7 +3,8 @@ status: Implemented
 subsystems:
   - Staging Layer
   - Core Ledger & Allocations
-amendments: []
+amendments:
+  - spec-amendment1.md
 supersedes: null
 superseded_by: null
 ---

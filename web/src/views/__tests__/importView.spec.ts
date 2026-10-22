@@ -18,7 +18,7 @@ import {
 import { apiClient } from "../../api/client"
 import type { Company } from "../../types/company"
 import type { ImporterMetadata, StagedTransaction } from "../../types/staging"
-import { formatStagedAmount, getSourceFriendlyName, stagingTableColumns } from "../importView"
+import { formatStagedAmount, getSourceFriendlyName, isRowPersonal, stagingTableColumns } from "../importView"
 
 vi.mock("../../api/client", () => ({
   apiClient: {
@@ -331,10 +331,16 @@ describe("ImportView Logic & Workflow", () => {
     it("does not include standalone source column and maintains required column configuration", () => {
       const columnNames = stagingTableColumns.map(c => c.name)
       expect(columnNames).not.toContain("source")
-      expect(columnNames).toEqual(["select", "date", "allocations", "description", "total_amount", "receipt", "actions"])
+      expect(columnNames).toEqual(["select", "url", "actions", "date", "description", "total_amount", "allocations", "receipt"])
 
       const selectCol = stagingTableColumns.find(c => c.name === "select")
       expect(selectCol?.align).toBe("center")
+
+      const urlCol = stagingTableColumns.find(c => c.name === "url")
+      expect(urlCol?.align).toBe("center")
+
+      const actionsCol = stagingTableColumns.find(c => c.name === "actions")
+      expect(actionsCol?.align).toBe("left")
 
       const dateCol = stagingTableColumns.find(c => c.name === "date")
       expect(dateCol?.align).toBe("left")
@@ -350,9 +356,6 @@ describe("ImportView Logic & Workflow", () => {
 
       const receiptCol = stagingTableColumns.find(c => c.name === "receipt")
       expect(receiptCol?.align).toBe("center")
-
-      const actionsCol = stagingTableColumns.find(c => c.name === "actions")
-      expect(actionsCol?.align).toBe("right")
     })
 
     it("formats CAD currency amounts without redundant 'CA$' prefix", () => {
@@ -370,37 +373,68 @@ describe("ImportView Logic & Workflow", () => {
       // Standalone source slot removed
       expect(templateContent).not.toContain("#body-cell-source")
 
-      // Description slot contains source chip and open_in_new button with tooltip
-      expect(templateContent).toContain("props.row.source")
+      // URL slot contains open_in_new button with tooltip
       expect(templateContent).toContain('data-testid="btn-open-url"')
       expect(templateContent).toContain("<q-tooltip>Open URL</q-tooltip>")
       expect(templateContent).toContain('target="_blank"')
       expect(templateContent).toContain('rel="noopener noreferrer"')
 
+      // Description slot contains source chip
+      expect(templateContent).toContain("props.row.source")
+
       // Total amount slot uses formatStagedAmount
       expect(templateContent).toContain("formatStagedAmount(props.row.total_amount)")
 
-      // Allocations slot contains call_split icon button with tooltip
-      expect(templateContent).toContain('data-testid="btn-split-allocations"')
-      expect(templateContent).toContain('icon="call_split"')
-      expect(templateContent).toContain("<q-tooltip>Split Allocations</q-tooltip>")
+      // Allocations slot contains read-only badge summary with click-to-edit
+      expect(templateContent).toContain('data-testid="badge-staged-allocation"')
+      expect(templateContent).toContain(
+        "<q-tooltip>{{ getStagedAllocationSummary(props.row, companyMap).label }} (Click to edit)</q-tooltip>",
+      )
 
-      // Receipt slot contains attach receipt icon button with tooltip and no text label; delete button removed
-      expect(templateContent).toContain('data-testid="btn-attach-staged-receipt"')
-      expect(templateContent).toContain("<q-tooltip>Attach Receipt</q-tooltip>")
+      // Receipt slot contains view receipt button when present, and dash when absent; attach button removed
+      expect(templateContent).toContain('data-testid="btn-view-staged-receipt"')
+      expect(templateContent).toContain("<q-tooltip>View Receipt</q-tooltip>")
+      expect(templateContent).not.toContain('data-testid="btn-attach-staged-receipt"')
       expect(templateContent).not.toContain('data-testid="btn-remove-staged-receipt"')
 
       // Active row indicator applied via tableRowClass and scoped styling
       expect(templateContent).toContain(':table-row-class-fn="tableRowClass"')
       expect(templateContent).toContain("active-staged-row")
 
-      // Actions slot contains edit, dismiss, and restore icon buttons with tooltips
+      // Actions slot contains mark personal and edit buttons (dismiss moved to batch toolbar with confirmation dialog); restore button shown when dismissed
+      expect(templateContent).toContain("btn-mark-personal-")
       expect(templateContent).toContain('data-testid="btn-action-edit"')
       expect(templateContent).toContain("<q-tooltip>Edit Transaction</q-tooltip>")
-      expect(templateContent).toContain('data-testid="btn-action-dismiss"')
-      expect(templateContent).toContain("<q-tooltip>Dismiss Transaction</q-tooltip>")
+      expect(templateContent).not.toContain('data-testid="btn-action-dismiss"')
+      expect(templateContent).toContain('data-testid="btn-dismiss-selected"')
       expect(templateContent).toContain('data-testid="btn-action-restore"')
       expect(templateContent).toContain("<q-tooltip>Restore Transaction</q-tooltip>")
+
+      // Double-click row affordance to open edit dialog
+      expect(templateContent).toContain('@row-dblclick="(_evt, row) => openEditDialog(row)"')
+    })
+
+    it("verifies isRowPersonal identifies 100% personal staged transactions", () => {
+      const personalTx = makeStagedTx({
+        allocations: [{ id: "a1", staged_transaction_id: "s1", amount: "50.00", is_personal: true, company_id: null }],
+      })
+      expect(isRowPersonal(personalTx)).toBe(true)
+
+      const companyTx = makeStagedTx({
+        allocations: [{ id: "a2", staged_transaction_id: "s2", amount: "50.00", is_personal: false, company_id: "c1" }],
+      })
+      expect(isRowPersonal(companyTx)).toBe(false)
+
+      const splitTx = makeStagedTx({
+        allocations: [
+          { id: "a3", staged_transaction_id: "s3", amount: "25.00", is_personal: true, company_id: null },
+          { id: "a4", staged_transaction_id: "s3", amount: "25.00", is_personal: false, company_id: "c1" },
+        ],
+      })
+      expect(isRowPersonal(splitTx)).toBe(false)
+
+      const unallocatedTx = makeStagedTx({ allocations: [] })
+      expect(isRowPersonal(unallocatedTx)).toBe(false)
     })
   })
 

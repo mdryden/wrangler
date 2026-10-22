@@ -26,6 +26,7 @@ import {
   getSourceFriendlyName,
   isMasterHeaderChecked,
   isMasterHeaderIndeterminate,
+  isRowPersonal,
   stagingTableColumns,
   toggleVisibleStagedRows,
 } from "./importView"
@@ -311,6 +312,20 @@ function onBulkDismiss(): void {
   })
 }
 
+async function onTogglePersonal(row: StagedTransaction): Promise<void> {
+  if (row.status !== "STAGED") return
+  activeRowId.value = row.id
+  try {
+    const isPersonal = isRowPersonal(row)
+    const payload = buildQuickAssignPayload(row, isPersonal ? null : PERSONAL_QUICK_ASSIGN_VALUE)
+    await stagingStore.updateStagedTransaction(row.id, payload)
+    notifySuccess(isPersonal ? "Reset to Unallocated" : "Marked as Personal")
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Failed to update allocation"
+    notifyError(msg)
+  }
+}
+
 async function onQuickAssignChange(row: StagedTransaction, value: string | null): Promise<void> {
   if (row.status !== "STAGED") return
   try {
@@ -470,6 +485,8 @@ defineExpose({
   resetFilters,
   isRowSelected,
   toggleRowSelection,
+  isRowPersonal,
+  onTogglePersonal,
   onQuickAssignChange,
   openEditDialog,
   onStagedSaved,
@@ -737,6 +754,7 @@ defineExpose({
       data-testid="table-staging"
       :table-row-class-fn="tableRowClass"
       @row-click="onRowClick"
+      @row-dblclick="(_evt, row) => openEditDialog(row)"
       @request="onRequest"
     >
       <!-- Master Selection Checkbox in Header -->
@@ -768,6 +786,81 @@ defineExpose({
         </q-td>
       </template>
 
+      <!-- URL Column -->
+      <template #body-cell-url="props">
+        <q-td :props="props" align="center">
+          <q-btn
+            v-if="props.row.url"
+            flat
+            round
+            dense
+            size="sm"
+            icon="open_in_new"
+            color="primary"
+            :href="props.row.url"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="btn-open-url"
+            @click.stop="activeRowId = props.row.id"
+          >
+            <q-tooltip>Open URL</q-tooltip>
+          </q-btn>
+          <q-btn v-else flat round dense size="sm" icon="open_in_new" disable class="text-grey-4" />
+        </q-td>
+      </template>
+
+      <!-- Actions Column -->
+      <template #body-cell-actions="props">
+        <q-td :props="props" align="left">
+          <div class="row items-center q-gutter-xs no-wrap">
+            <template v-if="props.row.status === 'STAGED'">
+              <!-- Mark Personal Toggle Button -->
+              <q-btn
+                flat
+                round
+                dense
+                size="sm"
+                :color="isRowPersonal(props.row) ? 'positive' : 'grey-7'"
+                :icon="isRowPersonal(props.row) ? 'person' : 'person_outline'"
+                :data-testid="`btn-mark-personal-${props.row.id}`"
+                @click.stop="onTogglePersonal(props.row)"
+              >
+                <q-tooltip>{{ isRowPersonal(props.row) ? "Marked as Personal (Click to unallocate)" : "Mark as Personal" }}</q-tooltip>
+              </q-btn>
+
+              <!-- Edit Transaction Button -->
+              <q-btn
+                flat
+                round
+                dense
+                size="sm"
+                color="primary"
+                icon="edit"
+                data-testid="btn-action-edit"
+                @click.stop="openEditDialog(props.row)"
+              >
+                <q-tooltip>Edit Transaction</q-tooltip>
+              </q-btn>
+            </template>
+
+            <template v-else-if="props.row.status === 'DISMISSED'">
+              <q-btn
+                flat
+                round
+                dense
+                size="sm"
+                color="primary"
+                icon="restore"
+                data-testid="btn-action-restore"
+                @click.stop="onRestoreRow(props.row)"
+              >
+                <q-tooltip>Restore Transaction</q-tooltip>
+              </q-btn>
+            </template>
+          </div>
+        </q-td>
+      </template>
+
       <!-- Date Column -->
       <template #body-cell-date="props">
         <q-td :props="props">
@@ -792,22 +885,6 @@ defineExpose({
             <q-chip dense size="xs" color="blue-1" text-color="primary" class="text-weight-bold">
               {{ props.row.source }}
             </q-chip>
-            <q-btn
-              v-if="props.row.url"
-              flat
-              round
-              dense
-              size="xs"
-              icon="open_in_new"
-              color="primary"
-              :href="props.row.url"
-              target="_blank"
-              rel="noopener noreferrer"
-              data-testid="btn-open-url"
-              @click="activeRowId = props.row.id"
-            >
-              <q-tooltip>Open URL</q-tooltip>
-            </q-btn>
           </div>
         </q-td>
       </template>
@@ -824,88 +901,27 @@ defineExpose({
       <!-- Allocation Status / Summary Column -->
       <template #body-cell-allocations="props">
         <q-td :props="props">
-          <!-- Non-STAGED rows (Accepted / Dismissed): Read-only summary badge -->
-          <div v-if="props.row.status !== 'STAGED'" class="row items-center no-wrap q-gutter-xs">
+          <div class="row items-center no-wrap q-gutter-xs">
             <q-badge
               :color="getStagedAllocationSummary(props.row, companyMap).color"
               :text-color="getStagedAllocationSummary(props.row, companyMap).textColor"
-              class="q-px-sm q-py-xs text-weight-bold ellipsis"
-              style="max-width: 220px"
+              class="q-px-sm q-py-xs text-weight-bold ellipsis cursor-pointer"
+              style="max-width: 140px"
               data-testid="badge-staged-allocation"
+              @click.stop="openEditDialog(props.row)"
             >
               {{ getStagedAllocationSummary(props.row, companyMap).label }}
-              <q-tooltip>{{ getStagedAllocationSummary(props.row, companyMap).label }}</q-tooltip>
+              <q-tooltip>{{ getStagedAllocationSummary(props.row, companyMap).label }} (Click to edit)</q-tooltip>
             </q-badge>
-          </div>
-
-          <!-- STAGED rows -->
-          <div v-else class="row items-center no-wrap q-gutter-xs">
-            <!-- Multi-Split Allocation: Compact chip + Split button -->
-            <template v-if="props.row.allocations && props.row.allocations.length > 1">
-              <q-chip
-                dense
-                clickable
-                color="teal-1"
-                text-color="teal-9"
-                icon="call_split"
-                class="text-weight-bold cursor-pointer"
-                data-testid="badge-staged-allocation"
-                @click="openEditDialog(props.row)"
-              >
-                {{ props.row.allocations.length }} splits
-                <q-tooltip> {{ getStagedAllocationSummary(props.row, companyMap).label }} (Click to edit) </q-tooltip>
-              </q-chip>
-              <q-btn
-                flat
-                round
-                dense
-                size="sm"
-                color="primary"
-                icon="call_split"
-                data-testid="btn-split-allocations"
-                @click="openEditDialog(props.row)"
-              >
-                <q-tooltip>Split Allocations</q-tooltip>
-              </q-btn>
-            </template>
-
-            <!-- Single Allocation or Unallocated -->
-            <template v-else>
-              <!-- Quick Assign Selector -->
-              <q-select
-                :model-value="getQuickAssignValue(props.row)"
-                dense
-                outlined
-                clearable
-                emit-value
-                map-options
-                options-dense
-                :style="props.row.is_ready ? 'width: 195px' : 'width: 145px'"
-                placeholder="Quick allocate..."
-                :options="quickAssignOptions"
-                :data-testid="`select-quick-assign-${props.row.id}`"
-                @update:model-value="(val: string | null) => onQuickAssignChange(props.row, val)"
-              >
-                <template v-if="props.row.is_ready" #prepend>
-                  <q-icon name="check_circle" color="positive" size="16px">
-                    <q-tooltip>Ready to accept</q-tooltip>
-                  </q-icon>
-                </template>
-              </q-select>
-
-              <q-btn
-                flat
-                round
-                dense
-                size="sm"
-                color="primary"
-                icon="call_split"
-                data-testid="btn-split-allocations"
-                @click="openEditDialog(props.row)"
-              >
-                <q-tooltip>Split Allocations</q-tooltip>
-              </q-btn>
-            </template>
+            <q-icon
+              v-if="props.row.status === 'STAGED' && props.row.is_ready"
+              name="check_circle"
+              color="positive"
+              size="16px"
+              data-testid="icon-staged-ready"
+            >
+              <q-tooltip>Ready to accept</q-tooltip>
+            </q-icon>
           </div>
         </q-td>
       </template>
@@ -913,101 +929,21 @@ defineExpose({
       <!-- Receipt Column -->
       <template #body-cell-receipt="props">
         <q-td :props="props" align="center">
-          <div class="row items-center justify-center no-wrap q-gutter-xs">
-            <template v-if="props.row.receipt_file_path">
-              <q-btn
-                flat
-                round
-                dense
-                size="sm"
-                icon="receipt"
-                color="primary"
-                aria-label="View Receipt"
-                data-testid="btn-view-staged-receipt"
-                @click="openReceipt(props.row)"
-              >
-                <q-tooltip>View Receipt</q-tooltip>
-              </q-btn>
-              <template v-if="props.row.status === 'STAGED'">
-                <q-btn
-                  flat
-                  round
-                  dense
-                  size="sm"
-                  icon="upload_file"
-                  color="grey-7"
-                  aria-label="Replace Receipt"
-                  data-testid="btn-replace-staged-receipt"
-                  @click="openEditDialog(props.row)"
-                >
-                  <q-tooltip>Replace Receipt</q-tooltip>
-                </q-btn>
-              </template>
-            </template>
-            <template v-else-if="props.row.status === 'STAGED'">
-              <q-btn
-                flat
-                round
-                dense
-                size="sm"
-                icon="attach_file"
-                color="grey-8"
-                data-testid="btn-attach-staged-receipt"
-                @click="openEditDialog(props.row)"
-              >
-                <q-tooltip>Attach Receipt</q-tooltip>
-              </q-btn>
-            </template>
-            <span v-else class="text-grey-5">—</span>
-          </div>
-        </q-td>
-      </template>
-
-      <!-- Actions Column -->
-      <template #body-cell-actions="props">
-        <q-td :props="props" align="right">
-          <div class="row items-center justify-end q-gutter-xs no-wrap">
-            <template v-if="props.row.status === 'STAGED'">
-              <q-btn
-                flat
-                round
-                dense
-                size="sm"
-                color="primary"
-                icon="edit"
-                data-testid="btn-action-edit"
-                @click="openEditDialog(props.row)"
-              >
-                <q-tooltip>Edit Transaction</q-tooltip>
-              </q-btn>
-              <q-btn
-                flat
-                round
-                dense
-                size="sm"
-                color="negative"
-                icon="block"
-                data-testid="btn-action-dismiss"
-                @click="onDismissRow(props.row)"
-              >
-                <q-tooltip>Dismiss Transaction</q-tooltip>
-              </q-btn>
-            </template>
-            <template v-else-if="props.row.status === 'DISMISSED'">
-              <q-btn
-                flat
-                round
-                dense
-                size="sm"
-                color="primary"
-                icon="restore"
-                data-testid="btn-action-restore"
-                @click="onRestoreRow(props.row)"
-              >
-                <q-tooltip>Restore Transaction</q-tooltip>
-              </q-btn>
-            </template>
-          </div>
+          <q-btn
+            v-if="props.row.receipt_file_path"
+            flat
+            round
+            dense
+            size="sm"
+            icon="receipt"
+            color="primary"
+            aria-label="View Receipt"
+            data-testid="btn-view-staged-receipt"
+            @click.stop="openReceipt(props.row)"
+          >
+            <q-tooltip>View Receipt</q-tooltip>
+          </q-btn>
+          <span v-else class="text-grey-5">—</span>
         </q-td>
       </template>
 

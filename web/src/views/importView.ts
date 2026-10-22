@@ -20,6 +20,24 @@ export const stagingTableColumns: QTableColumn[] = [
     headerStyle: "width: 48px",
   },
   {
+    name: "url",
+    label: "",
+    align: "center",
+    field: (row: StagedTransaction) => row.url ?? "",
+    sortable: false,
+    style: "width: 44px",
+    headerStyle: "width: 44px",
+  },
+  {
+    name: "actions",
+    label: "Actions",
+    align: "left",
+    field: () => "",
+    sortable: false,
+    style: "width: 80px",
+    headerStyle: "width: 80px",
+  },
+  {
     name: "date",
     required: true,
     label: "Date",
@@ -30,23 +48,14 @@ export const stagingTableColumns: QTableColumn[] = [
     headerStyle: "width: 95px",
   },
   {
-    name: "allocations",
-    label: "Allocation Status / Summary",
-    align: "left",
-    field: (row: StagedTransaction) => row.id,
-    sortable: false,
-    style: "width: 260px",
-    headerStyle: "width: 260px",
-  },
-  {
     name: "description",
     required: true,
     label: "Description",
     align: "left",
     field: (row: StagedTransaction) => row.description,
     sortable: false,
-    style: "min-width: 280px",
-    headerStyle: "min-width: 280px",
+    style: "min-width: 240px",
+    headerStyle: "min-width: 240px",
   },
   {
     name: "total_amount",
@@ -59,6 +68,15 @@ export const stagingTableColumns: QTableColumn[] = [
     headerStyle: "width: 95px",
   },
   {
+    name: "allocations",
+    label: "Allocation",
+    align: "left",
+    field: (row: StagedTransaction) => row.id,
+    sortable: false,
+    style: "width: 150px",
+    headerStyle: "width: 150px",
+  },
+  {
     name: "receipt",
     label: "Receipt",
     align: "center",
@@ -67,16 +85,14 @@ export const stagingTableColumns: QTableColumn[] = [
     style: "width: 80px",
     headerStyle: "width: 80px",
   },
-  {
-    name: "actions",
-    label: "Actions",
-    align: "right",
-    field: () => "",
-    sortable: false,
-    style: "width: 80px",
-    headerStyle: "width: 80px",
-  },
 ]
+
+/**
+ * Checks whether a staged transaction is strictly allocated as 100% Personal.
+ */
+export function isRowPersonal(row: StagedTransaction): boolean {
+  return Boolean(row.allocations && row.allocations.length === 1 && row.allocations[0].is_personal && !row.allocations[0].company_id)
+}
 
 /**
  * Determines whether the importer summary notification should be a warning
