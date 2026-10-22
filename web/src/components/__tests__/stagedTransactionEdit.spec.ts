@@ -1,9 +1,16 @@
+import fs from "fs"
+import path from "path"
 import { describe, it, expect } from "vitest"
 import {
+  acceptAiSuggestion,
   addStagedEditSplit,
   canSaveStagedTransactionEdit,
   clearStagedAllocations,
+  clearStagedReceipt,
+  computeAiSuggestions,
+  createInitialAiSuggestionsState,
   createStagedTransactionEditState,
+  dismissAiSuggestion,
   hasEffectiveStagedReceipt,
   markStagedReceiptForRemoval,
   prepareStagedTransactionEditPayload,
@@ -13,6 +20,7 @@ import {
   toggleStagedPersonalExpense,
 } from "../stagedTransactionEdit"
 import type { StagedTransaction } from "../../types/staging"
+import type { ReceiptParseResponse } from "../../types/transaction"
 
 describe("stagedTransactionEdit", () => {
   const unallocatedStaged: StagedTransaction = {
@@ -148,5 +156,204 @@ describe("stagedTransactionEdit", () => {
 
     state.url = ""
     expect(prepareStagedTransactionEditPayload(state).payload.url).toBeNull()
+  })
+
+  it("computes AI suggestions correctly for date, total_amount, and description", () => {
+    const state = createStagedTransactionEditState(unallocatedStaged)
+    state.date = "2026-10-14"
+    state.total_amount = "29.99"
+    state.description = ""
+
+    const parseResult: ReceiptParseResponse = {
+      merchant: "Amazon",
+      date: "2026-10-15",
+      total_amount: 29.99,
+      description: "Amazon - Anker Cable",
+    }
+
+    const suggestions = computeAiSuggestions(parseResult, state)
+
+    // Differing date
+    expect(suggestions.date).toEqual({
+      extractedValue: "2026-10-15",
+      displayValue: "2026-10-15",
+      isMatch: false,
+      isDismissed: false,
+    })
+
+    // Identical amount
+    expect(suggestions.total_amount).toEqual({
+      extractedValue: "29.99",
+      displayValue: "29.99",
+      isMatch: true,
+      isDismissed: false,
+    })
+
+    // Differing description (empty form description vs AI value)
+    expect(suggestions.description).toEqual({
+      extractedValue: "Amazon - Anker Cable",
+      displayValue: "Amazon - Anker Cable",
+      isMatch: false,
+      isDismissed: false,
+    })
+
+    // Missing / null AI fields produce null suggestions
+    const emptyResult: ReceiptParseResponse = {
+      merchant: null,
+      date: null,
+      total_amount: null,
+      description: null,
+    }
+    const emptySuggestions = computeAiSuggestions(emptyResult, state)
+    expect(emptySuggestions.date).toBeNull()
+    expect(emptySuggestions.total_amount).toBeNull()
+    expect(emptySuggestions.description).toBeNull()
+  })
+
+  it("accepts AI suggestions and updates form inputs and single split allocations", () => {
+    const state = createStagedTransactionEditState(unallocatedStaged)
+    state.splits = [
+      {
+        amount: "100.00",
+        is_personal: false,
+        company_id: "comp-1",
+      },
+    ]
+
+    const suggestions = {
+      date: {
+        extractedValue: "2026-10-15",
+        displayValue: "2026-10-15",
+        isMatch: false,
+        isDismissed: false,
+      },
+      total_amount: {
+        extractedValue: "49.99",
+        displayValue: "49.99",
+        isMatch: false,
+        isDismissed: false,
+      },
+      description: {
+        extractedValue: "Amazon - New Mouse",
+        displayValue: "Amazon - New Mouse",
+        isMatch: false,
+        isDismissed: false,
+      },
+    }
+
+    acceptAiSuggestion(state, suggestions, "date")
+    expect(state.date).toBe("2026-10-15")
+    expect(suggestions.date.isMatch).toBe(true)
+
+    acceptAiSuggestion(state, suggestions, "total_amount")
+    expect(state.total_amount).toBe("49.99")
+    expect(state.splits[0].amount).toBe("49.99")
+    expect(suggestions.total_amount.isMatch).toBe(true)
+
+    acceptAiSuggestion(state, suggestions, "description")
+    expect(state.description).toBe("Amazon - New Mouse")
+    expect(suggestions.description.isMatch).toBe(true)
+  })
+
+  it("dismisses AI suggestions without modifying form inputs", () => {
+    const state = createStagedTransactionEditState(unallocatedStaged)
+    state.date = "2026-10-14"
+
+    const suggestions = {
+      date: {
+        extractedValue: "2026-10-15",
+        displayValue: "2026-10-15",
+        isMatch: false,
+        isDismissed: false,
+      },
+      total_amount: null,
+      description: null,
+    }
+
+    dismissAiSuggestion(suggestions, "date")
+    expect(suggestions.date.isDismissed).toBe(true)
+    expect(state.date).toBe("2026-10-14")
+  })
+
+  it("clears staged receipt and active suggestions state", () => {
+    const state = createStagedTransactionEditState(unallocatedStaged)
+    const suggestions = {
+      date: {
+        extractedValue: "2026-10-15",
+        displayValue: "2026-10-15",
+        isMatch: false,
+        isDismissed: false,
+      },
+      total_amount: {
+        extractedValue: "49.99",
+        displayValue: "49.99",
+        isMatch: false,
+        isDismissed: false,
+      },
+      description: {
+        extractedValue: "Test",
+        displayValue: "Test",
+        isMatch: false,
+        isDismissed: false,
+      },
+    }
+
+    clearStagedReceipt(state, suggestions)
+    expect(state.staged_receipt_file).toBeNull()
+    expect(state.remove_receipt).toBe(true)
+    expect(suggestions.date).toBeNull()
+    expect(suggestions.total_amount).toBeNull()
+    expect(suggestions.description).toBeNull()
+  })
+
+  describe("StagedTransactionEditDialog Template & UI Affordances", () => {
+    const dialogPath = path.resolve(__dirname, "../StagedTransactionEditDialog.vue")
+    const dialogTemplate = fs.readFileSync(dialogPath, "utf-8")
+
+    it("persistently renders receipt buttons without conditional v-if toggles", () => {
+      expect(dialogTemplate).toContain('data-testid="btn-staged-view-receipt"')
+      expect(dialogTemplate).toContain('data-testid="btn-staged-scan-receipt"')
+      expect(dialogTemplate).not.toContain('data-testid="btn-staged-remove-receipt"')
+
+      // Verify buttons do not have v-if
+      const viewBtnRegex = /<q-btn[^>]*data-testid="btn-staged-view-receipt"[^>]*\/>/s
+      const scanBtnRegex = /<q-btn[^>]*data-testid="btn-staged-scan-receipt"[^>]*\/>/s
+
+      const viewMatch = dialogTemplate.match(viewBtnRegex)
+      expect(viewMatch).not.toBeNull()
+      expect(viewMatch![0]).not.toContain("v-if")
+      expect(viewMatch![0]).toContain(':disable="!hasReceipt || saving || isParsingReceipt"')
+
+      const scanMatch = dialogTemplate.match(scanBtnRegex)
+      expect(scanMatch).not.toBeNull()
+      expect(scanMatch![0]).not.toContain("v-if")
+      expect(scanMatch![0]).toContain(':disable="!hasReceipt || saving || isParsingReceipt"')
+      expect(scanMatch![0]).toContain(':loading="isParsingReceipt"')
+    })
+
+    it("configures clearable file picker to invoke onClearReceipt", () => {
+      const fileInputRegex = /<q-file[^>]*data-testid="input-staged-receipt"[^>]*>/s
+      const fileMatch = dialogTemplate.match(fileInputRegex)
+      expect(fileMatch).not.toBeNull()
+      expect(fileMatch![0]).toContain("clearable")
+      expect(fileMatch![0]).toContain('@clear="onClearReceipt"')
+    })
+
+    it("includes inline suggestion and match banners for date, total_amount, and description", () => {
+      // Date suggestion and match elements
+      expect(dialogTemplate).toContain('data-testid="btn-accept-suggestion-date"')
+      expect(dialogTemplate).toContain('data-testid="btn-dismiss-suggestion-date"')
+      expect(dialogTemplate).toContain('data-testid="match-indicator-date"')
+
+      // Total amount suggestion and match elements
+      expect(dialogTemplate).toContain('data-testid="btn-accept-suggestion-total_amount"')
+      expect(dialogTemplate).toContain('data-testid="btn-dismiss-suggestion-total_amount"')
+      expect(dialogTemplate).toContain('data-testid="match-indicator-total_amount"')
+
+      // Description suggestion and match elements
+      expect(dialogTemplate).toContain('data-testid="btn-accept-suggestion-description"')
+      expect(dialogTemplate).toContain('data-testid="btn-dismiss-suggestion-description"')
+      expect(dialogTemplate).toContain('data-testid="match-indicator-description"')
+    })
   })
 })

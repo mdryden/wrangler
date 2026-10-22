@@ -14,10 +14,10 @@ Features in Wrangler are organized across six primary subsystems. When researchi
 | Subsystem | Scope & Responsibilities | Authoritative Specs |
 | :--- | :--- | :--- |
 | **Ingestion & Importers** | Ingestion pipeline, `BaseImporter` framework, file upload handling, CSV/PDF/Image parsers, file hashing, and deduplication (`source`, `external_id`). | #2, #3, #5, #8 |
-| **Staging Layer** | `StagedTransaction` lifecycle (`STAGED`, `ACCEPTED`, `DISMISSED`), staging review table, quick entity allocation, bulk staging actions, and readiness calculation (`is_ready`). | #2, #4, #5, #11 |
+| **Staging Layer** | `StagedTransaction` lifecycle (`STAGED`, `ACCEPTED`, `DISMISSED`), staging review table, quick entity allocation, bulk staging actions, and readiness calculation (`is_ready`). | #2, #4, #5, #11, #13 |
 | **Core Ledger & Allocations** | `Transaction`, `Allocation`, and `Company` entities, entity attribution invariant (max 1 split per entity), single-currency (CAD) amounts, manual transaction entry, and lock states (`is_locked`). | #1, #6, #9, #11 |
 | **Accounting Export** | Export generation (Wave CSV format), export batch tracking, file correlation, and export status reconciliation. | #9 (and amendments 1, 2) |
-| **AI & Agent Services** | Pluggable AI provider abstraction (`BaseReceiptParserProvider`, OpenAI, Mock), vision receipt parsing, Model Context Protocol (`FastMCP`) SSE server, and desktop agent intake tools. | #4, #8 |
+| **AI & Agent Services** | Pluggable AI provider abstraction (`BaseReceiptParserProvider`, OpenAI, Mock), vision receipt parsing, Model Context Protocol (`FastMCP`) SSE server, and desktop agent intake tools. | #4, #8, #13 |
 | **Platform & Shell** | Navigation drawer, responsive UI layouts, Quasar component shell, JWT authentication middleware, host network LAN binding, backup services (`BACKUP_DIR`), and production deployment. | #1, #7, #10 |
 
 ---
@@ -38,6 +38,7 @@ Features in Wrangler are organized across six primary subsystems. When researchi
 | **10** | [`10-production-deployment`](file:///D:/src/personal/wrangler/specs/10-production-deployment/spec.md) | Implemented | Platform | Multi-stage production build, static Vue SPA serving via FastAPI, LAN host binding (`0.0.0.0:8000`), centralized `BACKUP_DIR`. *(Active amendments: [`spec-amendment1.md`](file:///D:/src/personal/wrangler/specs/10-production-deployment/spec-amendment1.md)).* |
 | **11** | [`11-bulk-staged-allocations`](file:///D:/src/personal/wrangler/specs/11-bulk-staged-allocations/spec.md) | Implemented | Staging, Ledger | Checkbox multi-select across all staging items, bulk allocation dialog (Personal / Company / Clear), bulk dismissal with importer `mark_imported` notifications, and atomic batch endpoints. |
 | **12** | [`12-bulk-export-categorization`](file:///D:/src/personal/wrangler/specs/12-bulk-export-categorization/spec.md) | Implemented | Accounting Export, Ledger | Decoupled visible-page multi-select in Export Manager, contextual bulk toolbar with "Assign Category", BulkCategorizeDialog with overwrite warning, and atomic batch category update endpoint. |
+| **13** | [`13-staged-receipt-ai-parsing`](file:///D:/src/personal/wrangler/specs/13-staged-receipt-ai-parsing/spec.md) | Implemented | Staging, AI / Agent | On-demand receipt AI parsing inside Staged Edit Dialog, inline field suggestions with Accept/Dismiss, exact match verification badges, and persistent UI affordances. |
 
 ---
 

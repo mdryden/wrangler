@@ -5,6 +5,7 @@ import { useCompanyStore } from "../stores/companies"
 import { useStagingStore } from "../stores/staging"
 import { useTransactionStore } from "../stores/transactions"
 import type { StagedTransaction } from "../types/staging"
+import type { ReceiptParseResponse } from "../types/transaction"
 import {
   amountRules,
   calculateSplitRemainder,
@@ -17,10 +18,15 @@ import {
 } from "../views/manualEntry"
 import { PERSONAL_SPLIT_TOOLTIP } from "./transactionEdit"
 import {
+  acceptAiSuggestion,
   addStagedEditSplit,
   canSaveStagedTransactionEdit,
   clearStagedAllocations,
+  clearStagedReceipt,
+  computeAiSuggestions,
+  createInitialAiSuggestionsState,
   createStagedTransactionEditState,
+  dismissAiSuggestion,
   hasEffectiveStagedReceipt,
   markStagedReceiptForRemoval,
   prepareStagedTransactionEditPayload,
@@ -28,6 +34,7 @@ import {
   stageStagedReceiptFile,
   syncSingleStagedSplitAmount,
   toggleStagedPersonalExpense,
+  type StagedAiSuggestionsState,
   type StagedTransactionEditFormState,
 } from "./stagedTransactionEdit"
 
@@ -46,7 +53,9 @@ const stagingStore = useStagingStore()
 const transactionStore = useTransactionStore()
 const formRef = ref<QForm | null>(null)
 const saving = ref<boolean>(false)
+const isParsingReceipt = ref<boolean>(false)
 const errorMessage = ref<string>("")
+const aiSuggestions = ref<StagedAiSuggestionsState>(createInitialAiSuggestionsState())
 
 const form = ref<StagedTransactionEditFormState>({
   date: "",
@@ -76,6 +85,17 @@ const splitRemainder = computed(() => calculateSplitRemainder(form.value.total_a
 const isBalanced = computed(() => splitRemainder.value.isBalanced)
 const hasReceipt = computed(() => hasEffectiveStagedReceipt(form.value))
 const canSave = computed(() => canSaveStagedTransactionEdit(form.value))
+
+const displayReceiptName = computed(() => {
+  if (form.value.staged_receipt_file) {
+    return form.value.staged_receipt_file.name
+  }
+  if (form.value.existing_receipt_path && !form.value.remove_receipt) {
+    const parts = form.value.existing_receipt_path.split(/[/\\]/)
+    return parts[parts.length - 1] || form.value.existing_receipt_path
+  }
+  return ""
+})
 
 function notifySuccess(message: string) {
   try {
@@ -109,6 +129,9 @@ watch(
     if (visible && staged) {
       errorMessage.value = ""
       form.value = createStagedTransactionEditState(staged)
+      aiSuggestions.value = createInitialAiSuggestionsState()
+    } else {
+      aiSuggestions.value = createInitialAiSuggestionsState()
     }
   },
   { immediate: true },
@@ -156,8 +179,12 @@ function onReceiptSelected(file: File | null): void {
   stageStagedReceiptFile(form.value, file)
 }
 
+function onClearReceipt(): void {
+  clearStagedReceipt(form.value, aiSuggestions.value)
+}
+
 function onRemoveReceipt(): void {
-  markStagedReceiptForRemoval(form.value)
+  onClearReceipt()
 }
 
 async function onViewReceipt(): Promise<void> {
@@ -171,7 +198,7 @@ async function onViewReceipt(): Promise<void> {
       }
       return
     }
-    if (form.value.existing_receipt_path) {
+    if (form.value.existing_receipt_path && !form.value.remove_receipt) {
       await transactionStore.openReceiptInNewTab(form.value.existing_receipt_path)
     }
   } catch (err) {
@@ -179,6 +206,38 @@ async function onViewReceipt(): Promise<void> {
     errorMessage.value = msg
     notifyError(msg)
   }
+}
+
+async function onScanReceipt(): Promise<void> {
+  if (!hasReceipt.value || saving.value || isParsingReceipt.value) return
+  isParsingReceipt.value = true
+  errorMessage.value = ""
+  try {
+    let parseResult: ReceiptParseResponse
+    if (form.value.staged_receipt_file) {
+      parseResult = await transactionStore.parseReceipt(form.value.staged_receipt_file)
+    } else if (form.value.existing_receipt_path && !form.value.remove_receipt && props.stagedTransaction) {
+      parseResult = await stagingStore.parseStagedReceipt(props.stagedTransaction.id)
+    } else {
+      return
+    }
+    aiSuggestions.value = computeAiSuggestions(parseResult, form.value)
+    notifySuccess("Receipt parsed with AI")
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Failed to parse receipt with AI"
+    errorMessage.value = msg
+    notifyError(msg)
+  } finally {
+    isParsingReceipt.value = false
+  }
+}
+
+function onAcceptSuggestion(field: "date" | "total_amount" | "description"): void {
+  acceptAiSuggestion(form.value, aiSuggestions.value, field)
+}
+
+function onDismissSuggestion(field: "date" | "total_amount" | "description"): void {
+  dismissAiSuggestion(aiSuggestions.value, field)
 }
 
 function handleDateKeydown(e: KeyboardEvent): void {
@@ -223,6 +282,8 @@ defineExpose({
   hasReceipt,
   canSave,
   saving,
+  isParsingReceipt,
+  aiSuggestions,
   errorMessage,
   onTotalAmountBlur,
   onSplitAmountBlur,
@@ -231,8 +292,12 @@ defineExpose({
   onRemoveSplit,
   onClearAllocations,
   onReceiptSelected,
+  onClearReceipt,
   onRemoveReceipt,
   onViewReceipt,
+  onScanReceipt,
+  onAcceptSuggestion,
+  onDismissSuggestion,
   onSubmit,
 })
 </script>
@@ -269,12 +334,13 @@ defineExpose({
         </q-banner>
 
         <q-form ref="formRef" @submit.prevent="onSubmit">
-          <div class="row q-col-gutter-md q-mb-xs">
+          <div class="row q-col-gutter-md q-mb-md">
             <div class="col-12 col-sm-6">
               <q-input
                 v-model="form.date"
                 outlined
                 dense
+                hide-bottom-space
                 lazy-rules="ondemand"
                 label="Date *"
                 placeholder="YYYY-MM-DD"
@@ -296,6 +362,46 @@ defineExpose({
                   </q-icon>
                 </template>
               </q-input>
+              <div
+                v-if="aiSuggestions.date && !aiSuggestions.date.isMatch && !aiSuggestions.date.isDismissed"
+                class="row items-center justify-between bg-blue-1 text-primary q-px-sm q-py-xs rounded-borders q-mt-xs q-mb-sm text-caption"
+                data-testid="suggestion-banner-date"
+              >
+                <div class="row items-center no-wrap ellipsis q-mr-sm">
+                  <q-icon name="auto_awesome" size="xs" class="q-mr-xs text-primary" />
+                  <span>✨ AI Suggestion: {{ aiSuggestions.date.displayValue }}</span>
+                </div>
+                <div class="row items-center no-wrap q-gutter-x-xs">
+                  <q-btn
+                    flat
+                    dense
+                    size="sm"
+                    color="positive"
+                    icon="check"
+                    label="Accept"
+                    data-testid="btn-accept-suggestion-date"
+                    @click="onAcceptSuggestion('date')"
+                  />
+                  <q-btn
+                    flat
+                    dense
+                    size="sm"
+                    color="grey-7"
+                    icon="close"
+                    label="Dismiss"
+                    data-testid="btn-dismiss-suggestion-date"
+                    @click="onDismissSuggestion('date')"
+                  />
+                </div>
+              </div>
+              <div
+                v-else-if="aiSuggestions.date && aiSuggestions.date.isMatch && !aiSuggestions.date.isDismissed"
+                class="row items-center text-positive text-caption q-mt-xs q-mb-sm q-px-xs"
+                data-testid="match-indicator-date"
+              >
+                <q-icon name="auto_awesome" size="xs" class="q-mr-xs text-positive" />
+                <span>✨ AI Match: {{ aiSuggestions.date.displayValue }} (✓)</span>
+              </div>
             </div>
 
             <div class="col-12 col-sm-6">
@@ -305,6 +411,7 @@ defineExpose({
                 step="0.01"
                 outlined
                 dense
+                hide-bottom-space
                 lazy-rules="ondemand"
                 label="Total Amount *"
                 placeholder="0.00"
@@ -317,15 +424,56 @@ defineExpose({
                   <span class="text-subtitle2 text-grey-7">$</span>
                 </template>
               </q-input>
+              <div
+                v-if="aiSuggestions.total_amount && !aiSuggestions.total_amount.isMatch && !aiSuggestions.total_amount.isDismissed"
+                class="row items-center justify-between bg-blue-1 text-primary q-px-sm q-py-xs rounded-borders q-mt-xs q-mb-sm text-caption"
+                data-testid="suggestion-banner-total_amount"
+              >
+                <div class="row items-center no-wrap ellipsis q-mr-sm">
+                  <q-icon name="auto_awesome" size="xs" class="q-mr-xs text-primary" />
+                  <span>✨ AI Suggestion: ${{ aiSuggestions.total_amount.displayValue }}</span>
+                </div>
+                <div class="row items-center no-wrap q-gutter-x-xs">
+                  <q-btn
+                    flat
+                    dense
+                    size="sm"
+                    color="positive"
+                    icon="check"
+                    label="Accept"
+                    data-testid="btn-accept-suggestion-total_amount"
+                    @click="onAcceptSuggestion('total_amount')"
+                  />
+                  <q-btn
+                    flat
+                    dense
+                    size="sm"
+                    color="grey-7"
+                    icon="close"
+                    label="Dismiss"
+                    data-testid="btn-dismiss-suggestion-total_amount"
+                    @click="onDismissSuggestion('total_amount')"
+                  />
+                </div>
+              </div>
+              <div
+                v-else-if="aiSuggestions.total_amount && aiSuggestions.total_amount.isMatch && !aiSuggestions.total_amount.isDismissed"
+                class="row items-center text-positive text-caption q-mt-xs q-mb-sm q-px-xs"
+                data-testid="match-indicator-total_amount"
+              >
+                <q-icon name="auto_awesome" size="xs" class="q-mr-xs text-positive" />
+                <span>✨ AI Match: ${{ aiSuggestions.total_amount.displayValue }} (✓)</span>
+              </div>
             </div>
           </div>
 
-          <div class="row q-col-gutter-md q-mb-sm">
+          <div class="row q-col-gutter-md q-mb-md">
             <div class="col-12">
               <q-input
                 v-model="form.description"
                 outlined
                 dense
+                hide-bottom-space
                 lazy-rules="ondemand"
                 label="Description / Payee *"
                 :disable="saving"
@@ -336,6 +484,46 @@ defineExpose({
                   <q-icon name="edit_note" />
                 </template>
               </q-input>
+              <div
+                v-if="aiSuggestions.description && !aiSuggestions.description.isMatch && !aiSuggestions.description.isDismissed"
+                class="row items-center justify-between bg-blue-1 text-primary q-px-sm q-py-xs rounded-borders q-mt-xs q-mb-sm text-caption"
+                data-testid="suggestion-banner-description"
+              >
+                <div class="row items-center no-wrap ellipsis q-mr-sm">
+                  <q-icon name="auto_awesome" size="xs" class="q-mr-xs text-primary" />
+                  <span>✨ AI Suggestion: {{ aiSuggestions.description.displayValue }}</span>
+                </div>
+                <div class="row items-center no-wrap q-gutter-x-xs">
+                  <q-btn
+                    flat
+                    dense
+                    size="sm"
+                    color="positive"
+                    icon="check"
+                    label="Accept"
+                    data-testid="btn-accept-suggestion-description"
+                    @click="onAcceptSuggestion('description')"
+                  />
+                  <q-btn
+                    flat
+                    dense
+                    size="sm"
+                    color="grey-7"
+                    icon="close"
+                    label="Dismiss"
+                    data-testid="btn-dismiss-suggestion-description"
+                    @click="onDismissSuggestion('description')"
+                  />
+                </div>
+              </div>
+              <div
+                v-else-if="aiSuggestions.description && aiSuggestions.description.isMatch && !aiSuggestions.description.isDismissed"
+                class="row items-center text-positive text-caption q-mt-xs q-mb-sm q-px-xs"
+                data-testid="match-indicator-description"
+              >
+                <q-icon name="auto_awesome" size="xs" class="q-mr-xs text-positive" />
+                <span>✨ AI Match: {{ aiSuggestions.description.displayValue }} (✓)</span>
+              </div>
             </div>
           </div>
 
@@ -366,7 +554,26 @@ defineExpose({
           <div class="q-my-sm">
             <div class="text-subtitle2 text-weight-bold text-grey-9 q-mb-xs">Receipt Attachment</div>
 
-            <div v-if="hasReceipt" class="row items-center q-col-gutter-sm" data-testid="staged-receipt-attached-controls">
+            <div class="row items-center q-col-gutter-sm" data-testid="staged-receipt-controls">
+              <div class="col">
+                <q-file
+                  :model-value="form.staged_receipt_file"
+                  outlined
+                  dense
+                  clearable
+                  :display-value="displayReceiptName"
+                  :label="hasReceipt ? 'Replace Receipt (.pdf, .png, .jpg)' : 'Upload Receipt (.pdf, .png, .jpg)'"
+                  accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+                  :disable="saving || isParsingReceipt"
+                  data-testid="input-staged-receipt"
+                  @update:model-value="onReceiptSelected"
+                  @clear="onClearReceipt"
+                >
+                  <template #prepend>
+                    <q-icon :name="hasReceipt ? 'upload_file' : 'attach_file'" />
+                  </template>
+                </q-file>
+              </div>
               <div class="col-auto">
                 <q-btn
                   outline
@@ -375,57 +582,23 @@ defineExpose({
                   icon="open_in_new"
                   label="View Receipt"
                   data-testid="btn-staged-view-receipt"
-                  :disable="saving"
+                  :disable="!hasReceipt || saving || isParsingReceipt"
                   @click="onViewReceipt"
                 />
               </div>
-              <div class="col">
-                <q-file
-                  :model-value="form.staged_receipt_file"
-                  outlined
-                  dense
-                  clearable
-                  label="Replace Receipt (.pdf, .png, .jpg)"
-                  accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
-                  :disable="saving"
-                  data-testid="input-staged-replace-receipt"
-                  @update:model-value="onReceiptSelected"
-                >
-                  <template #prepend>
-                    <q-icon name="upload_file" />
-                  </template>
-                </q-file>
-              </div>
               <div class="col-auto">
                 <q-btn
-                  flat
+                  outline
                   dense
-                  color="negative"
-                  icon="delete_outline"
-                  label="Remove Receipt"
-                  data-testid="btn-staged-remove-receipt"
-                  :disable="saving"
-                  @click="onRemoveReceipt"
+                  color="primary"
+                  icon="auto_awesome"
+                  label="Scan with AI"
+                  data-testid="btn-staged-scan-receipt"
+                  :disable="!hasReceipt || saving || isParsingReceipt"
+                  :loading="isParsingReceipt"
+                  @click="onScanReceipt"
                 />
               </div>
-            </div>
-
-            <div v-else data-testid="staged-receipt-empty-controls">
-              <q-file
-                :model-value="form.staged_receipt_file"
-                outlined
-                dense
-                clearable
-                label="Upload Receipt (.pdf, .png, .jpg)"
-                accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
-                :disable="saving"
-                data-testid="input-staged-upload-receipt"
-                @update:model-value="onReceiptSelected"
-              >
-                <template #prepend>
-                  <q-icon name="attach_file" />
-                </template>
-              </q-file>
             </div>
           </div>
 

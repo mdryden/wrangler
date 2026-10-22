@@ -2,6 +2,7 @@ import { defineStore } from "pinia"
 import { ref } from "vue"
 import { apiClient } from "../api/client"
 import type { Company } from "../types/company"
+import type { ReceiptParseResponse } from "../types/transaction"
 import type {
   ImporterMetadata,
   ImporterRunResponse,
@@ -348,6 +349,18 @@ export const useStagingStore = defineStore("staging", () => {
     }
   }
 
+  async function parseStagedReceipt(stagedId: string): Promise<ReceiptParseResponse> {
+    error.value = null
+    try {
+      const res = await apiClient.post<ReceiptParseResponse>(`/api/staging/${stagedId}/parse-receipt`)
+      return res
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to parse staged receipt"
+      error.value = msg
+      throw err
+    }
+  }
+
   async function dismissStagedTransaction(stagedId: string): Promise<StagedTransaction> {
     error.value = null
     try {
@@ -434,6 +447,7 @@ export const useStagingStore = defineStore("staging", () => {
     updateStagedTransaction,
     uploadStagedReceipt,
     deleteStagedReceipt,
+    parseStagedReceipt,
     dismissStagedTransaction,
     restoreStagedTransaction,
     acceptStagedTransactions,

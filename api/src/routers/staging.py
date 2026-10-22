@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
+from core.config import settings
 from database import get_db
 from models.allocation import Allocation
 from models.company import Company
@@ -31,8 +32,12 @@ from schemas.staging import (
     compute_staged_is_ready,
     serialize_staged_transaction,
 )
+from services.ai.base import ReceiptParseResult
+from services.ai.factory import get_receipt_parser
 from services.importers.registry import get_importer_by_source
-from services.receipts import delete_receipt_file, save_receipt_file
+from services.receipts import delete_receipt_file, get_receipt_file_path, save_receipt_file
+
+from .receipts import EXTENSION_TO_MIME
 
 router = APIRouter(prefix="/api/staging", tags=["staging"])
 
@@ -279,6 +284,75 @@ def delete_staged_receipt(
         db.refresh(staged_tx)
 
     return serialize_staged_transaction(staged_tx)
+
+
+@router.post("/{staged_id}/parse-receipt", response_model=ReceiptParseResult)
+async def parse_staged_receipt(
+    staged_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+) -> ReceiptParseResult:
+    """Parse an existing receipt on disk associated with a staged transaction."""
+    staged_tx = _get_staged_tx_or_404(db, staged_id)
+
+    if staged_tx.status != "STAGED":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot parse receipt for staged transaction with status '{staged_tx.status}'",
+        )
+
+    if not staged_tx.receipt_file_path:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No receipt attached to staged transaction",
+        )
+
+    try:
+        path = get_receipt_file_path(staged_tx.receipt_file_path)
+    except (ValueError, FileNotFoundError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    try:
+        file_bytes = path.read_bytes()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    if len(file_bytes) > settings.MAX_RECEIPT_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail="Receipt file exceeds 20MB limit",
+        )
+
+    ext = path.suffix.lower()
+    if ext not in EXTENSION_TO_MIME:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unsupported file type. Allowed: .jpg, .jpeg, .png, .webp, .pdf",
+        )
+    mime_type = EXTENSION_TO_MIME[ext]
+
+    try:
+        parser = get_receipt_parser()
+        return await parser.parse_receipt(
+            file_bytes=file_bytes,
+            filename=path.name,
+            mime_type=mime_type,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
 
 
 @router.post("/{staged_id}/dismiss", response_model=StagedTransactionResponse)

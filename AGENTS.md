@@ -61,3 +61,10 @@ Always run commands from the repository root. Base commands (`lint`, `format`) a
    - For fast iterative verification during task development, run `pnpm --filter web test:changed` (or `pnpm test:changed`).
    - If the task list or plan specifies dedicated test tasks (e.g. a separate "Test Suite" task or testing phase), do not run tests on preceding code-only tasks; verify during the designated test task.
    - Run the full test suite (`pnpm test`) at the end of each phase or before final task completion to verify no regressions have slipped through.
+
+---
+
+## 4. UI/UX Design Standards (Frontend / `web`)
+
+- **UI Spatial Stability & Persistent Affordances:**
+  Whenever possible, interactive controls (action buttons, toolbar icons, helper actions) should remain permanently visible on screen and be gracefully disabled (e.g., `:disable="!hasReceipt"`) rather than conditionally hidden (`v-if`). This eliminates jarring layout shifts and clearly signals what actions can be taken once prerequisite conditions (such as attaching a file or selecting rows) are met.

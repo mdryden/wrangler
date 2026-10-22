@@ -1,4 +1,5 @@
 import type { StagedAllocationInput, StagedTransaction, StagedTransactionUpdatePayload } from "../types/staging"
+import type { ReceiptParseResponse } from "../types/transaction"
 import { calculateSplitRemainder, formatAmount } from "../views/manualEntry"
 
 export interface EditableStagedSplitItem {
@@ -213,5 +214,111 @@ export function prepareStagedTransactionEditPayload(state: StagedTransactionEdit
   return {
     payload,
     stagedReceiptFile: state.staged_receipt_file,
+  }
+}
+
+export interface FieldSuggestion<T = string> {
+  extractedValue: T
+  displayValue: string
+  isMatch: boolean
+  isDismissed: boolean
+}
+
+export interface StagedAiSuggestionsState {
+  date: FieldSuggestion<string> | null
+  total_amount: FieldSuggestion<string> | null
+  description: FieldSuggestion<string> | null
+}
+
+export function createInitialAiSuggestionsState(): StagedAiSuggestionsState {
+  return {
+    date: null,
+    total_amount: null,
+    description: null,
+  }
+}
+
+export function computeAiSuggestions(parseResult: ReceiptParseResponse, form: StagedTransactionEditFormState): StagedAiSuggestionsState {
+  let dateSuggestion: FieldSuggestion<string> | null = null
+  if (parseResult.date && parseResult.date.trim()) {
+    const aiDate = parseResult.date.trim()
+    const isMatch = Boolean(form.date && form.date.trim() === aiDate)
+    dateSuggestion = {
+      extractedValue: aiDate,
+      displayValue: aiDate,
+      isMatch,
+      isDismissed: false,
+    }
+  }
+
+  let amountSuggestion: FieldSuggestion<string> | null = null
+  if (parseResult.total_amount !== null && parseResult.total_amount !== undefined && String(parseResult.total_amount).trim() !== "") {
+    const aiAmountStr = formatAmount(parseResult.total_amount)
+    const isMatch = Boolean(
+      form.total_amount &&
+      !isNaN(Number(form.total_amount)) &&
+      !isNaN(Number(parseResult.total_amount)) &&
+      Number(form.total_amount).toFixed(2) === Number(parseResult.total_amount).toFixed(2),
+    )
+    amountSuggestion = {
+      extractedValue: aiAmountStr,
+      displayValue: aiAmountStr,
+      isMatch,
+      isDismissed: false,
+    }
+  }
+
+  let descSuggestion: FieldSuggestion<string> | null = null
+  if (parseResult.description && parseResult.description.trim()) {
+    const aiDesc = parseResult.description.trim()
+    const isMatch = Boolean(form.description && form.description.trim().toLowerCase() === aiDesc.toLowerCase())
+    descSuggestion = {
+      extractedValue: aiDesc,
+      displayValue: aiDesc,
+      isMatch,
+      isDismissed: false,
+    }
+  }
+
+  return {
+    date: dateSuggestion,
+    total_amount: amountSuggestion,
+    description: descSuggestion,
+  }
+}
+
+export function acceptAiSuggestion(
+  form: StagedTransactionEditFormState,
+  suggestions: StagedAiSuggestionsState,
+  field: "date" | "total_amount" | "description",
+): void {
+  if (field === "date" && suggestions.date) {
+    form.date = suggestions.date.extractedValue
+    suggestions.date.isMatch = true
+  } else if (field === "total_amount" && suggestions.total_amount) {
+    form.total_amount = formatAmount(suggestions.total_amount.extractedValue)
+    syncSingleStagedSplitAmount(form)
+    suggestions.total_amount.isMatch = true
+  } else if (field === "description" && suggestions.description) {
+    form.description = suggestions.description.extractedValue
+    suggestions.description.isMatch = true
+  }
+}
+
+export function dismissAiSuggestion(suggestions: StagedAiSuggestionsState, field: "date" | "total_amount" | "description"): void {
+  if (suggestions[field]) {
+    suggestions[field]!.isDismissed = true
+  }
+}
+
+export function clearStagedReceipt(state: StagedTransactionEditFormState, suggestions?: StagedAiSuggestionsState): void {
+  state.staged_receipt_file = null
+  if (state.existing_receipt_path !== null) {
+    state.remove_receipt = true
+  }
+  if (suggestions) {
+    suggestions.date = null
+    suggestions.total_amount = null
+    suggestions.description = null
   }
 }

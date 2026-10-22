@@ -202,4 +202,37 @@ describe("useStagingStore", () => {
     const acc = await store.acceptStagedTransactions(["stx-1"])
     expect(acc).toEqual(acceptRes)
   })
+
+  it("parses staged receipt and handles error states via parseStagedReceipt", async () => {
+    const store = useStagingStore()
+    const mockParseResult = {
+      merchant: "Amazon",
+      date: "2026-10-15",
+      total_amount: 29.99,
+      description: "Amazon - Anker USB Cable",
+    }
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => mockParseResult,
+    })
+
+    const result = await store.parseStagedReceipt("stx-1")
+    expect(mockFetch).toHaveBeenCalledWith("/api/staging/stx-1/parse-receipt", expect.objectContaining({ method: "POST" }))
+    expect(result).toEqual(mockParseResult)
+    expect(store.error).toBeNull()
+
+    // Test error case
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({ detail: "AI provider request timed out" }),
+    })
+
+    await expect(store.parseStagedReceipt("stx-1")).rejects.toThrow()
+    expect(store.error).toContain("timed out")
+  })
 })
