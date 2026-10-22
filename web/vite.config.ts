@@ -1,4 +1,5 @@
-import { defineConfig } from "vite"
+/// <reference types="vitest" />
+import { defineConfig } from "vitest/config"
 import vue from "@vitejs/plugin-vue"
 import { quasar, transformAssetUrls } from "@quasar/vite-plugin"
 
@@ -12,6 +13,12 @@ export default defineConfig({
       devTreeshaking: true,
     }),
   ],
+  test: {
+    environment: "happy-dom",
+    globals: true,
+    setupFiles: ["./tests/setup.ts"],
+    include: ["src/**/*.{test,spec}.ts", "tests/**/*.{test,spec}.ts"],
+  },
   server: {
     port: 3000,
     proxy: {

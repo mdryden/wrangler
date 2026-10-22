@@ -1,5 +1,3 @@
-import fs from "fs"
-import path from "path"
 import { describe, it, expect } from "vitest"
 import {
   acceptAiSuggestion,
@@ -8,7 +6,6 @@ import {
   clearStagedAllocations,
   clearStagedReceipt,
   computeAiSuggestions,
-  createInitialAiSuggestionsState,
   createStagedTransactionEditState,
   dismissAiSuggestion,
   hasEffectiveStagedReceipt,
@@ -22,7 +19,7 @@ import {
 import type { StagedTransaction } from "../../types/staging"
 import type { ReceiptParseResponse } from "../../types/transaction"
 
-describe("stagedTransactionEdit", () => {
+describe("stagedTransactionEdit pure helpers", () => {
   const unallocatedStaged: StagedTransaction = {
     id: "stx-1",
     source: "wrangler_csv",
@@ -39,6 +36,7 @@ describe("stagedTransactionEdit", () => {
     allocations: [],
     is_ready: false,
     supports_mark_imported: false,
+    mark_imported_error: null,
   }
 
   it("initializes unallocated rows with 0 splits and allows saving as unallocated", () => {
@@ -304,70 +302,5 @@ describe("stagedTransactionEdit", () => {
     expect(suggestions.date).toBeNull()
     expect(suggestions.total_amount).toBeNull()
     expect(suggestions.description).toBeNull()
-  })
-
-  describe("StagedTransactionEditDialog Template & UI Affordances", () => {
-    const dialogPath = path.resolve(__dirname, "../StagedTransactionEditDialog.vue")
-    const dialogTemplate = fs.readFileSync(dialogPath, "utf-8")
-
-    it("persistently renders receipt buttons without conditional v-if toggles", () => {
-      expect(dialogTemplate).toContain('data-testid="btn-staged-view-receipt"')
-      expect(dialogTemplate).toContain('data-testid="btn-staged-scan-receipt"')
-      expect(dialogTemplate).not.toContain('data-testid="btn-staged-remove-receipt"')
-
-      // Verify buttons do not have v-if
-      const viewBtnRegex = /<q-btn[^>]*data-testid="btn-staged-view-receipt"[^>]*\/>/s
-      const scanBtnRegex = /<q-btn[^>]*data-testid="btn-staged-scan-receipt"[^>]*\/>/s
-
-      const viewMatch = dialogTemplate.match(viewBtnRegex)
-      expect(viewMatch).not.toBeNull()
-      expect(viewMatch![0]).not.toContain("v-if")
-      expect(viewMatch![0]).toContain(':disable="!hasReceipt || saving || isParsingReceipt"')
-
-      const scanMatch = dialogTemplate.match(scanBtnRegex)
-      expect(scanMatch).not.toBeNull()
-      expect(scanMatch![0]).not.toContain("v-if")
-      expect(scanMatch![0]).toContain(':disable="!hasReceipt || saving || isParsingReceipt"')
-      expect(scanMatch![0]).toContain(':loading="isParsingReceipt"')
-    })
-
-    it("configures clearable file picker to invoke onClearReceipt", () => {
-      const fileInputRegex = /<q-file[^>]*data-testid="input-staged-receipt"[^>]*>/s
-      const fileMatch = dialogTemplate.match(fileInputRegex)
-      expect(fileMatch).not.toBeNull()
-      expect(fileMatch![0]).toContain("clearable")
-      expect(fileMatch![0]).toContain('@clear="onClearReceipt"')
-    })
-
-    it("includes inline suggestion and match banners for date, total_amount, and description", () => {
-      // Date suggestion and match elements
-      expect(dialogTemplate).toContain('data-testid="btn-accept-suggestion-date"')
-      expect(dialogTemplate).toContain('data-testid="btn-dismiss-suggestion-date"')
-      expect(dialogTemplate).toContain('data-testid="match-indicator-date"')
-
-      // Total amount suggestion and match elements
-      expect(dialogTemplate).toContain('data-testid="btn-accept-suggestion-total_amount"')
-      expect(dialogTemplate).toContain('data-testid="btn-dismiss-suggestion-total_amount"')
-      expect(dialogTemplate).toContain('data-testid="match-indicator-total_amount"')
-
-      // Description suggestion and match elements
-      expect(dialogTemplate).toContain('data-testid="btn-accept-suggestion-description"')
-      expect(dialogTemplate).toContain('data-testid="btn-dismiss-suggestion-description"')
-      expect(dialogTemplate).toContain('data-testid="match-indicator-description"')
-    })
-
-    it("configures investigation URL open button with click propagation stopped and link attributes", () => {
-      const urlInputRegex = /<q-input[^>]*data-testid="input-staged-url"[^>]*>([\s\S]*?)<\/q-input>/
-      const inputMatch = dialogTemplate.match(urlInputRegex)
-      expect(inputMatch).not.toBeNull()
-      const appendSlotContent = inputMatch![1]
-
-      // Must have open URL button with stop propagation so Quasar's append slot does not cancel navigation
-      expect(appendSlotContent).toContain('data-testid="btn-open-url"')
-      expect(appendSlotContent).toContain("@click.stop")
-      expect(appendSlotContent).toContain('target="_blank"')
-      expect(appendSlotContent).toContain('rel="noopener noreferrer"')
-      expect(appendSlotContent).toContain("<q-tooltip>Open URL</q-tooltip>")
-    })
   })
 })
