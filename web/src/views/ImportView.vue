@@ -52,6 +52,15 @@ const acceptingBatch = ref<boolean>(false)
 const editDialogVisible = ref<boolean>(false)
 const bulkAllocateDialogVisible = ref<boolean>(false)
 const selectedStagedTransaction = ref<StagedTransaction | null>(null)
+const activeRowId = ref<string | null>(null)
+
+function tableRowClass(row: StagedTransaction): string {
+  return row.id === activeRowId.value ? "active-staged-row" : ""
+}
+
+function onRowClick(_evt: Event, row: StagedTransaction): void {
+  activeRowId.value = row.id
+}
 
 const pagination = ref({
   sortBy: "date",
@@ -232,6 +241,7 @@ function resetFilters(): void {
     source: "",
   }
   selectedRowIds.value = []
+  activeRowId.value = null
   pagination.value.page = 1
   onRequest({ pagination: pagination.value })
 }
@@ -313,6 +323,7 @@ async function onQuickAssignChange(row: StagedTransaction, value: string | null)
 }
 
 function openEditDialog(row: StagedTransaction): void {
+  activeRowId.value = row.id
   selectedStagedTransaction.value = row
   editDialogVisible.value = true
 }
@@ -321,7 +332,11 @@ function onStagedSaved(): void {
   refreshStagingTable()
 }
 
-async function openReceipt(receiptPath: string | null): Promise<void> {
+async function openReceipt(rowOrPath: StagedTransaction | string | null): Promise<void> {
+  const receiptPath = typeof rowOrPath === "object" && rowOrPath !== null ? rowOrPath.receipt_file_path : rowOrPath
+  if (typeof rowOrPath === "object" && rowOrPath !== null) {
+    activeRowId.value = rowOrPath.id
+  }
   if (!receiptPath) return
   try {
     await transactionStore.openReceiptInNewTab(receiptPath)
@@ -331,33 +346,14 @@ async function openReceipt(receiptPath: string | null): Promise<void> {
   }
 }
 
-async function onUploadRowReceipt(row: StagedTransaction, file: File | null): Promise<void> {
-  if (!file || row.status !== "STAGED") return
-  try {
-    await stagingStore.uploadStagedReceipt(row.id, file)
-    notifySuccess("Receipt attached")
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Failed to upload receipt"
-    notifyError(msg)
-  }
-}
-
-async function onRemoveRowReceipt(row: StagedTransaction): Promise<void> {
-  if (row.status !== "STAGED" || !row.receipt_file_path) return
-  try {
-    await stagingStore.deleteStagedReceipt(row.id)
-    notifySuccess("Receipt removed")
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Failed to remove receipt"
-    notifyError(msg)
-  }
-}
-
 async function onDismissRow(row: StagedTransaction): Promise<void> {
   if (row.status !== "STAGED") return
   try {
     const dismissed = await stagingStore.dismissStagedTransaction(row.id)
     selectedRowIds.value = selectedRowIds.value.filter(id => id !== row.id)
+    if (activeRowId.value === row.id) {
+      activeRowId.value = null
+    }
     notifySuccess("Staged transaction dismissed")
     if (dismissed.mark_imported_error) {
       notifyWarning(
@@ -460,6 +456,9 @@ defineExpose({
   readyAcceptCount,
   editDialogVisible,
   selectedStagedTransaction,
+  activeRowId,
+  tableRowClass,
+  onRowClick,
   companyMap,
   quickAssignOptions,
   onSelectImporter,
@@ -474,8 +473,6 @@ defineExpose({
   openEditDialog,
   onStagedSaved,
   openReceipt,
-  onUploadRowReceipt,
-  onRemoveRowReceipt,
   onDismissRow,
   onRestoreRow,
   onAcceptBatch,
@@ -737,6 +734,8 @@ defineExpose({
       bordered
       class="shadow-1 staging-table"
       data-testid="table-staging"
+      :table-row-class-fn="tableRowClass"
+      @row-click="onRowClick"
       @request="onRequest"
     >
       <!-- Master Selection Checkbox in Header -->
@@ -798,6 +797,7 @@ defineExpose({
               target="_blank"
               rel="noopener noreferrer"
               data-testid="btn-open-url"
+              @click="activeRowId = props.row.id"
             >
               <q-tooltip>Open URL</q-tooltip>
             </q-btn>
@@ -917,7 +917,7 @@ defineExpose({
                 color="primary"
                 aria-label="View Receipt"
                 data-testid="btn-view-staged-receipt"
-                @click="openReceipt(props.row.receipt_file_path)"
+                @click="openReceipt(props.row)"
               >
                 <q-tooltip>View Receipt</q-tooltip>
               </q-btn>
@@ -934,19 +934,6 @@ defineExpose({
                   @click="openEditDialog(props.row)"
                 >
                   <q-tooltip>Replace Receipt</q-tooltip>
-                </q-btn>
-                <q-btn
-                  flat
-                  round
-                  dense
-                  size="sm"
-                  icon="delete_outline"
-                  color="negative"
-                  aria-label="Remove Receipt"
-                  data-testid="btn-remove-staged-receipt"
-                  @click="onRemoveRowReceipt(props.row)"
-                >
-                  <q-tooltip>Remove Receipt</q-tooltip>
                 </q-btn>
               </template>
             </template>
@@ -1037,3 +1024,25 @@ defineExpose({
     />
   </q-page>
 </template>
+
+<style scoped>
+:deep(.staging-table tr.active-staged-row) {
+  background-color: rgba(25, 118, 210, 0.08) !important;
+}
+
+:deep(.staging-table tr.active-staged-row > td:first-child) {
+  box-shadow: inset 4px 0 0 0 var(--q-primary) !important;
+}
+
+:deep(.staging-table tr.active-staged-row:hover) {
+  background-color: rgba(25, 118, 210, 0.12) !important;
+}
+
+:deep(.body--dark .staging-table tr.active-staged-row) {
+  background-color: rgba(66, 165, 245, 0.16) !important;
+}
+
+:deep(.body--dark .staging-table tr.active-staged-row:hover) {
+  background-color: rgba(66, 165, 245, 0.22) !important;
+}
+</style>

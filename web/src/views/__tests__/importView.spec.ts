@@ -385,9 +385,14 @@ describe("ImportView Logic & Workflow", () => {
       expect(templateContent).toContain('icon="call_split"')
       expect(templateContent).toContain("<q-tooltip>Split Allocations</q-tooltip>")
 
-      // Receipt slot contains attach receipt icon button with tooltip and no text label
+      // Receipt slot contains attach receipt icon button with tooltip and no text label; delete button removed
       expect(templateContent).toContain('data-testid="btn-attach-staged-receipt"')
       expect(templateContent).toContain("<q-tooltip>Attach Receipt</q-tooltip>")
+      expect(templateContent).not.toContain('data-testid="btn-remove-staged-receipt"')
+
+      // Active row indicator applied via tableRowClass and scoped styling
+      expect(templateContent).toContain(':table-row-class-fn="tableRowClass"')
+      expect(templateContent).toContain("active-staged-row")
 
       // Actions slot contains edit, dismiss, and restore icon buttons with tooltips
       expect(templateContent).toContain('data-testid="btn-action-edit"')
