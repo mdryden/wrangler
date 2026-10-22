@@ -65,7 +65,7 @@ export interface PaginatedStagedTransactions {
 
 export interface StagedTransactionUpdatePayload {
   date?: string
-  description?: string
+  description?: string | null
   total_amount?: string | number
   url?: string | null
   allocations?: StagedAllocationInput[]

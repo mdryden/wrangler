@@ -295,7 +295,7 @@ export const useStagingStore = defineStore("staging", () => {
         if (payload.date !== undefined) {
           fd.append("date", payload.date)
         }
-        if (payload.description !== undefined) {
+        if (payload.description !== undefined && payload.description !== null) {
           fd.append("description", payload.description)
         }
         if (payload.total_amount !== undefined) {

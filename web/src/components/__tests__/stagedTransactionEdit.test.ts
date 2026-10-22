@@ -303,4 +303,34 @@ describe("stagedTransactionEdit pure helpers", () => {
     expect(suggestions.total_amount).toBeNull()
     expect(suggestions.description).toBeNull()
   })
+
+  it("allows saving 100% personal staged transactions without a description", () => {
+    const personalStaged: StagedTransaction = {
+      ...unallocatedStaged,
+      description: "",
+      allocations: [
+        {
+          id: "alloc-pers-1",
+          staged_transaction_id: "stx-1",
+          amount: "100.00",
+          is_personal: true,
+          company_id: null,
+        },
+      ],
+    }
+    const state = createStagedTransactionEditState(personalStaged)
+    state.description = ""
+    expect(state.is_personal).toBe(true)
+    expect(canSaveStagedTransactionEdit(state)).toBe(true)
+
+    // Normalizes empty description to null in payload
+    const { payload } = prepareStagedTransactionEditPayload(state)
+    expect(payload.description).toBeNull()
+
+    // When toggled to business with empty description -> cannot save
+    state.is_personal = false
+    state.splits[0].is_personal = false
+    state.splits[0].company_id = "comp-1"
+    expect(canSaveStagedTransactionEdit(state)).toBe(false)
+  })
 })

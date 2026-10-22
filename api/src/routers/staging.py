@@ -34,7 +34,7 @@ from schemas.staging import (
 )
 from services.ai.base import ReceiptParseResult
 from services.ai.factory import get_receipt_parser
-from services.importers.registry import get_importer_by_source
+from services.importers.registry import format_personal_fallback_description, get_importer_by_source
 from services.receipts import delete_receipt_file, get_receipt_file_path, save_receipt_file
 
 from .receipts import EXTENSION_TO_MIME
@@ -593,14 +593,26 @@ async def accept_staged_transactions(
     staged_to_tx_id: list[tuple[StagedTransaction, uuid.UUID]] = []
     for stx in target_staged:
         tx_id = uuid.uuid4()
+        resolved_description = (stx.description or "").strip()
+        if not resolved_description:
+            is_personal = len(stx.allocations) == 1 and stx.allocations[0].is_personal
+            if is_personal:
+                resolved_description = format_personal_fallback_description(stx.source)
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Staged transaction '{stx.id}' is missing a description",
+                )
+
         ledger_tx = Transaction(
             id=tx_id,
             source=stx.source,
             external_id=stx.external_id,
             date=stx.date,
-            description=stx.description,
+            description=resolved_description,
             total_amount=stx.total_amount,
             receipt_file_path=stx.receipt_file_path,
+            url=stx.url,
         )
         for s_alloc in stx.allocations:
             ledger_tx.allocations.append(

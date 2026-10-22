@@ -14,6 +14,7 @@ from models.company import Company
 from models.staged_allocation import StagedAllocation
 from models.staged_transaction import StagedTransaction
 from models.transaction import Transaction
+from schemas.staging import compute_staged_is_ready
 from services.importers.base import BaseImporter, ImportedTransactionData, ImporterInputType
 from services.importers.registry import _IMPORTERS_BY_ID, register_importer
 
@@ -524,7 +525,7 @@ def test_batch_accept_staged_transactions_and_mark_imported_hooks(client, auth_h
     ledger_tx_1 = db_session.get(Transaction, refreshed_1.ledger_transaction_id)
     assert ledger_tx_1 is not None
     assert ledger_tx_1.external_id == "ACC-1"
-    assert not hasattr(ledger_tx_1, "url")
+    assert ledger_tx_1.url == "https://amazon.ca/orders/ACC-1"
     assert not hasattr(ledger_tx_1, "currency_code")
     assert len(ledger_tx_1.allocations) == 2
     assert all(not a.is_locked for a in ledger_tx_1.allocations)
@@ -943,3 +944,198 @@ def test_bulk_dismiss_handles_importer_error(client, auth_headers, db_session, m
     refreshed = db_session.get(StagedTransaction, st.id)
     assert refreshed.status == "DISMISSED"
     assert refreshed.is_marked_imported is False
+
+
+def test_staged_is_ready_relaxed_for_100_percent_personal(db_session):
+    st = StagedTransaction(
+        id=uuid.uuid4(),
+        source="amazon_csv",
+        date=date(2026, 4, 15),
+        description=None,
+        total_amount=Decimal("49.99"),
+        status="STAGED",
+    )
+    alloc = StagedAllocation(
+        staged_transaction_id=st.id,
+        amount=Decimal("49.99"),
+        is_personal=True,
+        company_id=None,
+    )
+    st.allocations.append(alloc)
+    assert compute_staged_is_ready(st) is True
+
+
+def test_staged_is_ready_rejected_for_business_missing_description(db_session):
+    comp_id = uuid.uuid4()
+    st = StagedTransaction(
+        id=uuid.uuid4(),
+        source="amazon_csv",
+        date=date(2026, 4, 15),
+        description=None,
+        total_amount=Decimal("49.99"),
+        status="STAGED",
+    )
+    alloc = StagedAllocation(
+        staged_transaction_id=st.id,
+        amount=Decimal("49.99"),
+        is_personal=False,
+        company_id=comp_id,
+    )
+    st.allocations.append(alloc)
+    assert compute_staged_is_ready(st) is False
+
+
+def test_staged_is_ready_rejected_for_unallocated_missing_description(db_session):
+    st = StagedTransaction(
+        id=uuid.uuid4(),
+        source="amazon_csv",
+        date=date(2026, 4, 15),
+        description=None,
+        total_amount=Decimal("49.99"),
+        status="STAGED",
+    )
+    assert compute_staged_is_ready(st) is False
+
+
+def test_accept_personal_staged_uses_fallback_description(client, auth_headers, db_session):
+    st = StagedTransaction(
+        id=uuid.uuid4(),
+        source="amazon_csv",
+        external_id="AMZ-101",
+        date=date(2026, 4, 15),
+        description=None,
+        total_amount=Decimal("49.99"),
+        status="STAGED",
+    )
+    db_session.add(st)
+    db_session.flush()
+    alloc = StagedAllocation(
+        staged_transaction_id=st.id,
+        amount=Decimal("49.99"),
+        is_personal=True,
+        company_id=None,
+    )
+    db_session.add(alloc)
+    db_session.commit()
+
+    res = client.post(
+        "/api/staging/accept",
+        json={"staged_transaction_ids": [str(st.id)]},
+        headers=auth_headers,
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["accepted_count"] == 1
+    tx_id = body["ledger_transaction_ids"][0]
+
+    ledger_tx = db_session.get(Transaction, uuid.UUID(tx_id))
+    assert ledger_tx is not None
+    assert ledger_tx.description == "Amazon: Personal"
+
+
+def test_accept_personal_staged_unknown_source_title_cased(client, auth_headers, db_session):
+    st = StagedTransaction(
+        id=uuid.uuid4(),
+        source="my_custom_source",
+        external_id="CUST-101",
+        date=date(2026, 4, 15),
+        description=None,
+        total_amount=Decimal("20.00"),
+        status="STAGED",
+    )
+    db_session.add(st)
+    db_session.flush()
+    alloc = StagedAllocation(
+        staged_transaction_id=st.id,
+        amount=Decimal("20.00"),
+        is_personal=True,
+        company_id=None,
+    )
+    db_session.add(alloc)
+    db_session.commit()
+
+    res = client.post(
+        "/api/staging/accept",
+        json={"staged_transaction_ids": [str(st.id)]},
+        headers=auth_headers,
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["accepted_count"] == 1
+    tx_id = body["ledger_transaction_ids"][0]
+
+    ledger_tx = db_session.get(Transaction, uuid.UUID(tx_id))
+    assert ledger_tx is not None
+    assert ledger_tx.description == "My Custom Source: Personal"
+
+
+def test_accept_retains_explicit_description(client, auth_headers, db_session):
+    st = StagedTransaction(
+        id=uuid.uuid4(),
+        source="amazon_csv",
+        external_id="AMZ-102",
+        date=date(2026, 4, 15),
+        description="Explicit Office Supplies",
+        total_amount=Decimal("35.00"),
+        status="STAGED",
+    )
+    db_session.add(st)
+    db_session.flush()
+    alloc = StagedAllocation(
+        staged_transaction_id=st.id,
+        amount=Decimal("35.00"),
+        is_personal=True,
+        company_id=None,
+    )
+    db_session.add(alloc)
+    db_session.commit()
+
+    res = client.post(
+        "/api/staging/accept",
+        json={"staged_transaction_ids": [str(st.id)]},
+        headers=auth_headers,
+    )
+    assert res.status_code == 200
+    body = res.json()
+    tx_id = body["ledger_transaction_ids"][0]
+
+    ledger_tx = db_session.get(Transaction, uuid.UUID(tx_id))
+    assert ledger_tx is not None
+    assert ledger_tx.description == "Explicit Office Supplies"
+
+
+def test_accept_persists_staging_url_to_ledger_transaction(client, auth_headers, db_session):
+    target_url = "https://www.amazon.ca/gp/your-account/order-details?orderID=702-1234567"
+    st = StagedTransaction(
+        id=uuid.uuid4(),
+        source="amazon_csv",
+        external_id="AMZ-103",
+        date=date(2026, 4, 15),
+        description=None,
+        total_amount=Decimal("85.50"),
+        url=target_url,
+        status="STAGED",
+    )
+    db_session.add(st)
+    db_session.flush()
+    alloc = StagedAllocation(
+        staged_transaction_id=st.id,
+        amount=Decimal("85.50"),
+        is_personal=True,
+        company_id=None,
+    )
+    db_session.add(alloc)
+    db_session.commit()
+
+    res = client.post(
+        "/api/staging/accept",
+        json={"staged_transaction_ids": [str(st.id)]},
+        headers=auth_headers,
+    )
+    assert res.status_code == 200
+    body = res.json()
+    tx_id = body["ledger_transaction_ids"][0]
+
+    ledger_tx = db_session.get(Transaction, uuid.UUID(tx_id))
+    assert ledger_tx is not None
+    assert ledger_tx.url == target_url

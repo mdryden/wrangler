@@ -129,7 +129,7 @@ async def create_transaction(
             for k, v in form.items():
                 if hasattr(v, "filename"):
                     continue
-                if isinstance(v, str) and k in ("external_id", "receipt_file_path", "company_id") and not v.strip():
+                if isinstance(v, str) and k in ("external_id", "receipt_file_path", "company_id", "url") and not v.strip():
                     clean_dict[k] = None
                 elif isinstance(v, str) and k == "allocations":
                     if not v.strip():
@@ -203,6 +203,7 @@ async def create_transaction(
         description=payload.description,
         total_amount=payload.total_amount,
         receipt_file_path=receipt_path,
+        url=payload.url,
     )
 
     for alloc_item in alloc_list:
@@ -381,7 +382,7 @@ async def update_transaction(
             for k, v in form.items():
                 if hasattr(v, "filename"):
                     continue
-                if isinstance(v, str) and k in ("external_id", "receipt_file_path") and not v.strip():
+                if isinstance(v, str) and k in ("external_id", "receipt_file_path", "url") and not v.strip():
                     clean_dict[k] = None
                 elif isinstance(v, str) and k == "allocations":
                     if not v.strip():
@@ -460,9 +461,9 @@ async def update_transaction(
                     detail=f"Sum of split allocations ({existing_sum}) does not equal transaction total amount ({effective_total_amount})",
                 )
 
-        scalar_fields = ("date", "description", "total_amount", "source", "external_id", "receipt_file_path")
+        scalar_fields = ("date", "description", "total_amount", "source", "external_id", "receipt_file_path", "url")
         for key in scalar_fields:
-            if key in update_data and getattr(payload, key) is not None or key == "external_id" and "external_id" in update_data:
+            if (key in update_data and getattr(payload, key) is not None) or (key in ("external_id", "url") and key in update_data):
                 setattr(transaction, key, getattr(payload, key))
 
     if uploaded_file is not None:

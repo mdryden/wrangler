@@ -383,9 +383,18 @@ describe("Ledger Allocations Display & Currency Formatting (ledger.ts)", () => {
     })
 
     it("applies dynamic font weight across column cells", () => {
-      expect(viewContent).toContain('<div :class="getTextWeightClass(props.row)">{{ props.row.description }}</div>')
+      expect(viewContent).toContain('<span :class="getTextWeightClass(props.row)">{{ props.row.description }}</span>')
       expect(viewContent).toContain("getTextWeightClass(props.row)")
       expect(viewContent).toContain("getTextWeightClass")
+    })
+
+    it("renders external link button in description cell when row has url", () => {
+      expect(viewContent).toContain('data-testid="btn-ledger-open-url"')
+      expect(viewContent).toContain('v-if="props.row.url"')
+      expect(viewContent).toContain(':href="props.row.url"')
+      expect(viewContent).toContain('target="_blank"')
+      expect(viewContent).toContain('rel="noopener noreferrer"')
+      expect(viewContent).toContain("<q-tooltip>Open Source URL</q-tooltip>")
     })
   })
 })

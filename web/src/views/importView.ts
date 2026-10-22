@@ -133,3 +133,17 @@ export function getSelectedReadyCount(selectedRowIds: string[], stagedTransactio
 export function getSelectedReadyIds(selectedRowIds: string[], stagedTransactions: StagedTransaction[]): string[] {
   return stagedTransactions.filter(tx => selectedRowIds.includes(tx.id) && tx.is_ready).map(tx => tx.id)
 }
+
+export const SOURCE_FRIENDLY_NAMES: Record<string, string> = {
+  amazon_csv: "Amazon",
+  receipt_parser: "Receipt",
+  ai_receipt: "Receipt",
+  mcp: "AI Assistant",
+  manual: "Manual",
+  wrangler_csv: "Wrangler",
+  google_groups: "Google Groups",
+}
+
+export function getSourceFriendlyName(source: string): string {
+  return SOURCE_FRIENDLY_NAMES[source] || source.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())
+}

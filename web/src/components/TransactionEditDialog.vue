@@ -56,6 +56,7 @@ const form = ref<TransactionEditFormState>({
   date: "",
   description: "",
   total_amount: "",
+  url: "",
   is_personal: false,
   existing_receipt_path: null,
   staged_receipt_file: null,
@@ -425,6 +426,41 @@ defineExpose({
               >
                 <template #prepend>
                   <q-icon name="edit_note" />
+                </template>
+              </q-input>
+            </div>
+          </div>
+
+          <div class="row q-col-gutter-md q-mb-sm">
+            <div class="col-12">
+              <q-input
+                v-model="form.url"
+                dense
+                outlined
+                label="Investigation URL"
+                placeholder="https://..."
+                data-testid="input-ledger-url"
+                class="q-mb-sm"
+              >
+                <template #prepend>
+                  <q-icon name="link" />
+                </template>
+                <template #append v-if="form.url && form.url.trim()">
+                  <q-btn
+                    flat
+                    round
+                    dense
+                    size="sm"
+                    icon="open_in_new"
+                    color="primary"
+                    :href="form.url.trim()"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-testid="btn-ledger-open-url"
+                    @click.stop
+                  >
+                    <q-tooltip>Open URL</q-tooltip>
+                  </q-btn>
                 </template>
               </q-input>
             </div>

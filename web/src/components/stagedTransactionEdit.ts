@@ -150,7 +150,8 @@ export function canSaveStagedTransactionEdit(state: StagedTransactionEditFormSta
   if (!state.date || !/^\d{4}-\d{2}-\d{2}$/.test(state.date.trim())) {
     return false
   }
-  if (!state.description || !state.description.trim()) {
+  const isPersonal = state.is_personal || (state.splits.length === 1 && state.splits[0].is_personal)
+  if (!isPersonal && (!state.description || !state.description.trim())) {
     return false
   }
   if (state.total_amount === "" || isNaN(Number(state.total_amount)) || Number(state.total_amount) === 0) {
@@ -201,7 +202,7 @@ export function prepareStagedTransactionEditPayload(state: StagedTransactionEdit
 
   const payload: StagedTransactionUpdatePayload = {
     date: state.date.trim(),
-    description: state.description.trim(),
+    description: state.description.trim() || null,
     total_amount: formattedTotal,
     allocations,
     url: state.url?.trim() || null,

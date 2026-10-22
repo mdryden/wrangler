@@ -993,3 +993,71 @@ def test_get_transactions_filtering(client, auth_headers, db_session):
     data_tx_id = resp_tx_id.json()
     assert data_tx_id["total"] == 1
     assert data_tx_id["items"][0]["id"] == str(tx3.id)
+
+
+def test_create_transaction_with_url_and_query(client, auth_headers, db_session):
+    company = Company(name="Test Corp")
+    db_session.add(company)
+    db_session.commit()
+
+    payload = {
+        "date": "2026-04-15",
+        "description": "Hardware purchase",
+        "total_amount": "129.99",
+        "url": "https://example.com/order/999",
+        "allocations": [{"amount": "129.99", "company_id": str(company.id), "is_personal": False}],
+    }
+    res = client.post("/api/transactions", json=payload, headers=auth_headers)
+    assert res.status_code == 201
+    data = res.json()
+    assert data["url"] == "https://example.com/order/999"
+    tx_id = data["id"]
+
+    # Verify GET returns url
+    get_res = client.get(f"/api/transactions/{tx_id}", headers=auth_headers)
+    assert get_res.status_code == 200
+    assert get_res.json()["url"] == "https://example.com/order/999"
+
+
+def test_update_transaction_url_and_clear(client, auth_headers, db_session):
+    company = Company(name="Test Corp")
+    db_session.add(company)
+    db_session.commit()
+
+    tx = Transaction(
+        id=uuid.uuid4(),
+        source="manual",
+        date=date(2026, 4, 15),
+        description="Initial Description",
+        total_amount=Decimal("50.00"),
+        url="https://example.com/initial",
+    )
+    alloc = Allocation(
+        id=uuid.uuid4(),
+        transaction_id=tx.id,
+        amount=Decimal("50.00"),
+        company_id=company.id,
+        is_personal=False,
+        is_locked=False,
+    )
+    tx.allocations.append(alloc)
+    db_session.add(tx)
+    db_session.commit()
+
+    # Update url
+    update_res = client.put(
+        f"/api/transactions/{tx.id}",
+        json={"url": "https://example.com/updated"},
+        headers=auth_headers,
+    )
+    assert update_res.status_code == 200
+    assert update_res.json()["url"] == "https://example.com/updated"
+
+    # Clear url
+    clear_res = client.put(
+        f"/api/transactions/{tx.id}",
+        json={"url": None},
+        headers=auth_headers,
+    )
+    assert clear_res.status_code == 200
+    assert clear_res.json()["url"] is None

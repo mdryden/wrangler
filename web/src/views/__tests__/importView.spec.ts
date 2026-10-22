@@ -18,7 +18,7 @@ import {
 import { apiClient } from "../../api/client"
 import type { Company } from "../../types/company"
 import type { ImporterMetadata, StagedTransaction } from "../../types/staging"
-import { formatStagedAmount, stagingTableColumns } from "../importView"
+import { formatStagedAmount, getSourceFriendlyName, stagingTableColumns } from "../importView"
 
 vi.mock("../../api/client", () => ({
   apiClient: {
@@ -401,6 +401,67 @@ describe("ImportView Logic & Workflow", () => {
       expect(templateContent).toContain("<q-tooltip>Dismiss Transaction</q-tooltip>")
       expect(templateContent).toContain('data-testid="btn-action-restore"')
       expect(templateContent).toContain("<q-tooltip>Restore Transaction</q-tooltip>")
+    })
+  })
+
+  describe("Source friendly names and personal staged readiness", () => {
+    it("maps source identifiers to human-friendly display names", () => {
+      expect(getSourceFriendlyName("amazon_csv")).toBe("Amazon")
+      expect(getSourceFriendlyName("receipt_parser")).toBe("Receipt")
+      expect(getSourceFriendlyName("ai_receipt")).toBe("Receipt")
+      expect(getSourceFriendlyName("mcp")).toBe("AI Assistant")
+      expect(getSourceFriendlyName("manual")).toBe("Manual")
+      expect(getSourceFriendlyName("wrangler_csv")).toBe("Wrangler")
+      expect(getSourceFriendlyName("google_groups")).toBe("Google Groups")
+      expect(getSourceFriendlyName("custom_unknown_importer")).toBe("Custom Unknown Importer")
+    })
+
+    it("verifies template renders pending personal fallback description for unlabelled personal staged rows", () => {
+      const vueFilePath = path.resolve(__dirname, "../ImportView.vue")
+      const templateContent = fs.readFileSync(vueFilePath, "utf-8")
+
+      expect(templateContent).toContain(
+        "props.row.allocations && props.row.allocations.length === 1 && props.row.allocations[0].is_personal",
+      )
+      expect(templateContent).toContain("getSourceFriendlyName(props.row.source)")
+      expect(templateContent).toContain(": Personal (Pending)")
+    })
+
+    it("updates is_ready to true when quick-assigning Personal to an unlabelled staged transaction", () => {
+      const unlabelledStaged = makeStagedTx({
+        description: "",
+        allocations: [],
+        is_ready: false,
+      })
+      const payload = buildQuickAssignPayload(unlabelledStaged, PERSONAL_QUICK_ASSIGN_VALUE)
+      expect(payload.allocations).toEqual([
+        {
+          amount: unlabelledStaged.total_amount,
+          is_personal: true,
+          company_id: null,
+        },
+      ])
+
+      const updatedPersonalTx: StagedTransaction = {
+        ...unlabelledStaged,
+        allocations: [
+          {
+            id: "a-pers-1",
+            staged_transaction_id: unlabelledStaged.id,
+            amount: unlabelledStaged.total_amount,
+            is_personal: true,
+            company_id: null,
+          },
+        ],
+        is_ready: true,
+      }
+      expect(getStagedAllocationSummary(updatedPersonalTx, sampleCompanies)).toEqual({
+        label: "Personal",
+        isReady: true,
+        color: "green-1",
+        textColor: "positive",
+      })
+      expect(getQuickAssignValue(updatedPersonalTx)).toBe(PERSONAL_QUICK_ASSIGN_VALUE)
     })
   })
 })

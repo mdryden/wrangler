@@ -566,7 +566,25 @@ defineExpose({
       <!-- Description Column -->
       <template #body-cell-description="props">
         <q-td :props="props">
-          <div :class="getTextWeightClass(props.row)">{{ props.row.description }}</div>
+          <div class="row items-center q-gutter-xs no-wrap">
+            <span :class="getTextWeightClass(props.row)">{{ props.row.description }}</span>
+            <q-btn
+              v-if="props.row.url"
+              flat
+              round
+              dense
+              size="xs"
+              icon="open_in_new"
+              color="primary"
+              :href="props.row.url"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="btn-ledger-open-url"
+              @click.stop
+            >
+              <q-tooltip>Open Source URL</q-tooltip>
+            </q-btn>
+          </div>
         </q-td>
       </template>
 

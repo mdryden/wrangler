@@ -161,6 +161,9 @@ function onSplitAmountBlur(index: number): void {
 function onPersonalToggle(val: boolean): void {
   const defaultCompId = companyStore.companies[0]?.id ?? null
   toggleStagedPersonalExpense(form.value, val, defaultCompId)
+  if (val) {
+    formRef.value?.resetValidation()
+  }
 }
 
 function onAddSplit(): void {
@@ -475,9 +478,9 @@ defineExpose({
                 dense
                 hide-bottom-space
                 lazy-rules="ondemand"
-                label="Description / Payee *"
+                :label="form.is_personal ? 'Description / Payee (Optional)' : 'Description / Payee *'"
                 :disable="saving"
-                :rules="descriptionRules"
+                :rules="form.is_personal ? [] : descriptionRules"
                 data-testid="staged-edit-input-description"
               >
                 <template #prepend>

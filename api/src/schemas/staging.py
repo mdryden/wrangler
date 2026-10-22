@@ -143,11 +143,11 @@ class StagedBulkDismissResponse(BaseModel):
 
 
 def compute_staged_is_ready(staged_tx: StagedTransaction) -> bool:
-    """Return True if the staged transaction has status STAGED, all metadata fields filled, and valid balanced allocations."""
+    """Return True if the staged transaction has status STAGED, valid metadata, and balanced allocations."""
     if staged_tx.status != "STAGED":
         return False
 
-    if staged_tx.date is None or staged_tx.description is None or staged_tx.total_amount is None:
+    if staged_tx.date is None or staged_tx.total_amount is None:
         return False
 
     allocs = staged_tx.allocations
@@ -157,6 +157,14 @@ def compute_staged_is_ready(staged_tx: StagedTransaction) -> bool:
     total = Decimal(str(staged_tx.total_amount)).quantize(Decimal("0.01"))
     alloc_sum = sum((Decimal(str(a.amount)).quantize(Decimal("0.01")) for a in allocs), Decimal("0.00"))
     if alloc_sum != total:
+        return False
+
+    # Check for single 100% personal allocation
+    is_personal_allocation = len(allocs) == 1 and allocs[0].is_personal and allocs[0].company_id is None
+
+    # Description is strictly required for business allocations; optional for 100% personal allocations
+    has_valid_description = bool(staged_tx.description and staged_tx.description.strip())
+    if not is_personal_allocation and not has_valid_description:
         return False
 
     if len(allocs) > 1:

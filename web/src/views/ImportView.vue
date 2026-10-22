@@ -23,6 +23,7 @@ import {
   formatStagedAmount,
   getImportNotificationType,
   getSelectedReadyIds,
+  getSourceFriendlyName,
   isMasterHeaderChecked,
   isMasterHeaderIndeterminate,
   stagingTableColumns,
@@ -779,6 +780,12 @@ defineExpose({
         <q-td :props="props">
           <div class="text-weight-medium">
             <span v-if="props.row.description">{{ props.row.description }}</span>
+            <span
+              v-else-if="props.row.allocations && props.row.allocations.length === 1 && props.row.allocations[0].is_personal"
+              class="text-italic text-grey-7"
+            >
+              {{ getSourceFriendlyName(props.row.source) }}: Personal (Pending)
+            </span>
             <span v-else class="text-italic text-grey-6">Unlabeled transaction</span>
           </div>
           <div class="row items-center q-gutter-xs text-caption no-wrap">

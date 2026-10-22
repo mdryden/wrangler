@@ -20,6 +20,7 @@ export interface TransactionEditFormState {
   date: string
   description: string
   total_amount: string
+  url: string
   is_personal: boolean
   existing_receipt_path: string | null
   staged_receipt_file: File | null
@@ -71,6 +72,7 @@ export function createTransactionEditState(tx: Transaction, defaultCompanyId: st
     date: tx.date || "",
     description: tx.description || "",
     total_amount: formattedTotal,
+    url: tx.url || "",
     is_personal: isPersonal,
     existing_receipt_path: tx.receipt_file_path ?? null,
     staged_receipt_file: null,
@@ -305,6 +307,7 @@ export function prepareTransactionEditPayload(state: TransactionEditFormState): 
     }
     fd.append("total_amount", formattedTotal)
     fd.append("allocations", JSON.stringify(allocations))
+    fd.append("url", state.url.trim())
     fd.append("file", state.staged_receipt_file)
     return { isMultipart: true, payload: fd }
   }
@@ -312,6 +315,7 @@ export function prepareTransactionEditPayload(state: TransactionEditFormState): 
   const payload: TransactionUpdatePayload = {
     total_amount: formattedTotal,
     allocations,
+    url: state.url.trim() || null,
   }
   if (!lockState.hasLockedSplits) {
     payload.date = state.date.trim()

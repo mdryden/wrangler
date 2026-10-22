@@ -21,6 +21,7 @@ class Transaction(Base):
     description: Mapped[str] = mapped_column(String, nullable=False)
     total_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     receipt_file_path: Mapped[str | None] = mapped_column(String, nullable=True)
+    url: Mapped[str | None] = mapped_column(String, nullable=True)
 
     allocations: Mapped[list[Allocation]] = relationship(
         "Allocation",

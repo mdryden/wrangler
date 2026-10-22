@@ -1188,4 +1188,35 @@ describe("Unified Transaction & Allocation Editor Dialog Logic (transactionEdit.
     const fd = uploadResult.payload as FormData
     expect(fd.get("file")).toBe(replacementFile)
   })
+
+  it("initializes url from tx.url and includes url in JSON payload and FormData", async () => {
+    const { createTransactionEditState, prepareTransactionEditPayload } = await import("../src/components/transactionEdit")
+
+    const txWithUrl: Transaction = {
+      ...sampleUnlockedTx,
+      url: "https://example.com/orders/abc-123",
+    }
+
+    const state = createTransactionEditState(txWithUrl)
+    expect(state.url).toBe("https://example.com/orders/abc-123")
+
+    // JSON payload includes url
+    const jsonResult = prepareTransactionEditPayload(state)
+    expect(jsonResult.isMultipart).toBe(false)
+    expect((jsonResult.payload as any).url).toBe("https://example.com/orders/abc-123")
+
+    // Empty URL trimmed to null
+    state.url = "   "
+    const clearedResult = prepareTransactionEditPayload(state)
+    expect((clearedResult.payload as any).url).toBeNull()
+
+    // Multipart payload includes url in FormData
+    const replacementFile = new File(["test receipt"], "test.pdf", { type: "application/pdf" })
+    state.staged_receipt_file = replacementFile
+    state.url = "https://example.com/orders/xyz"
+    const formResult = prepareTransactionEditPayload(state)
+    expect(formResult.isMultipart).toBe(true)
+    const fd = formResult.payload as FormData
+    expect(fd.get("url")).toBe("https://example.com/orders/xyz")
+  })
 })

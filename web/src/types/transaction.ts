@@ -24,6 +24,7 @@ export interface TransactionCreatePayload {
   total_amount: string | number
   source?: string
   external_id?: string | null
+  url?: string | null
   company_id?: string | null
   allocations: AllocationCreateItem[]
 }
@@ -35,6 +36,7 @@ export interface TransactionUpdatePayload {
   source?: string
   external_id?: string | null
   receipt_file_path?: string | null
+  url?: string | null
   allocations?: AllocationUpdateItem[]
   remove_receipt?: boolean
 }
@@ -58,6 +60,7 @@ export interface Transaction {
   description: string
   total_amount: string | number
   receipt_file_path: string | null
+  url?: string | null
   allocations: Allocation[]
 }
 

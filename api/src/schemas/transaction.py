@@ -15,10 +15,11 @@ class TransactionCreate(BaseModel):
     source: str = "manual"
     external_id: str | None = None
     receipt_file_path: str | None = None
+    url: str | None = None
     company_id: uuid.UUID | None = None
     allocations: list[AllocationCreateItem] | None = None
 
-    @field_validator("external_id", mode="before")
+    @field_validator("external_id", "url", mode="before")
     @classmethod
     def empty_str_to_none(cls, v: Any) -> Any:
         if isinstance(v, str) and not v.strip():
@@ -68,10 +69,11 @@ class TransactionUpdate(BaseModel):
     source: str | None = None
     external_id: str | None = None
     receipt_file_path: str | None = None
+    url: str | None = None
     allocations: list[AllocationItem] | None = None
     remove_receipt: bool = False
 
-    @field_validator("external_id", mode="before")
+    @field_validator("external_id", "url", mode="before")
     @classmethod
     def empty_str_to_none(cls, v: Any) -> Any:
         if isinstance(v, str) and not v.strip():
@@ -101,6 +103,7 @@ class TransactionResponse(BaseModel):
     description: str
     total_amount: Decimal
     receipt_file_path: str | None = None
+    url: str | None = None
     allocations: list[AllocationResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
