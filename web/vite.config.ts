@@ -10,7 +10,7 @@ export default defineConfig({
       template: { transformAssetUrls },
     }),
     quasar({
-      devTreeshaking: true,
+      devTreeshaking: !process.env.VITEST,
     }),
   ],
   test: {

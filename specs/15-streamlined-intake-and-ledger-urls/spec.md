@@ -5,6 +5,7 @@ subsystems:
   - Core Ledger & Allocations
 amendments:
   - spec-amendment1.md
+  - spec-amendment2.md
 supersedes: null
 superseded_by: null
 ---

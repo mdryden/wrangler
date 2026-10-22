@@ -9,6 +9,7 @@ import {
   createStagedTransactionEditState,
   dismissAiSuggestion,
   hasEffectiveStagedReceipt,
+  hasIncompleteStagedFields,
   markStagedReceiptForRemoval,
   prepareStagedTransactionEditPayload,
   removeStagedEditSplit,
@@ -39,13 +40,24 @@ describe("stagedTransactionEdit pure helpers", () => {
     mark_imported_error: null,
   }
 
-  it("initializes unallocated rows with 0 splits and allows saving as unallocated", () => {
-    const state = createStagedTransactionEditState(unallocatedStaged)
+  it("initializes unallocated company rows with a 100% company split and allows saving as unallocated when cleared", () => {
+    const state = createStagedTransactionEditState(unallocatedStaged, "comp-1")
     expect(state.date).toBe("2026-10-01")
     expect(state.description).toBe("Unallocated Staged Item")
     expect(state.total_amount).toBe("100.00")
     expect(state.url).toBe("")
     expect(state.is_personal).toBe(false)
+    expect(state.splits).toEqual([
+      {
+        amount: "100.00",
+        is_personal: false,
+        company_id: "comp-1",
+      },
+    ])
+    expect(canSaveStagedTransactionEdit(state)).toBe(true)
+
+    // When cleared, can be saved as unallocated
+    clearStagedAllocations(state)
     expect(state.splits).toEqual([])
     expect(canSaveStagedTransactionEdit(state)).toBe(true)
 
@@ -63,7 +75,7 @@ describe("stagedTransactionEdit pure helpers", () => {
   it("supports personal/business toggling from 0 or 1 split", () => {
     const state = createStagedTransactionEditState(unallocatedStaged)
 
-    // Toggle to personal from 0 splits -> creates 1 personal split
+    // Toggle to personal from 1 split -> keeps 1 personal split
     expect(toggleStagedPersonalExpense(state, true, "comp-1")).toBe(true)
     expect(state.is_personal).toBe(true)
     expect(state.splits).toEqual([
@@ -82,11 +94,32 @@ describe("stagedTransactionEdit pure helpers", () => {
     expect(canSaveStagedTransactionEdit(state)).toBe(true)
   })
 
-  it("validates multi-company splits, syncs single split amount, and supports clearing allocations", () => {
+  it("identifies incomplete fields for conditional receipt auto-scan", () => {
     const state = createStagedTransactionEditState(unallocatedStaged)
+    // Full fields -> false
+    expect(hasIncompleteStagedFields(state)).toBe(false)
 
-    // Add first split
-    expect(addStagedEditSplit(state, "comp-1")).toBe(true)
+    // Missing date -> true
+    state.date = ""
+    expect(hasIncompleteStagedFields(state)).toBe(true)
+    state.date = "2026-10-01"
+
+    // Missing description -> true
+    state.description = "   "
+    expect(hasIncompleteStagedFields(state)).toBe(true)
+    state.description = "Valid Description"
+
+    // Invalid or zero amount -> true
+    state.total_amount = "0"
+    expect(hasIncompleteStagedFields(state)).toBe(true)
+    state.total_amount = ""
+    expect(hasIncompleteStagedFields(state)).toBe(true)
+    state.total_amount = "100.00"
+    expect(hasIncompleteStagedFields(state)).toBe(false)
+  })
+
+  it("validates multi-company splits, syncs single split amount, and supports clearing allocations", () => {
+    const state = createStagedTransactionEditState(unallocatedStaged, "comp-1")
     expect(state.splits).toHaveLength(1)
     expect(state.splits[0].amount).toBe("100.00")
 
@@ -107,6 +140,10 @@ describe("stagedTransactionEdit pure helpers", () => {
     expect(removeStagedEditSplit(state, 1)).toBe(true)
     expect(state.splits).toHaveLength(1)
     expect(state.splits[0].amount).toBe("100.00")
+
+    // Removing the last split is disallowed
+    expect(removeStagedEditSplit(state, 0)).toBe(false)
+    expect(state.splits).toHaveLength(1)
 
     // Update total_amount -> syncs single split
     state.total_amount = "125.00"

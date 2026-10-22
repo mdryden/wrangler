@@ -37,21 +37,25 @@ Categorize every proposed UX improvement into one of three tiers:
 - **Tier 3: Contractual & Invariant Changes** (new/modified API payloads, altered backend lifecycle states)
   - *Spec Impact:* **Out of Scope.** HALT and refer to `sdd-architect`.
 
-### 3. Strict Pre-Implementation Proposal & Confirmation Gate
+**Cumulative Session Tier Ratchet (Monotonic Escalation):**
+The session tier reflects the highest classification reached across all cumulative changes in the conversation. Follow-up requests can escalate a session from Tier 1 to Tier 2 (e.g., if minor visual polish expands into state or flow restructuring), but follow-ups can **never downgrade** the tier (e.g., minor button reordering or label tweaks following a Tier 2 flow change remain part of a Tier 2 change).
+
+### 3. Pre-Implementation Proposal & Confirmation Gate
 - **Never modify frontend code without prior user confirmation.**
-- When you understand the ergonomic issue and have formulated the solution, present a concise proposal:
+- **Initial Proposals:** When diagnosing a new interaction or problem, present a concise proposal:
   1. **Friction / Ergonomic Issue**: Describe the awkward interaction, missing affordance, or layout shift.
   2. **Proposed UX Enhancement**: Specific components, layout changes, disabled states, and feedback mechanisms.
   3. **Tier Classification**: Tier 1 (Presentation) or Tier 2 (Flow/State with planned spec retro-sync).
   4. **Target Files**: List the `.vue` files or Pinia stores to be modified.
-- **HALT & WAIT** for explicit user confirmation ("Proceed", "Yes", "Go ahead") before modifying any code.
+  - **HALT & WAIT** for explicit user confirmation ("Proceed", "Yes", "Go ahead") before modifying code.
+- **Iterative Follow-ups & Direct User Directives:** Once initial confirmation has been given, subsequent tweaks requested directly by the user (e.g., swapping button order, tweaking text) do not require the formal 4-part template. Confirm the adjustment briefly or state what is being applied without bureaucratic overhead.
 
 ---
 
 ## Workflow
 
 1. **Diagnose**: Inspect the target `.vue` components, related Pinia stores, and the active `spec.md` to understand current behavior and constraints.
-2. **Propose**: Present the proposal detailing the friction, proposed enhancement, tier classification, and target files. Wait for user confirmation.
+2. **Propose**: Present the proposal detailing the friction, proposed enhancement, tier classification, and target files. Wait for user confirmation (or handle follow-ups concisely).
 3. **Implement**: Upon approval, apply the changes in `web/`.
-4. **Verify**: Run verification commands per repository guidelines.
-5. **Retro-Sync (Tier 2 only)**: Summarize the architectural delta and offer to update or amend the active spec to maintain a single source of truth.
+4. **Verify**: Run verification commands per repository guidelines (`pnpm lint`, `pnpm format`, `pnpm test`).
+5. **Mandatory Spec Retro-Sync Reminder (Tier 2)**: If the cumulative work of the conversation is a Tier 2 change (even if deferred earlier for evaluation), **the final message after writing code MUST conclude by asking/reminding the user whether they would like to retro-sync the active spec or record a lightweight `spec-amendment<N>.md`**.

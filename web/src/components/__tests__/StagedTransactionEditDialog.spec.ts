@@ -3,6 +3,7 @@ import { nextTick } from "vue"
 import { DOMWrapper } from "@vue/test-utils"
 import { apiClient } from "../../api/client"
 import { useStagingStore } from "../../stores/staging"
+import { useTransactionStore } from "../../stores/transactions"
 import type { StagedTransaction } from "../../types/staging"
 import StagedTransactionEditDialog from "../StagedTransactionEditDialog.vue"
 import { mountWithQuasar, findInBody } from "../../../tests/utils/testHarness"
@@ -237,6 +238,83 @@ describe("StagedTransactionEditDialog Component Specification", () => {
       )
       expect(wrapper.emitted("saved")).toBeTruthy()
       expect(wrapper.emitted("saved")![0]).toEqual([updatedTx])
+    })
+  })
+
+  describe("Receipt-First Flow & Conditional Auto-Scan", () => {
+    it("renders receipt attachment controls before the date input in DOM order", async () => {
+      const tx = makeStagedTx()
+      mountWithQuasar(StagedTransactionEditDialog, {
+        props: {
+          modelValue: true,
+          stagedTransaction: tx,
+        },
+      })
+      await nextTick()
+
+      const receiptInput = findInBody('[data-testid="input-staged-receipt"]')
+      const dateInput = findInBody('[data-testid="staged-edit-input-date"]')
+      expect(receiptInput).not.toBeNull()
+      expect(dateInput).not.toBeNull()
+
+      // Node.compareDocumentPosition: 4 means DOCUMENT_POSITION_FOLLOWING (date follows receipt)
+      const position = receiptInput!.compareDocumentPosition(dateInput!)
+      expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    })
+
+    it("auto-scans receipt when incomplete fields exist, but does not auto-scan when all fields are complete", async () => {
+      const txIncomplete = makeStagedTx({ description: "" })
+      const wrapper = mountWithQuasar(StagedTransactionEditDialog, {
+        props: {
+          modelValue: true,
+          stagedTransaction: txIncomplete,
+        },
+      })
+      await nextTick()
+
+      const transactionStore = useTransactionStore((wrapper.vm as any).$pinia)
+      const parseSpy = vi.spyOn(transactionStore, "parseReceipt").mockResolvedValue({
+        merchant: "Acme Supplies",
+        date: "2026-10-18",
+        total_amount: "250.00",
+        description: "Extracted Payee",
+      })
+      const testFile = new File(["dummy"], "receipt.png", { type: "image/png" })
+
+      // File selected with incomplete fields -> triggers auto-scan
+      await (wrapper.vm as any).onReceiptSelected(testFile)
+      expect(parseSpy).toHaveBeenCalledWith(testFile)
+
+      parseSpy.mockClear()
+
+      // Fully complete fields
+      ;(wrapper.vm as any).form.date = "2026-10-18"
+      ;(wrapper.vm as any).form.total_amount = "250.00"
+      ;(wrapper.vm as any).form.description = "Complete Description"
+
+      // File selected with complete fields -> does NOT trigger auto-scan
+      await (wrapper.vm as any).onReceiptSelected(testFile)
+      expect(parseSpy).not.toHaveBeenCalled()
+    })
+
+    it("defaults unallocated company transactions to a single split without clicking Add Split and disables delete", async () => {
+      const unallocated = makeStagedTx({ allocations: [] })
+      mountWithQuasar(StagedTransactionEditDialog, {
+        props: {
+          modelValue: true,
+          stagedTransaction: unallocated,
+        },
+      })
+      await nextTick()
+
+      // 1 split row is already present in DOM
+      const firstSplitRow = findInBody('[data-testid="staged-edit-split-row-0"]')
+      expect(firstSplitRow).not.toBeNull()
+
+      // Delete button on the single split is disabled
+      const deleteBtn = findInBody('[data-testid="staged-edit-btn-remove-split-0"]')
+      expect(deleteBtn).not.toBeNull()
+      expect(deleteBtn?.hasAttribute("disabled") || deleteBtn?.classList.contains("disabled")).toBe(true)
     })
   })
 })

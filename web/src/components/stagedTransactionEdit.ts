@@ -21,16 +21,31 @@ export interface StagedTransactionEditFormState {
   splits: EditableStagedSplitItem[]
 }
 
-export function createStagedTransactionEditState(staged: StagedTransaction): StagedTransactionEditFormState {
+export function createStagedTransactionEditState(
+  staged: StagedTransaction,
+  defaultCompanyId: string | null = null,
+): StagedTransactionEditFormState {
   const formattedTotal = formatAmount(staged.total_amount)
   const rawAllocations = staged.allocations ?? []
 
-  const splits: EditableStagedSplitItem[] = rawAllocations.map(alloc => ({
-    id: alloc.id,
-    amount: formatAmount(alloc.amount),
-    is_personal: Boolean(alloc.is_personal),
-    company_id: alloc.is_personal ? null : (alloc.company_id ?? null),
-  }))
+  let splits: EditableStagedSplitItem[]
+  if (rawAllocations.length > 0) {
+    splits = rawAllocations.map(alloc => ({
+      id: alloc.id,
+      amount: formatAmount(alloc.amount),
+      is_personal: Boolean(alloc.is_personal),
+      company_id: alloc.is_personal ? null : (alloc.company_id ?? null),
+    }))
+  } else {
+    // Default to a single company split for standard company transaction (no 'Add Split' click required)
+    splits = [
+      {
+        amount: formattedTotal,
+        is_personal: false,
+        company_id: defaultCompanyId ?? null,
+      },
+    ]
+  }
 
   const isPersonal = splits.length === 1 && splits[0].is_personal
 
@@ -45,6 +60,18 @@ export function createStagedTransactionEditState(staged: StagedTransaction): Sta
     remove_receipt: false,
     splits,
   }
+}
+
+/**
+ * Checks whether core transaction fields (date, amount, description) have missing or empty values.
+ * Used to conditionally auto-trigger AI receipt scanning only when required fields need population.
+ */
+export function hasIncompleteStagedFields(state: StagedTransactionEditFormState): boolean {
+  if (!state.date || !state.date.trim()) return true
+  if (state.total_amount === "" || state.total_amount === null || state.total_amount === undefined) return true
+  if (isNaN(Number(state.total_amount)) || Number(state.total_amount) === 0) return true
+  if (!state.description || !state.description.trim()) return true
+  return false
 }
 
 export function syncSingleStagedSplitAmount(state: StagedTransactionEditFormState): void {
@@ -110,14 +137,15 @@ export function addStagedEditSplit(state: StagedTransactionEditFormState, defaul
 }
 
 export function removeStagedEditSplit(state: StagedTransactionEditFormState, index: number): boolean {
+  if (state.splits.length <= 1) {
+    return false
+  }
   if (index < 0 || index >= state.splits.length) {
     return false
   }
 
   state.splits.splice(index, 1)
-  if (state.splits.length === 0) {
-    state.is_personal = false
-  } else if (state.splits.length === 1) {
+  if (state.splits.length === 1) {
     state.splits[0].amount = state.total_amount
   }
   return true

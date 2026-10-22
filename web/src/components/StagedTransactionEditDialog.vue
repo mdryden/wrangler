@@ -28,6 +28,7 @@ import {
   createStagedTransactionEditState,
   dismissAiSuggestion,
   hasEffectiveStagedReceipt,
+  hasIncompleteStagedFields,
   markStagedReceiptForRemoval,
   prepareStagedTransactionEditPayload,
   removeStagedEditSplit,
@@ -128,7 +129,8 @@ watch(
   ([visible, staged]) => {
     if (visible && staged) {
       errorMessage.value = ""
-      form.value = createStagedTransactionEditState(staged)
+      const defaultCompId = companyStore.companies.length === 1 ? companyStore.companies[0].id : null
+      form.value = createStagedTransactionEditState(staged, defaultCompId)
       aiSuggestions.value = createInitialAiSuggestionsState()
     } else {
       aiSuggestions.value = createInitialAiSuggestionsState()
@@ -178,8 +180,11 @@ function onClearAllocations(): void {
   clearStagedAllocations(form.value)
 }
 
-function onReceiptSelected(file: File | null): void {
+async function onReceiptSelected(file: File | null): Promise<void> {
   stageStagedReceiptFile(form.value, file)
+  if (file && hasIncompleteStagedFields(form.value)) {
+    await onScanReceipt()
+  }
 }
 
 function onClearReceipt(): void {
@@ -337,6 +342,60 @@ defineExpose({
         </q-banner>
 
         <q-form ref="formRef" @submit.prevent="onSubmit">
+          <!-- Receipt Attachment (Receipt-First Intake) -->
+          <div class="q-mb-md">
+            <div class="text-subtitle2 text-weight-bold text-grey-9 q-mb-xs">Receipt Attachment</div>
+
+            <div class="row items-center q-col-gutter-sm" data-testid="staged-receipt-controls">
+              <div class="col">
+                <q-file
+                  :model-value="form.staged_receipt_file"
+                  outlined
+                  dense
+                  clearable
+                  :display-value="displayReceiptName"
+                  :label="hasReceipt ? 'Replace Receipt (.pdf, .png, .jpg)' : 'Upload Receipt (.pdf, .png, .jpg)'"
+                  accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+                  :disable="saving || isParsingReceipt"
+                  data-testid="input-staged-receipt"
+                  @update:model-value="onReceiptSelected"
+                  @clear="onClearReceipt"
+                >
+                  <template #prepend>
+                    <q-icon :name="hasReceipt ? 'upload_file' : 'attach_file'" />
+                  </template>
+                </q-file>
+              </div>
+              <div class="col-auto">
+                <q-btn
+                  outline
+                  dense
+                  color="primary"
+                  icon="auto_awesome"
+                  label="Scan with AI"
+                  data-testid="btn-staged-scan-receipt"
+                  :disable="!hasReceipt || saving || isParsingReceipt"
+                  :loading="isParsingReceipt"
+                  @click="onScanReceipt"
+                />
+              </div>
+              <div class="col-auto">
+                <q-btn
+                  outline
+                  dense
+                  color="primary"
+                  icon="open_in_new"
+                  label="View Receipt"
+                  data-testid="btn-staged-view-receipt"
+                  :disable="!hasReceipt || saving || isParsingReceipt"
+                  @click="onViewReceipt"
+                />
+              </div>
+            </div>
+          </div>
+
+          <q-separator class="q-my-sm" />
+
           <div class="row q-col-gutter-md q-mb-md">
             <div class="col-12 col-sm-6">
               <q-input
@@ -567,71 +626,15 @@ defineExpose({
 
           <q-separator class="q-my-sm" />
 
-          <!-- Receipt Attachment -->
-          <div class="q-my-sm">
-            <div class="text-subtitle2 text-weight-bold text-grey-9 q-mb-xs">Receipt Attachment</div>
-
-            <div class="row items-center q-col-gutter-sm" data-testid="staged-receipt-controls">
-              <div class="col">
-                <q-file
-                  :model-value="form.staged_receipt_file"
-                  outlined
-                  dense
-                  clearable
-                  :display-value="displayReceiptName"
-                  :label="hasReceipt ? 'Replace Receipt (.pdf, .png, .jpg)' : 'Upload Receipt (.pdf, .png, .jpg)'"
-                  accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
-                  :disable="saving || isParsingReceipt"
-                  data-testid="input-staged-receipt"
-                  @update:model-value="onReceiptSelected"
-                  @clear="onClearReceipt"
-                >
-                  <template #prepend>
-                    <q-icon :name="hasReceipt ? 'upload_file' : 'attach_file'" />
-                  </template>
-                </q-file>
-              </div>
-              <div class="col-auto">
-                <q-btn
-                  outline
-                  dense
-                  color="primary"
-                  icon="open_in_new"
-                  label="View Receipt"
-                  data-testid="btn-staged-view-receipt"
-                  :disable="!hasReceipt || saving || isParsingReceipt"
-                  @click="onViewReceipt"
-                />
-              </div>
-              <div class="col-auto">
-                <q-btn
-                  outline
-                  dense
-                  color="primary"
-                  icon="auto_awesome"
-                  label="Scan with AI"
-                  data-testid="btn-staged-scan-receipt"
-                  :disable="!hasReceipt || saving || isParsingReceipt"
-                  :loading="isParsingReceipt"
-                  @click="onScanReceipt"
-                />
-              </div>
-            </div>
-          </div>
-
-          <q-separator class="q-my-sm" />
-
           <!-- Draft Allocations -->
           <div class="q-my-sm">
-            <div class="row items-center justify-between no-wrap q-mb-xs">
-              <div>
+            <div class="row items-center justify-between q-col-gutter-sm q-mb-xs">
+              <div class="col">
                 <div class="text-subtitle2 text-weight-bold text-grey-9">Draft Allocations</div>
-                <div class="text-caption text-grey-7">
-                  Assign to a company, split across companies, mark as personal, or leave unallocated.
-                </div>
+                <div class="text-caption text-grey-7">Assign to a company, split across companies, or mark as personal.</div>
               </div>
 
-              <div class="row items-center no-wrap q-gutter-x-sm">
+              <div class="col-auto row items-center no-wrap q-gutter-x-sm">
                 <q-chip
                   v-if="form.splits.length === 0"
                   color="warning"
@@ -661,19 +664,6 @@ defineExpose({
                   </template>
                   <template v-else>Enter split amounts</template>
                 </q-chip>
-
-                <q-btn
-                  v-if="form.splits.length > 0"
-                  flat
-                  dense
-                  no-wrap
-                  color="grey-8"
-                  icon="clear_all"
-                  label="Clear Allocations"
-                  :disable="saving"
-                  data-testid="staged-edit-btn-clear-allocations"
-                  @click="onClearAllocations"
-                />
 
                 <q-btn
                   flat
@@ -762,11 +752,11 @@ defineExpose({
                   dense
                   color="negative"
                   icon="delete"
-                  :disable="saving"
+                  :disable="form.splits.length <= 1 || saving"
                   :data-testid="`staged-edit-btn-remove-split-${index}`"
                   @click="onRemoveSplit(index)"
                 >
-                  <q-tooltip>Remove split</q-tooltip>
+                  <q-tooltip>{{ form.splits.length <= 1 ? "At least one split is required" : "Remove split" }}</q-tooltip>
                 </q-btn>
               </div>
             </div>

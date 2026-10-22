@@ -3,7 +3,8 @@ status: Implemented
 subsystems:
   - Staging Layer
   - AI & Agent Services
-amendments: []
+amendments:
+  - spec-amendment1.md
 supersedes: null
 superseded_by: null
 ---

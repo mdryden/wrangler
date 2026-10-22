@@ -861,6 +861,34 @@ defineExpose({
         </q-td>
       </template>
 
+      <!-- Allocation Status / Summary Column -->
+      <template #body-cell-allocations="props">
+        <q-td :props="props">
+          <div class="row items-center no-wrap q-gutter-xs">
+            <q-badge
+              :color="getStagedAllocationSummary(props.row, companyMap).color"
+              :text-color="getStagedAllocationSummary(props.row, companyMap).textColor"
+              class="q-px-sm q-py-xs text-weight-bold ellipsis cursor-pointer"
+              style="max-width: 140px"
+              data-testid="badge-staged-allocation"
+              @click.stop="openEditDialog(props.row)"
+            >
+              {{ getStagedAllocationSummary(props.row, companyMap).label }}
+              <q-tooltip>{{ getStagedAllocationSummary(props.row, companyMap).label }} (Click to edit)</q-tooltip>
+            </q-badge>
+            <q-icon
+              v-if="props.row.status === 'STAGED' && props.row.is_ready"
+              name="check_circle"
+              color="positive"
+              size="16px"
+              data-testid="icon-staged-ready"
+            >
+              <q-tooltip>Ready to accept</q-tooltip>
+            </q-icon>
+          </div>
+        </q-td>
+      </template>
+
       <!-- Date Column -->
       <template #body-cell-date="props">
         <q-td :props="props">
@@ -895,34 +923,6 @@ defineExpose({
           <span :class="Number(props.row.total_amount) < 0 ? 'text-negative text-weight-bold' : 'text-weight-bold'">
             {{ formatStagedAmount(props.row.total_amount) }}
           </span>
-        </q-td>
-      </template>
-
-      <!-- Allocation Status / Summary Column -->
-      <template #body-cell-allocations="props">
-        <q-td :props="props">
-          <div class="row items-center no-wrap q-gutter-xs">
-            <q-badge
-              :color="getStagedAllocationSummary(props.row, companyMap).color"
-              :text-color="getStagedAllocationSummary(props.row, companyMap).textColor"
-              class="q-px-sm q-py-xs text-weight-bold ellipsis cursor-pointer"
-              style="max-width: 140px"
-              data-testid="badge-staged-allocation"
-              @click.stop="openEditDialog(props.row)"
-            >
-              {{ getStagedAllocationSummary(props.row, companyMap).label }}
-              <q-tooltip>{{ getStagedAllocationSummary(props.row, companyMap).label }} (Click to edit)</q-tooltip>
-            </q-badge>
-            <q-icon
-              v-if="props.row.status === 'STAGED' && props.row.is_ready"
-              name="check_circle"
-              color="positive"
-              size="16px"
-              data-testid="icon-staged-ready"
-            >
-              <q-tooltip>Ready to accept</q-tooltip>
-            </q-icon>
-          </div>
         </q-td>
       </template>
 

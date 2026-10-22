@@ -331,7 +331,7 @@ describe("ImportView Logic & Workflow", () => {
     it("does not include standalone source column and maintains required column configuration", () => {
       const columnNames = stagingTableColumns.map(c => c.name)
       expect(columnNames).not.toContain("source")
-      expect(columnNames).toEqual(["select", "url", "actions", "date", "description", "total_amount", "allocations", "receipt"])
+      expect(columnNames).toEqual(["select", "url", "actions", "allocations", "date", "description", "total_amount", "receipt"])
 
       const selectCol = stagingTableColumns.find(c => c.name === "select")
       expect(selectCol?.align).toBe("center")
