@@ -110,6 +110,7 @@ input MoneyTransactionCreateInput {
   description: String!
   anchor: MoneyTransactionAnchorInput!
   lineItems: [MoneyTransactionLineItemInput!]!
+  notes: String
 }
 
 input MoneyTransactionAnchorInput {

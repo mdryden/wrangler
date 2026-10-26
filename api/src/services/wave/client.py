@@ -233,6 +233,7 @@ class WaveClient:
         amount: Decimal,
         anchor_account_id: str,
         category_account_id: str,
+        notes: str | None = None,
     ) -> str:
         """Execute Wave moneyTransactionCreate mutation with double-entry balance mappings."""
         float_amt = float(abs(amount))
@@ -243,7 +244,7 @@ class WaveClient:
             anchor_direction = "DEPOSIT"
             line_balance = "DECREASE"
 
-        input_payload = {
+        input_payload: dict[str, Any] = {
             "businessId": business_id,
             "externalId": external_id,
             "date": date,
@@ -261,6 +262,8 @@ class WaveClient:
                 }
             ],
         }
+        if notes:
+            input_payload["notes"] = notes
 
         data = await cls._execute_graphql(token, CREATE_MONEY_TRANSACTION_MUTATION, {"input": input_payload})
         result = data.get("moneyTransactionCreate", {})

@@ -114,7 +114,8 @@ mutation CreateMoneyTransaction($input: MoneyTransactionCreateInput!) {
 - **`externalId`**: Unique idempotency key (e.g. `wrangler_<allocation_id>`).
 - **`businessId`**: Target business ID.
 - **`date`**: ISO date format (`YYYY-MM-DD`).
-- **`description`**: Transaction description, optionally including receipt filename references (`[Receipt: filename.pdf]`).
+- **`description`**: Transaction description (kept clean without memo annotations).
+- **`notes`**: Optional memo / annotation string (e.g. `"Receipt: filename.pdf"`).
 - **`anchor`**:
   - For standard positive expenses:
     - `direction: "WITHDRAWAL"`

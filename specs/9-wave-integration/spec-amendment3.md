@@ -1,5 +1,5 @@
 ---
-status: Draft
+status: Implemented
 subsystems:
   - Accounting Export
 amendments: []
@@ -10,7 +10,7 @@ superseded_by: null
 # Specification Amendment 3: Move Receipt Reference to Wave Transaction Notes
 
 **Target Specification:** [`specs/9-wave-integration/spec.md`](file:///D:/src/personal/wrangler/specs/9-wave-integration/spec.md)  
-**Status:** Draft  
+**Status:** Implemented  
 **Subsystems:** Accounting Export  
 **Date:** 2026-10-26  
 

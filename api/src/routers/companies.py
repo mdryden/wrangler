@@ -475,9 +475,10 @@ async def sync_company_to_wave(
         category_account_id = alloc.wave_category.wave_account_id if alloc.wave_category else fallback_category.wave_account_id
 
         description = alloc.transaction.description
+        notes: str | None = None
         if alloc.transaction.receipt_file_path:
             filename = os.path.basename(alloc.transaction.receipt_file_path)
-            description = f"{description} [Receipt: {filename}]"
+            notes = f"Receipt: {filename}"
 
         try:
             wave_tx_id = await WaveClient.create_money_transaction(
@@ -489,6 +490,7 @@ async def sync_company_to_wave(
                 amount=alloc.amount,
                 anchor_account_id=company.wave_anchor_account_id,
                 category_account_id=category_account_id,
+                notes=notes,
             )
             alloc.is_locked = True
             alloc.wave_transaction_id = wave_tx_id

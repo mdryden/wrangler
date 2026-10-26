@@ -230,10 +230,11 @@ async def test_create_money_transaction_positive_expense():
             business_id="biz_1",
             external_id="wrangler_uuid_123",
             date="2026-10-20",
-            description="Office Chairs [Receipt: chair.png]",
+            description="Office Chairs",
             amount=Decimal("250.75"),
             anchor_account_id="acct_anchor_1",
             category_account_id="acct_cat_1",
+            notes="Receipt: chair.png",
         )
 
         assert tx_id == "wave_tx_999"
@@ -242,7 +243,8 @@ async def test_create_money_transaction_positive_expense():
         assert inp["externalId"] == "wrangler_uuid_123"
         assert inp["businessId"] == "biz_1"
         assert inp["date"] == "2026-10-20"
-        assert inp["description"] == "Office Chairs [Receipt: chair.png]"
+        assert inp["description"] == "Office Chairs"
+        assert inp["notes"] == "Receipt: chair.png"
         # Anchor check: WITHDRAWAL
         assert inp["anchor"]["accountId"] == "acct_anchor_1"
         assert inp["anchor"]["amount"] == 250.75
@@ -286,6 +288,7 @@ async def test_create_money_transaction_negative_refund():
 
         assert tx_id == "wave_refund_888"
         inp = captured_payload["variables"]["input"]
+        assert "notes" not in inp
         # Anchor check: DEPOSIT with absolute amount
         assert inp["anchor"]["accountId"] == "acct_anchor_1"
         assert inp["anchor"]["amount"] == 45.50

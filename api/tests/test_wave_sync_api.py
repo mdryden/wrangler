@@ -337,9 +337,15 @@ def test_sync_wave_receipt_memo_formatting_and_partial_sync_resilience(client, a
         for call_kw in captured_calls:
             assert call_kw["anchor_account_id"] == "anchor_123"
 
-        # Check description formatting
-        assert "Tx With Receipt [Receipt: receipt123.pdf]" in captured_descriptions
-        assert "Tx Without Receipt" in captured_descriptions
+        # Check description and notes formatting
+        assert captured_calls[0]["description"] == "Tx With Receipt"
+        assert captured_calls[0]["notes"] == "Receipt: receipt123.pdf"
+
+        assert captured_calls[1]["description"] == "Failing Tx"
+        assert captured_calls[1]["notes"] is None
+
+        assert captured_calls[2]["description"] == "Tx Without Receipt"
+        assert captured_calls[2]["notes"] is None
 
         # Check atomic per-transaction DB commit: alloc1 and alloc3 locked; alloc2 unlocked
         db_session.refresh(alloc1)
