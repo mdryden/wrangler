@@ -176,6 +176,36 @@ async def test_get_business_accounts_filtering():
                                 "isArchived": False,
                             }
                         },
+                        # Revenue category: uncategorized income
+                        {
+                            "node": {
+                                "id": "acct_uncat_income",
+                                "name": "Uncategorized Income",
+                                "type": {"value": "INCOME"},
+                                "subtype": {"value": "UNCATEGORIZED_INCOME"},
+                                "isArchived": False,
+                            }
+                        },
+                        # Liability: Taxes Payable
+                        {
+                            "node": {
+                                "id": "acct_tax_payable",
+                                "name": "Taxes Payable",
+                                "type": {"value": "LIABILITY"},
+                                "subtype": {"value": "OTHER_CURRENT_LIABILITY"},
+                                "isArchived": False,
+                            }
+                        },
+                        # Liability Anchor: Business Line of Credit
+                        {
+                            "node": {
+                                "id": "acct_loc",
+                                "name": "Operating Line of Credit",
+                                "type": {"value": "LIABILITY"},
+                                "subtype": {"value": "LOANS_AND_LINE_OF_CREDIT"},
+                                "isArchived": False,
+                            }
+                        },
                     ]
                 },
             }
@@ -186,24 +216,37 @@ async def test_get_business_accounts_filtering():
     with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_resp):
         res: WaveAccountsResult = await WaveClient.get_business_accounts("token-abc", "biz_1")
 
-        # Anchors should have checking, credit card, and due to owner, but NOT owner equity
+        # Anchors should have checking, credit card, due to owner, and line of credit, but NOT owner equity
         anchor_ids = [a.id for a in res.anchor_accounts]
         assert "acct_bank" in anchor_ids
         assert "acct_cc" in anchor_ids
         assert "acct_due_to_owner" in anchor_ids
+        assert "acct_loc" in anchor_ids
         assert "acct_equity" not in anchor_ids
-        assert anchor_ids == ["acct_bank", "acct_cc", "acct_due_to_owner"]
+        assert anchor_ids == ["acct_bank", "acct_cc", "acct_due_to_owner", "acct_loc"]
         assert all(isinstance(a, WaveAccount) for a in res.anchor_accounts)
 
-        # Expense categories should have supplies and uncategorized
+        # Liability accounts should include all non-archived liabilities
+        liability_ids = [acct.id for acct in res.liability_accounts]
+        assert "acct_cc" in liability_ids
+        assert "acct_due_to_owner" in liability_ids
+        assert "acct_tax_payable" in liability_ids
+        assert "acct_loc" in liability_ids
+        assert len(res.liability_accounts) == 4
+
+        # Expense categories should have supplies, uncategorized expense, AND uncategorized income
         exp_ids = [c.id for c in res.expense_categories]
-        assert exp_ids == ["acct_exp_supplies", "acct_uncategorized"]
+        assert exp_ids == ["acct_exp_supplies", "acct_uncategorized", "acct_uncat_income"]
 
         supplies = next(c for c in res.expense_categories if c.id == "acct_exp_supplies")
         assert supplies.is_uncategorized is False
 
-        uncat = next(c for c in res.expense_categories if c.id == "acct_uncategorized")
-        assert uncat.is_uncategorized is True
+        uncat_exp = next(c for c in res.expense_categories if c.id == "acct_uncategorized")
+        assert uncat_exp.is_uncategorized is True
+
+        uncat_inc = next(c for c in res.expense_categories if c.id == "acct_uncat_income")
+        assert uncat_inc.is_uncategorized is True
+        assert uncat_inc.type == "INCOME"
 
 
 @pytest.mark.anyio
@@ -331,3 +374,42 @@ async def test_create_money_transaction_input_errors():
                 anchor_account_id="acct_bad",
                 category_account_id="acct_cat_1",
             )
+
+
+@pytest.mark.anyio
+async def test_create_money_transaction_with_direction_overrides():
+    captured_payload = None
+
+    async def mock_post(*args, **kwargs):
+        nonlocal captured_payload
+        captured_payload = kwargs.get("json")
+        data = {
+            "data": {
+                "moneyTransactionCreate": {
+                    "didSucceed": True,
+                    "inputErrors": [],
+                    "transaction": {"id": "wave_tx_custom_dir"},
+                }
+            }
+        }
+        return httpx.Response(status_code=200, json=data, request=httpx.Request("POST", "http://test"))
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock, side_effect=mock_post):
+        tx_id = await WaveClient.create_money_transaction(
+            token="token-abc",
+            business_id="biz_1",
+            external_id="wrangler_tax_accrual_1",
+            date="2026-10-31",
+            description="Tax Accrual",
+            amount=Decimal("1200.00"),
+            anchor_account_id="acct_tax_payable",
+            category_account_id="acct_tax_expense",
+            anchor_direction="DEPOSIT",
+            line_balance="DECREASE",
+        )
+
+        assert tx_id == "wave_tx_custom_dir"
+        assert captured_payload is not None
+        inp = captured_payload["variables"]["input"]
+        assert inp["anchor"]["direction"] == "DEPOSIT"
+        assert inp["lineItems"][0]["balance"] == "DECREASE"

@@ -53,9 +53,9 @@ function createMockKeyEvent(options: {
 
 describe("MainLayout Navigation Drawer & Rail Configuration", () => {
   it("defines the primary persistent navigation items including import", () => {
-    expect(navItems).toHaveLength(5)
+    expect(navItems).toHaveLength(6)
     const itemNames = navItems.map(item => item.name)
-    expect(itemNames).toEqual(["ledger", "import", "manual-entry", "export-manager", "settings"])
+    expect(itemNames).toEqual(["ledger", "import", "manual-entry", "export-manager", "checklist", "settings"])
   })
 
   it("configures each navigation item with label, icon, and route path", () => {
@@ -89,6 +89,14 @@ describe("MainLayout Navigation Drawer & Rail Configuration", () => {
       label: "Export Manager",
       icon: "file_download",
       path: "/export-manager",
+    })
+
+    const checklist = navItems.find(item => item.name === "checklist")
+    expect(checklist).toEqual({
+      name: "checklist",
+      label: "Checklist",
+      icon: "fact_check",
+      path: "/checklist",
     })
 
     const settings = navItems.find(item => item.name === "settings")

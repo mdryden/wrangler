@@ -28,6 +28,8 @@ def test_alembic_migrations_upgrade_and_downgrade(tmp_path):
     assert "allocations" in tables
     assert "staged_transactions" in tables
     assert "staged_allocations" in tables
+    assert "checklist_configs" in tables
+    assert "monthly_checklists" in tables
     assert "alembic_version" in tables
 
     # Verify columns at head
@@ -89,6 +91,8 @@ def test_alembic_migrations_upgrade_and_downgrade(tmp_path):
     assert "allocations" not in tables_after_downgrade
     assert "staged_transactions" not in tables_after_downgrade
     assert "staged_allocations" not in tables_after_downgrade
+    assert "checklist_configs" not in tables_after_downgrade
+    assert "monthly_checklists" not in tables_after_downgrade
 
 
 def test_alembic_migration_sync_status_to_is_locked_data_preservation(tmp_path):

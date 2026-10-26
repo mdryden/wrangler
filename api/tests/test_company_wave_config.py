@@ -233,3 +233,54 @@ def test_wave_sync_categories(client, auth_headers, db_session):
     bad_resp = client.post(f"/api/companies/{unlinked_company.id}/wave/sync-categories", headers=auth_headers)
     assert bad_resp.status_code == 400
     assert "not connected to Wave" in bad_resp.json()["detail"]
+
+
+def test_wave_sync_and_filter_uncategorized_income(client, auth_headers, db_session):
+    company = Company(
+        name="Income Sync Corp",
+        wave_api_token="tok_inc",
+        wave_business_id="biz_inc",
+        wave_business_name="Income Business",
+        wave_anchor_account_id="a1",
+    )
+    db_session.add(company)
+    db_session.commit()
+
+    mock_result = WaveAccountsResult(
+        anchor_accounts=[WaveAccount(id="a1", name="Checking", type="ASSET", subtype="CASH_AND_BANK")],
+        expense_categories=[
+            WaveAccount(id="c_supplies", name="Supplies", type="EXPENSE", subtype=None, is_uncategorized=False),
+            WaveAccount(id="c_uncat_exp", name="Uncategorized Expense", type="EXPENSE", subtype="UNCATEGORIZED_EXPENSE", is_uncategorized=True),
+            WaveAccount(id="c_uncat_inc", name="Uncategorized Income", type="INCOME", subtype="UNCATEGORIZED_INCOME", is_uncategorized=True),
+        ],
+        liability_accounts=[
+            WaveAccount(id="l_tax", name="Taxes Payable", type="LIABILITY", subtype="OTHER_CURRENT_LIABILITY", is_uncategorized=False),
+        ],
+    )
+
+    with patch.object(WaveClient, "get_business_accounts", new_callable=AsyncMock, return_value=mock_result):
+        resp = client.post(f"/api/companies/{company.id}/wave/sync-categories", headers=auth_headers)
+        assert resp.status_code == 200
+        cats = resp.json()
+        # Returned categories must only include EXPENSE, not INCOME
+        cat_ids = [c["wave_account_id"] for c in cats]
+        assert "c_supplies" in cat_ids
+        assert "c_uncat_exp" in cat_ids
+        assert "c_uncat_inc" not in cat_ids
+
+        # GET /categories should also filter to EXPENSE
+        get_resp = client.get(f"/api/companies/{company.id}/wave/categories", headers=auth_headers)
+        assert get_resp.status_code == 200
+        get_cats = get_resp.json()
+        get_ids = [c["wave_account_id"] for c in get_cats]
+        assert "c_supplies" in get_ids
+        assert "c_uncat_exp" in get_ids
+        assert "c_uncat_inc" not in get_ids
+
+        # But in database, c_uncat_inc IS persisted in WaveCategory
+        db_cats = db_session.query(WaveCategory).filter(WaveCategory.company_id == company.id).all()
+        db_account_ids = {c.wave_account_id for c in db_cats}
+        assert "c_uncat_inc" in db_account_ids
+        inc_record = next(c for c in db_cats if c.wave_account_id == "c_uncat_inc")
+        assert inc_record.account_type == "INCOME"
+        assert inc_record.is_uncategorized is True

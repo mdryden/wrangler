@@ -8,6 +8,7 @@ from alembic import context
 from core.config import settings
 from database import Base
 from models.allocation import Allocation  # noqa: F401
+from models.checklist import ChecklistConfig, MonthlyChecklist  # noqa: F401
 from models.company import Company  # noqa: F401
 from models.staged_allocation import StagedAllocation  # noqa: F401
 from models.staged_transaction import StagedTransaction  # noqa: F401

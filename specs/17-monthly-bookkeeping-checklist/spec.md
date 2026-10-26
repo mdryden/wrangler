@@ -1,5 +1,5 @@
 ---
-status: Draft
+status: Implemented
 subsystems:
   - Accounting Export
   - Ingestion & Importers
@@ -11,7 +11,7 @@ superseded_by: null
 
 # Monthly Bookkeeping Checklist & RBC Bank Feed Wave Sync
 
-**Status:** Draft  
+**Status:** Implemented  
 **Subsystems:** Accounting Export, Ingestion & Importers, Platform & Shell  
 **Date:** 2026-10-26  
 

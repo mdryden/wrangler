@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 
@@ -27,6 +27,7 @@ class WaveAccount:
 class WaveAccountsResult:
     anchor_accounts: list[WaveAccount]
     expense_categories: list[WaveAccount]
+    liability_accounts: list[WaveAccount] = field(default_factory=list)
 
 
 class WaveAuthError(Exception):
@@ -177,12 +178,14 @@ class WaveClient:
         accounts_edges = biz_data.get("accounts", {}).get("edges", [])
         anchor_accounts: list[WaveAccount] = []
         expense_categories: list[WaveAccount] = []
+        liability_accounts: list[WaveAccount] = []
 
         valid_anchor_subtypes = {
             "DUE_TO_YOU_AND_OTHER_OWNERS",
             "CASH_AND_BANK",
             "CREDIT_CARD",
             "MONEY_MARKET",
+            "LOANS_AND_LINE_OF_CREDIT",
         }
         valid_anchor_types = {"ASSET", "LIABILITY"}
 
@@ -208,6 +211,17 @@ class WaveClient:
                     )
                 )
 
+            if type_val == "LIABILITY":
+                liability_accounts.append(
+                    WaveAccount(
+                        id=node.get("id"),
+                        name=node.get("name"),
+                        type=type_val,
+                        subtype=subtype_val,
+                        is_uncategorized=False,
+                    )
+                )
+
             if type_val == "EXPENSE":
                 is_uncat = subtype_val == "UNCATEGORIZED_EXPENSE"
                 expense_categories.append(
@@ -220,7 +234,22 @@ class WaveClient:
                     )
                 )
 
-        return WaveAccountsResult(anchor_accounts=anchor_accounts, expense_categories=expense_categories)
+            if type_val in ("REVENUE", "INCOME") and subtype_val == "UNCATEGORIZED_INCOME":
+                expense_categories.append(
+                    WaveAccount(
+                        id=node.get("id"),
+                        name=node.get("name"),
+                        type=type_val,
+                        subtype=subtype_val,
+                        is_uncategorized=True,
+                    )
+                )
+
+        return WaveAccountsResult(
+            anchor_accounts=anchor_accounts,
+            expense_categories=expense_categories,
+            liability_accounts=liability_accounts,
+        )
 
     @classmethod
     async def create_money_transaction(
@@ -234,15 +263,15 @@ class WaveClient:
         anchor_account_id: str,
         category_account_id: str,
         notes: str | None = None,
+        anchor_direction: str | None = None,
+        line_balance: str | None = None,
     ) -> str:
         """Execute Wave moneyTransactionCreate mutation with double-entry balance mappings."""
         float_amt = float(abs(amount))
-        if amount > Decimal("0"):
-            anchor_direction = "WITHDRAWAL"
-            line_balance = "INCREASE"
-        else:
-            anchor_direction = "DEPOSIT"
-            line_balance = "DECREASE"
+        if anchor_direction is None:
+            anchor_direction = "WITHDRAWAL" if amount > Decimal("0") else "DEPOSIT"
+        if line_balance is None:
+            line_balance = "INCREASE" if amount > Decimal("0") else "DECREASE"
 
         input_payload: dict[str, Any] = {
             "businessId": business_id,

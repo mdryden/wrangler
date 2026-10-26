@@ -54,6 +54,14 @@ export const routes: RouteRecordRaw[] = [
         },
       },
       {
+        path: "checklist",
+        name: "checklist",
+        component: () => import("../views/ChecklistView.vue"),
+        meta: {
+          requiresAuth: true,
+        },
+      },
+      {
         path: "settings",
         name: "settings",
         component: () => import("../views/SettingsView.vue"),

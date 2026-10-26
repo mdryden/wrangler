@@ -10,6 +10,7 @@ export const navItems: NavItem[] = [
   { name: "import", label: "Import", icon: "cloud_upload", path: "/import" },
   { name: "manual-entry", label: "Manual Entry", icon: "post_add", path: "/manual-entry" },
   { name: "export-manager", label: "Export Manager", icon: "file_download", path: "/export-manager" },
+  { name: "checklist", label: "Checklist", icon: "fact_check", path: "/checklist" },
   { name: "settings", label: "Settings", icon: "settings", path: "/settings" },
 ]
 

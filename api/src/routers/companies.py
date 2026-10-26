@@ -362,7 +362,11 @@ async def sync_company_wave_categories(
     _sync_categories_for_company(db, company_id, accounts_result.expense_categories, remove_missing=True)
     db.commit()
 
-    stmt = select(WaveCategory).where(WaveCategory.company_id == company_id).order_by(WaveCategory.is_uncategorized.desc(), WaveCategory.name.asc())
+    stmt = (
+        select(WaveCategory)
+        .where(WaveCategory.company_id == company_id, WaveCategory.account_type == "EXPENSE")
+        .order_by(WaveCategory.is_uncategorized.desc(), WaveCategory.name.asc())
+    )
     return list(db.scalars(stmt).all())
 
 
@@ -379,7 +383,11 @@ def get_company_wave_categories(
             detail=f"Company with ID '{company_id}' not found",
         )
 
-    stmt = select(WaveCategory).where(WaveCategory.company_id == company_id).order_by(WaveCategory.is_uncategorized.desc(), WaveCategory.name.asc())
+    stmt = (
+        select(WaveCategory)
+        .where(WaveCategory.company_id == company_id, WaveCategory.account_type == "EXPENSE")
+        .order_by(WaveCategory.is_uncategorized.desc(), WaveCategory.name.asc())
+    )
     return list(db.scalars(stmt).all())
 
 
