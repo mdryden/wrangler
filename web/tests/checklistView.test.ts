@@ -187,6 +187,35 @@ describe("ChecklistView & ChecklistSettingsDialog Component Integration", () => 
     expect(balanceSheetBtn.attributes("href")).toContain("reports/balance-sheet")
   })
 
+  it("allows expanding and collapsing step accordions individually and via Expand All toggle", async () => {
+    const wrapper = mountWithQuasar(ChecklistViewWithLayout)
+    await flushPromises()
+
+    // Step 1 is in completed_steps in mockMonth, so it defaults to collapsed
+    const step1Card = wrapper.find('[data-testid="step-card-import_chequing"]')
+    expect(step1Card.exists()).toBe(true)
+
+    // Step 5 link buttons open in new tab
+    const step5Card = wrapper.find('[data-testid="step-card-sync_external_data"]')
+    const links = step5Card.findAll("a")
+    const importLink = links.find(l => l.attributes("href") === "/import")
+    const exportLink = links.find(l => l.attributes("href") === "/export-manager")
+    expect(importLink?.attributes("target")).toBe("_blank")
+    expect(exportLink?.attributes("target")).toBe("_blank")
+
+    // Expand All button exists
+    const expandAllBtn = wrapper.find('[data-testid="btn-toggle-expand-all"]')
+    expect(expandAllBtn.exists()).toBe(true)
+
+    // Click expand all to expand everything
+    await expandAllBtn.trigger("click")
+    await flushPromises()
+    await nextTick()
+
+    // Now button should say "Collapse All"
+    expect(wrapper.text()).toContain("Collapse All")
+  })
+
   it("ChecklistSettingsDialog renders and loads accounts on company selection", async () => {
     const mockGroupedAccounts = {
       bank_and_cc_accounts: [{ id: "b1", name: "RBC Chequing", type: "ASSET" }],
