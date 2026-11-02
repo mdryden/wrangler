@@ -109,6 +109,35 @@ const waveBalanceSheetUrl = computed(() => {
   return `https://next.waveapps.com/${slug}/reports/balance-sheet?end=${ym}-${String(lastDay).padStart(2, "0")}`
 })
 
+const step8MonthName = computed(() => {
+  const ym = store.currentMonth?.year_month || store.selectedYearMonth
+  if (!ym || !ym.includes("-")) return ""
+  const parts = ym.split("-")
+  const year = parseInt(parts[0], 10)
+  const month = parseInt(parts[1], 10)
+  const date = new Date(year, month - 1, 1)
+  return date.toLocaleDateString("en-US", { month: "long" })
+})
+
+const step8LastDayDate = computed(() => {
+  const ym = store.currentMonth?.year_month || store.selectedYearMonth
+  if (!ym || !ym.includes("-")) return ""
+  const parts = ym.split("-")
+  const year = parseInt(parts[0], 10)
+  const month = parseInt(parts[1], 10)
+  const lastDay = new Date(year, month, 0).getDate()
+  return `${ym}-${String(lastDay).padStart(2, "0")}`
+})
+
+const step8JournalDescription = computed(() => {
+  return `${step8MonthName.value} Tax Accrual`
+})
+
+const waveTransactionsUrl = computed(() => {
+  const slug = store.config?.wave_web_business_slug || "d2977f10-6793-4504-a139-f0d6872b2628"
+  return `https://next.waveapps.com/${slug}/transactions`
+})
+
 async function onMonthSelect(val: string | number | null) {
   if (typeof val === "string" && val && val !== store.selectedYearMonth) {
     chequingSyncResult.value = null
@@ -193,20 +222,6 @@ async function handleSyncMastercard() {
     $q.notify({ type: "negative", message: msg })
   } finally {
     syncingType.value = null
-  }
-}
-
-async function handleSyncTaxAccrual() {
-  try {
-    await saveStep8Fields()
-    await store.syncTaxAccrual(store.selectedYearMonth)
-    $q.notify({
-      type: "positive",
-      message: "Corporate tax accrual journal entry successfully posted to Wave",
-    })
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Failed to sync tax accrual"
-    $q.notify({ type: "negative", message: msg })
   }
 }
 </script>
@@ -746,7 +761,7 @@ async function handleSyncTaxAccrual() {
                   post a Journal Entry dated the last day of the month for the calculated Tax Reserve (Debit: Taxes - Corporate Tax; Credit:
                   Taxes Payable).
                 </div>
-                <div class="col-auto">
+                <div class="col-auto row items-center q-gutter-x-sm">
                   <q-btn
                     outline
                     size="sm"
@@ -757,11 +772,21 @@ async function handleSyncTaxAccrual() {
                     target="_blank"
                     data-testid="btn-wave-cash-flow"
                   />
+                  <q-btn
+                    outline
+                    size="sm"
+                    color="primary"
+                    icon="open_in_new"
+                    label="Open Wave Transactions"
+                    :href="waveTransactionsUrl"
+                    target="_blank"
+                    data-testid="btn-wave-transactions"
+                  />
                 </div>
               </div>
 
               <!-- Calculator inputs row directly on white card surface -->
-              <div class="row items-center q-col-gutter-md">
+              <div class="row items-center q-col-gutter-md q-mb-md">
                 <div class="col-12 col-sm-4">
                   <q-input
                     v-model="netCashInput"
@@ -774,7 +799,7 @@ async function handleSyncTaxAccrual() {
                   />
                 </div>
 
-                <div class="col-12 col-sm-2">
+                <div class="col-12 col-sm-3">
                   <q-input
                     v-model="taxRateInput"
                     outlined
@@ -786,25 +811,61 @@ async function handleSyncTaxAccrual() {
                   />
                 </div>
 
-                <div class="col-12 col-sm-3">
+                <div class="col-12 col-sm-5">
                   <div class="text-caption text-grey-7">Calculated Tax Reserve</div>
-                  <div class="text-subtitle1 text-weight-bolder text-primary" data-testid="tax-reserve-amount">
+                  <div class="text-h6 text-weight-bolder text-primary" data-testid="tax-reserve-amount">
                     ${{ store.currentMonth?.tax_reserve_amount || "0.00" }}
                   </div>
                 </div>
+              </div>
 
-                <div class="col-12 col-sm-3 row items-center justify-end q-gutter-x-sm">
-                  <q-badge v-if="store.currentMonth?.tax_accrual_wave_tx_id" color="positive" label="Synced to Wave" />
-                  <q-btn
-                    unelevated
-                    color="primary"
-                    label="Sync Tax Accrual"
-                    :disable="!store.canSyncTaxAccrual || Boolean(store.currentMonth?.tax_accrual_wave_tx_id) || store.isSyncingTax"
-                    :loading="store.isSyncingTax"
-                    @click="handleSyncTaxAccrual"
-                    data-testid="btn-sync-tax-accrual"
-                  />
+              <!-- Journal Entry Guide Box -->
+              <div class="rounded-borders bg-grey-1 q-pa-md border-grey-4" data-testid="journal-entry-guide">
+                <div class="row items-center justify-between q-mb-sm">
+                  <div class="text-subtitle2 text-weight-bold text-grey-9 row items-center q-gutter-x-xs">
+                    <q-icon name="edit_note" size="20px" color="primary" />
+                    <span>Wave Journal Entry Reference</span>
+                  </div>
+                  <div class="text-caption text-grey-6">
+                    Wave &gt; Accounting &gt; Transactions &gt; Add transaction &gt; Add journal entry
+                  </div>
                 </div>
+
+                <div class="row q-col-gutter-md q-mb-sm text-body2">
+                  <div class="col-12 col-sm-4">
+                    <span class="text-weight-medium text-grey-8">Date:</span>
+                    <span class="q-ml-xs text-weight-bold" data-testid="journal-entry-date">{{ step8LastDayDate }}</span>
+                  </div>
+                  <div class="col-12 col-sm-8">
+                    <span class="text-weight-medium text-grey-8">Description:</span>
+                    <span class="q-ml-xs text-weight-bold" data-testid="journal-entry-description">{{ step8JournalDescription }}</span>
+                  </div>
+                </div>
+
+                <q-markup-table dense flat bordered class="bg-white">
+                  <thead>
+                    <tr class="bg-grey-2 text-left">
+                      <th class="text-weight-bold">Line</th>
+                      <th class="text-weight-bold">Account</th>
+                      <th class="text-right text-weight-bold">Debit</th>
+                      <th class="text-right text-weight-bold">Credit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr data-testid="journal-entry-line-1">
+                      <td>1</td>
+                      <td class="text-weight-medium">Taxes - Corporate Tax</td>
+                      <td class="text-right text-weight-bold text-primary">${{ store.currentMonth?.tax_reserve_amount || "0.00" }}</td>
+                      <td class="text-right text-grey-5">—</td>
+                    </tr>
+                    <tr data-testid="journal-entry-line-2">
+                      <td>2</td>
+                      <td class="text-weight-medium">Taxes Payable</td>
+                      <td class="text-right text-grey-5">—</td>
+                      <td class="text-right text-weight-bold text-primary">${{ store.currentMonth?.tax_reserve_amount || "0.00" }}</td>
+                    </tr>
+                  </tbody>
+                </q-markup-table>
               </div>
             </q-card-section>
           </div>

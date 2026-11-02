@@ -154,13 +154,12 @@ describe("ChecklistView & ChecklistSettingsDialog Component Integration", () => 
     expect(syncMcBtn.exists()).toBe(true)
     expect(syncMcBtn.attributes("disabled")).toBeDefined()
 
-    // Step 8: Sync Tax Accrual button is visible and enabled when tax reserve > 0 and not yet synced
-    const syncTaxBtn = wrapper.find('[data-testid="btn-sync-tax-accrual"]')
-    expect(syncTaxBtn.exists()).toBe(true)
-    expect(store.canSyncTaxAccrual).toBe(true)
+    // Step 8: Journal entry guide displays the exact double-entry reference
+    const guide = wrapper.find('[data-testid="journal-entry-guide"]')
+    expect(guide.exists()).toBe(true)
   })
 
-  it("Step 8 calculates tax reserve and links to cash flow report", async () => {
+  it("Step 8 calculates tax reserve, displays journal entry reference, and links to Wave", async () => {
     const wrapper = mountWithQuasar(ChecklistViewWithLayout)
     await flushPromises()
 
@@ -170,6 +169,17 @@ describe("ChecklistView & ChecklistSettingsDialog Component Integration", () => 
     const cashFlowBtn = wrapper.find('[data-testid="btn-wave-cash-flow"]')
     expect(cashFlowBtn.exists()).toBe(true)
     expect(cashFlowBtn.attributes("href")).toContain("https://next.waveapps.com/d2977f10-6793-4504-a139-f0d6872b2628/reports/cash-flow")
+
+    const txBtn = wrapper.find('[data-testid="btn-wave-transactions"]')
+    expect(txBtn.exists()).toBe(true)
+    expect(txBtn.attributes("href")).toContain("https://next.waveapps.com/d2977f10-6793-4504-a139-f0d6872b2628/transactions")
+
+    expect(wrapper.find('[data-testid="journal-entry-date"]').text()).toBe("2026-09-30")
+    expect(wrapper.find('[data-testid="journal-entry-description"]').text()).toBe("September Tax Accrual")
+    expect(wrapper.find('[data-testid="journal-entry-line-1"]').text()).toContain("Taxes - Corporate Tax")
+    expect(wrapper.find('[data-testid="journal-entry-line-1"]').text()).toContain("$600.00")
+    expect(wrapper.find('[data-testid="journal-entry-line-2"]').text()).toContain("Taxes Payable")
+    expect(wrapper.find('[data-testid="journal-entry-line-2"]').text()).toContain("$600.00")
   })
 
   it("Step 9 displays current soft cap, maximum safe draw, and links to balance sheet", async () => {

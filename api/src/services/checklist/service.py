@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import calendar
 import datetime
 import re
 from decimal import Decimal
@@ -226,74 +225,3 @@ async def sync_rbc_feed_to_wave(
         latest_transaction_date=max_csv_date,
         errors=errors,
     )
-
-
-async def sync_tax_accrual_to_wave(
-    db: Session,
-    year_month: str,
-    net_operating_cash: Decimal | None = None,
-    tax_rate: Decimal | None = None,
-) -> MonthlyChecklist:
-    validate_year_month(year_month)
-    config = get_or_create_config(db)
-
-    if not config.company_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Checklist company is not configured in Checklist Settings",
-        )
-
-    company = db.get(Company, config.company_id)
-    if not company or not company.wave_api_token or not company.wave_business_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Configured company is not connected to Wave",
-        )
-
-    if not config.tax_expense_wave_account_id or not config.tax_payable_wave_account_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Tax Expense and Tax Payable accounts must both be configured in Checklist Settings",
-        )
-
-    monthly_checklist = get_or_create_monthly_checklist(db, year_month, config)
-
-    if net_operating_cash is not None:
-        monthly_checklist.net_operating_cash = net_operating_cash
-    if tax_rate is not None:
-        monthly_checklist.tax_rate = tax_rate
-
-    tax_reserve = monthly_checklist.tax_reserve_amount
-    if tax_reserve is None or tax_reserve <= Decimal("0.00"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Tax reserve amount must be greater than $0.00 to post a journal entry",
-        )
-
-    parts = year_month.split("-")
-    year, month = int(parts[0]), int(parts[1])
-    last_day = calendar.monthrange(year, month)[1]
-    date_str = f"{year_month}-{last_day:02d}"
-
-    wave_tx_id = await WaveClient.create_money_transaction(
-        token=company.wave_api_token,
-        business_id=company.wave_business_id,
-        external_id=f"wrangler_tax_accrual_{company.id}_{year_month}",
-        date=date_str,
-        description=f"Corporate Tax Accrual ({year_month})",
-        amount=tax_reserve,
-        anchor_account_id=config.tax_payable_wave_account_id,
-        category_account_id=config.tax_expense_wave_account_id,
-        anchor_direction="WITHDRAWAL",
-        line_balance="INCREASE",
-    )
-
-    monthly_checklist.tax_accrual_wave_tx_id = wave_tx_id
-    steps = list(monthly_checklist.completed_steps)
-    if "calculate_net_cash_and_tax" not in steps:
-        steps.append("calculate_net_cash_and_tax")
-        monthly_checklist.completed_steps = steps
-
-    db.commit()
-    db.refresh(monthly_checklist)
-    return monthly_checklist

@@ -5,7 +5,6 @@ import type {
   MonthlyChecklist,
   MonthlyChecklistPatchPayload,
   RbcCsvSyncResult,
-  TaxAccrualSyncPayload,
   WaveAccountsGrouped,
 } from "../../types/checklist"
 
@@ -34,8 +33,4 @@ export async function syncRbcCsv(yearMonth: string, accountType: "chequing" | "m
   formData.append("account_type", accountType)
   formData.append("file", file)
   return apiClient.post<RbcCsvSyncResult>(`/api/checklist/months/${yearMonth}/sync-rbc-csv`, formData)
-}
-
-export async function syncTaxAccrual(yearMonth: string, payload?: TaxAccrualSyncPayload): Promise<MonthlyChecklist> {
-  return apiClient.post<MonthlyChecklist>(`/api/checklist/months/${yearMonth}/sync-tax-accrual`, payload)
 }

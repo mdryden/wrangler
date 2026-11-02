@@ -120,8 +120,3 @@ class RbcCsvSyncResponse(BaseModel):
     uncategorized_count: int = 0
     latest_transaction_date: datetime.date | None = None
     errors: list[str] = Field(default_factory=list)
-
-
-class TaxAccrualSyncRequest(BaseModel):
-    net_operating_cash: Decimal | None = None
-    tax_rate: Decimal | None = None

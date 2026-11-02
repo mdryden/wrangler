@@ -230,40 +230,5 @@ describe("Checklist Store", () => {
       expect(store.isSyncingCsv).toBe(false)
       expect(res.synced_count).toBe(5)
     })
-
-    it("syncTaxAccrual manages loading state and updates currentMonth", async () => {
-      const store = useChecklistStore()
-      const mockUpdatedMonth: MonthlyChecklist = {
-        id: "m_1",
-        year_month: "2026-09",
-        completed_steps: ["calculate_net_cash_and_tax"],
-        net_operating_cash: "10000.00",
-        tax_rate: "12.00",
-        tax_reserve_amount: "1200.00",
-        tax_accrual_wave_tx_id: "wave_tx_123",
-        prior_soft_cap: "17600.00",
-        monthly_loc_reduction: "400.00",
-        current_soft_cap: "17200.00",
-        tax_liability: null,
-        actual_loc_balance: null,
-        maximum_safe_draw: null,
-        wave_cash_flow_url: "",
-      }
-
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        headers: new Headers({ "content-type": "application/json" }),
-        json: async () => mockUpdatedMonth,
-      })
-
-      const promise = store.syncTaxAccrual("2026-09", "10000.00", "12.00")
-      expect(store.isSyncingTax).toBe(true)
-
-      const result = await promise
-      expect(store.isSyncingTax).toBe(false)
-      expect(result.tax_accrual_wave_tx_id).toBe("wave_tx_123")
-      expect(store.currentMonth?.tax_accrual_wave_tx_id).toBe("wave_tx_123")
-    })
   })
 })

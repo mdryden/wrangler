@@ -431,38 +431,25 @@ def test_sync_tax_accrual_to_wave(client, auth_headers, db_session):
     db_session.add(config)
     db_session.commit()
 
-    # Fails when tax reserve is <= 0
-    resp_bad = client.post(
-        "/api/checklist/months/2026-09/sync-tax-accrual",
-        json={"net_operating_cash": "-500.00"},
+    # Step 8 calculation via PATCH
+    resp = client.patch(
+        "/api/checklist/months/2026-09",
+        json={"net_operating_cash": "10000.00", "tax_rate": "12.00"},
         headers=auth_headers,
     )
-    assert resp_bad.status_code == 400
-    assert "Tax reserve amount must be greater than $0.00" in resp_bad.json()["detail"]
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["net_operating_cash"] == "10000.00"
+    assert data["tax_rate"] == "12.00"
+    assert data["tax_reserve_amount"] == "1200.00"
 
-    with patch.object(WaveClient, "create_money_transaction", new_callable=AsyncMock, return_value="wave_accrual_tx_789") as mock_create:
-        resp = client.post(
-            "/api/checklist/months/2026-09/sync-tax-accrual",
-            json={"net_operating_cash": "10000.00", "tax_rate": "12.00"},
-            headers=auth_headers,
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["tax_reserve_amount"] == "1200.00"
-        assert data["tax_accrual_wave_tx_id"] == "wave_accrual_tx_789"
-        assert "calculate_net_cash_and_tax" in data["completed_steps"]
-
-        mock_create.assert_called_once()
-        kwargs = mock_create.call_args.kwargs
-        assert kwargs["external_id"] == f"wrangler_tax_accrual_{company.id}_2026-09"
-        assert kwargs["date"] == "2026-09-30"  # Last day of September
-        assert kwargs["amount"] == Decimal("1200.00")
-        assert kwargs["anchor_account_id"] == "acct_tax_pay_456"
-        assert kwargs["category_account_id"] == "acct_tax_exp_123"
-        # Tax Payable is a Liability account. In Wave, DEPOSIT credits liability (increasing tax owed).
-        # WITHDRAWAL incorrectly debited the liability, creating a single debit transaction.
-        assert kwargs["anchor_direction"] == "DEPOSIT"
-        assert kwargs["line_balance"] == "INCREASE"
+    # Automated sync endpoint is removed (Step 8 is a manual Journal Entry guidance reminder)
+    resp_removed = client.post(
+        "/api/checklist/months/2026-09/sync-tax-accrual",
+        json={"net_operating_cash": "10000.00"},
+        headers=auth_headers,
+    )
+    assert resp_removed.status_code in (404, 405)
 
 
 def test_sync_rbc_mastercard_csv_real_world_signs(client, auth_headers, db_session):

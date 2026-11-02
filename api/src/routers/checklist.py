@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -15,7 +15,6 @@ from schemas.checklist import (
     MonthlyChecklistResponse,
     MonthlyChecklistUpdate,
     RbcCsvSyncResponse,
-    TaxAccrualSyncRequest,
     WaveAccountsGroupedResponse,
     calculate_wave_cash_flow_url,
 )
@@ -24,7 +23,6 @@ from services.checklist.service import (
     get_or_create_config,
     get_or_create_monthly_checklist,
     sync_rbc_feed_to_wave,
-    sync_tax_accrual_to_wave,
     update_config,
     validate_year_month,
 )
@@ -182,23 +180,3 @@ async def sync_rbc_csv(
     """Parse and sync an RBC Chequing or Mastercard CSV export directly to Wave."""
     file_bytes = await file.read()
     return await sync_rbc_feed_to_wave(db, year_month, account_type, file_bytes)
-
-
-@router.post("/months/{year_month}/sync-tax-accrual", response_model=MonthlyChecklistResponse)
-async def sync_tax_accrual(
-    year_month: str,
-    db: Annotated[Session, Depends(get_db)],
-    payload: Annotated[TaxAccrualSyncRequest | None, Body()] = None,
-) -> MonthlyChecklistResponse:
-    """Post corporate tax accrual journal entry to Wave for the target month."""
-    config = get_or_create_config(db)
-    net_operating_cash = payload.net_operating_cash if payload else None
-    tax_rate = payload.tax_rate if payload else None
-
-    checklist = await sync_tax_accrual_to_wave(
-        db=db,
-        year_month=year_month,
-        net_operating_cash=net_operating_cash,
-        tax_rate=tax_rate,
-    )
-    return _format_monthly_checklist_response(checklist, config.wave_web_business_slug)

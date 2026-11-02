@@ -80,8 +80,3 @@ export interface RbcCsvSyncResult {
   latest_transaction_date: string | null
   errors: string[]
 }
-
-export interface TaxAccrualSyncPayload {
-  net_operating_cash?: string | number | null
-  tax_rate?: string | number | null
-}

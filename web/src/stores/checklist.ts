@@ -6,7 +6,6 @@ import {
   fetchMonthlyChecklist,
   patchMonthlyChecklist,
   syncRbcCsv as apiSyncRbcCsv,
-  syncTaxAccrual as apiSyncTaxAccrual,
   updateChecklistConfig,
 } from "../services/api/checklist"
 import type {
@@ -42,7 +41,6 @@ export const useChecklistStore = defineStore("checklist", () => {
   const groupedWaveAccounts = ref<WaveAccountsGrouped | null>(null)
   const isLoading = ref<boolean>(false)
   const isSyncingCsv = ref<boolean>(false)
-  const isSyncingTax = ref<boolean>(false)
 
   const completedStepsCount = computed(() => currentMonth.value?.completed_steps.length ?? 0)
 
@@ -52,15 +50,6 @@ export const useChecklistStore = defineStore("checklist", () => {
 
   const isChequingConfigured = computed(() => Boolean(config.value?.chequing_wave_account_id))
   const isMastercardConfigured = computed(() => Boolean(config.value?.mastercard_wave_account_id))
-
-  const canSyncTaxAccrual = computed(() => {
-    return Boolean(
-      config.value?.tax_expense_wave_account_id &&
-      config.value?.tax_payable_wave_account_id &&
-      Number(currentMonth.value?.tax_reserve_amount || 0) > 0 &&
-      !currentMonth.value?.tax_accrual_wave_tx_id,
-    )
-  })
 
   async function fetchConfig(): Promise<ChecklistConfig> {
     const data = await fetchChecklistConfig()
@@ -130,22 +119,6 @@ export const useChecklistStore = defineStore("checklist", () => {
     }
   }
 
-  async function syncTaxAccrual(
-    yearMonth: string,
-    netCash?: string | number | null,
-    taxRate?: string | number | null,
-  ): Promise<MonthlyChecklist> {
-    isSyncingTax.value = true
-    try {
-      const payload = netCash !== undefined || taxRate !== undefined ? { net_operating_cash: netCash, tax_rate: taxRate } : undefined
-      const data = await apiSyncTaxAccrual(yearMonth, payload)
-      currentMonth.value = data
-      return data
-    } finally {
-      isSyncingTax.value = false
-    }
-  }
-
   async function setSelectedYearMonth(yearMonth: string): Promise<MonthlyChecklist> {
     return fetchMonth(yearMonth)
   }
@@ -162,12 +135,10 @@ export const useChecklistStore = defineStore("checklist", () => {
     groupedWaveAccounts,
     isLoading,
     isSyncingCsv,
-    isSyncingTax,
     completedStepsCount,
     isStepCompleted,
     isChequingConfigured,
     isMastercardConfigured,
-    canSyncTaxAccrual,
     fetchConfig,
     updateConfig,
     fetchWaveAccounts,
@@ -175,7 +146,6 @@ export const useChecklistStore = defineStore("checklist", () => {
     updateMonth,
     toggleStep,
     syncRbcCsv,
-    syncTaxAccrual,
     setSelectedYearMonth,
     navigateMonth,
   }
