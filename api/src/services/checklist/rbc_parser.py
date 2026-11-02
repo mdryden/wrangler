@@ -89,12 +89,7 @@ def parse_rbc_csv(content: bytes | str, expected_account_type: str) -> list[Norm
             raise ValueError(f"Row {idx}: missing CAD$ amount")
         raw_cad = Decimal(cad_str)
 
-        if expected_acc_lower == "chequing":
-            signed_amount = raw_cad
-        elif expected_acc_lower == "mastercard":
-            signed_amount = -raw_cad
-        else:
-            signed_amount = raw_cad
+        signed_amount = raw_cad
 
         normalized_rows.append(
             NormalizedRbcRow(

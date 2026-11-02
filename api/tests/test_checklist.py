@@ -338,10 +338,10 @@ def test_sync_rbc_mastercard_csv(client, auth_headers, db_session):
 
     csv_content = (
         "Account Type,Account Number,Transaction Date,Cheque Number,Description 1,Description 2,CAD$,USD$\n"
-        "MasterCard,67890,9/10/2026,,Wave Pro Toronto,, 24.50,\n"
-        "MasterCard,67890,9/18/2026,,Purchase interest charges,, 12.30,\n"
-        "MasterCard,67890,9/22/2026,,Payment - Thank You,,-500.00,\n"
-        "MasterCard,67890,9/24/2026,,Hardware Store,, 150.00,\n"
+        "MasterCard,67890,9/10/2026,,Wave Pro Toronto,,-24.50,\n"
+        "MasterCard,67890,9/18/2026,,Purchase interest charges,,-12.30,\n"
+        "MasterCard,67890,9/22/2026,,Payment - Thank You,, 500.00,\n"
+        "MasterCard,67890,9/24/2026,,Hardware Store,,-150.00,\n"
     )
 
     with patch.object(WaveClient, "create_money_transaction", new_callable=AsyncMock, return_value="tx_mc_123") as mock_create:
@@ -360,21 +360,21 @@ def test_sync_rbc_mastercard_csv(client, auth_headers, db_session):
         assert data["latest_transaction_date"] == "2026-09-24"
 
         calls = mock_create.call_args_list
-        # Call 1: Wave Pro Toronto -> positive CAD 24.50 negated to -24.50 (WITHDRAWAL)
+        # Call 1: Wave Pro Toronto -> negative CAD -24.50 charge (WITHDRAWAL)
         assert calls[0].kwargs["anchor_direction"] == "WITHDRAWAL"
         assert calls[0].kwargs["category_account_id"] == "cat_acct_id"
         assert calls[0].kwargs["amount"] == Decimal("24.50")
 
-        # Call 2: Purchase interest -> positive CAD 12.30 negated to -12.30 (WITHDRAWAL)
+        # Call 2: Purchase interest -> negative CAD -12.30 charge (WITHDRAWAL)
         assert calls[1].kwargs["anchor_direction"] == "WITHDRAWAL"
         assert calls[1].kwargs["category_account_id"] == "cat_int_id"
 
-        # Call 3: Payment -> negative CAD -500.00 negated to +500.00 (DEPOSIT)
+        # Call 3: Payment -> positive CAD 500.00 credit (DEPOSIT)
         assert calls[2].kwargs["anchor_direction"] == "DEPOSIT"
         assert calls[2].kwargs["category_account_id"] == "cat_uncat_inc_id"
         assert calls[2].kwargs["amount"] == Decimal("500.00")
 
-        # Call 4: Hardware Store -> positive CAD 150.00 negated to -150.00 (WITHDRAWAL)
+        # Call 4: Hardware Store -> negative CAD -150.00 charge (WITHDRAWAL)
         assert calls[3].kwargs["anchor_direction"] == "WITHDRAWAL"
         assert calls[3].kwargs["category_account_id"] == "cat_uncat_exp_id"
 
@@ -459,5 +459,74 @@ def test_sync_tax_accrual_to_wave(client, auth_headers, db_session):
         assert kwargs["amount"] == Decimal("1200.00")
         assert kwargs["anchor_account_id"] == "acct_tax_pay_456"
         assert kwargs["category_account_id"] == "acct_tax_exp_123"
-        assert kwargs["anchor_direction"] == "WITHDRAWAL"
+        # Tax Payable is a Liability account. In Wave, DEPOSIT credits liability (increasing tax owed).
+        # WITHDRAWAL incorrectly debited the liability, creating a single debit transaction.
+        assert kwargs["anchor_direction"] == "DEPOSIT"
         assert kwargs["line_balance"] == "INCREASE"
+
+
+def test_sync_rbc_mastercard_csv_real_world_signs(client, auth_headers, db_session):
+    company = Company(
+        name="Real MC LTD",
+        wave_api_token="tok_real_mc",
+        wave_business_id="biz_real_mc",
+    )
+    db_session.add(company)
+    db_session.commit()
+
+    config = ChecklistConfig(
+        id=1,
+        company_id=company.id,
+        mastercard_wave_account_id="wave_mc_anchor",
+    )
+    db_session.add(config)
+
+    cat_uncat_exp = WaveCategory(
+        company_id=company.id,
+        wave_account_id="cat_uncat_exp_id",
+        name="Uncategorized Expense",
+        account_type="EXPENSE",
+        account_subtype="UNCATEGORIZED_EXPENSE",
+        is_uncategorized=True,
+    )
+    cat_uncat_inc = WaveCategory(
+        company_id=company.id,
+        wave_account_id="cat_uncat_inc_id",
+        name="Uncategorized Income",
+        account_type="INCOME",
+        account_subtype="UNCATEGORIZED_INCOME",
+        is_uncategorized=True,
+    )
+    db_session.add_all([cat_uncat_exp, cat_uncat_inc])
+    db_session.commit()
+
+    # Matches actual downloaded RBC export format:
+    # Row 1 (Payment/Credit): 228.80 (positive) -> Wave DEPOSIT
+    # Row 2 (Charge/Debit): -1059.45 (negative) -> Wave WITHDRAWAL
+    csv_content = (
+        "Account Type,Account Number,Transaction Date,Cheque Number,Description 1,Description 2,CAD$,USD$\n"
+        "MasterCard,5526125502203481,10/24/2026,,PAYMENT - THANK YOU / PAI EMENT - MERCI,,228.8,\n"
+        "MasterCard,5526125502203481,10/26/2026,,QUALITY FOOTCARE PRODU LONDON,,-1059.45,\n"
+    )
+
+    with patch.object(WaveClient, "create_money_transaction", new_callable=AsyncMock, return_value="tx_mc_real") as mock_create:
+        resp = client.post(
+            "/api/checklist/months/2026-10/sync-rbc-csv",
+            data={"account_type": "mastercard"},
+            files={"file": ("download-transactions.csv", io.BytesIO(csv_content.encode("utf-8")), "text/csv")},
+            headers=auth_headers,
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total_rows"] == 2
+        assert data["synced_count"] == 2
+
+        calls = mock_create.call_args_list
+        # Call 1: Payment of 228.80 should be a credit to Mastercard (DEPOSIT)
+        assert calls[0].kwargs["anchor_direction"] == "DEPOSIT"
+        assert calls[0].kwargs["amount"] == Decimal("228.80")
+
+        # Call 2: Purchase/debit of -1059.45 should be a charge on Mastercard (WITHDRAWAL)
+        assert calls[1].kwargs["anchor_direction"] == "WITHDRAWAL"
+        assert calls[1].kwargs["amount"] == Decimal("1059.45")

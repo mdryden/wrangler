@@ -468,3 +468,13 @@ Allows configuring:
 1. Verify `ChecklistView.vue` defaults to the previous calendar month (`YYYY-MM`) and renders all 9 steps with persistent action controls.
 2. Verify Step 8 dynamically updates the Calculated Tax Reserve and Wave Cash Flow link when switching months or editing Net Operating Cash.
 3. Verify Step 9 dynamically updates Current Soft Cap and Maximum Safe Draw as inputs change.
+
+---
+
+## 8. Errata & Amendments
+
+### 8.1 Mastercard Sign Inversion Superseded (Post-Implementation Correction)
+- **Superseded Sections:** Section 1 (Step 2 summary), Section 2.1 (Step 2 details), Section 3.1 (`parse_rbc_csv`), Section 7.1 (Test 2).
+- **Amendment Details:** The original specification assumed that RBC exports Mastercard transactions with positive values for charges and negative values for payments, dictating a sign inversion (`signed_amount = -raw_cad`). In production testing with real RBC Mastercard CSV exports, charges already export as negative amounts (e.g. `-1059.45`) and payments export as positive amounts (e.g. `228.80`), following the exact same convention as RBC Chequing.
+- **Current Behavior:** `signed_amount = raw_cad` is used uniformly across all account types. No sign negation is performed for Mastercard rows. Negative rows post to Wave with `anchor_direction: "WITHDRAWAL"` (expense/charge), and positive rows post with `anchor_direction: "DEPOSIT"` (credit/payment).
+
